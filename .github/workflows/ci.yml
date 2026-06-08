@@ -5,9 +5,32 @@ on:
   push:
     branches: [main]
 
+env:
+  GODOT_VERSION: "4.6.3"
+
 jobs:
-  checks:
-    name: Lint and unit tests
+  lint:
+    name: GDScript lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install Python tooling
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Run gdlint
+        run: python tools/run_checks.py --lint-only
+
+  test:
+    name: Godot unit tests
     runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.6.3
@@ -15,14 +38,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Python tooling
-        run: |
-          apt-get update
-          apt-get install -y --no-install-recommends python3-pip python3-venv
-          python3 -m venv .venv
-          .venv/bin/pip install --disable-pip-version-check -r requirements-dev.txt
+      - name: Cache Godot import data
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.import') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-
 
-      - name: Run lint and tests
+      - name: Import project assets
+        run: godot --headless --path . --import
+
+      - name: Run unit tests
         run: |
           export GODOT_PATH="$(command -v godot)"
-          .venv/bin/python tools/run_checks.py
+          python3 tools/run_checks.py --tests-only

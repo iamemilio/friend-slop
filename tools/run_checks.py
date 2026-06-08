@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -10,6 +11,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+LINT_PATHS = ("scripts", "tests")
 GDVOSK_GDEXTENSION = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension"
 GDVOSK_GDEXTENSION_DISABLED = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension.disabled"
 # Windows STATUS_ACCESS_VIOLATION when gdvosk unloads after headless test runs.
@@ -96,26 +98,28 @@ def _find_gdlint() -> Path:
     )
 
 
-def run_checks() -> tuple[int, str]:
+def run_lint() -> tuple[int, str]:
     output_lines: list[str] = []
-
     gdlint = _find_gdlint()
     output_lines.append("Running GDScript lint...")
     lint_proc = subprocess.run(
-        [str(gdlint), "."],
+        [str(gdlint), *LINT_PATHS],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
     )
     output_lines.append(lint_proc.stdout)
     output_lines.append(lint_proc.stderr)
-    if lint_proc.returncode != 0:
-        return lint_proc.returncode, "\n".join(line for line in output_lines if line)
+    return lint_proc.returncode, "\n".join(line for line in output_lines if line)
+
+
+def run_tests() -> tuple[int, str]:
+    output_lines: list[str] = []
 
     manifest_issue = _validate_gdvosk_manifest()
     if manifest_issue is not None:
         output_lines.append(manifest_issue)
-        return 1, "\n".join(line for line in output_lines if line)
+        return 1, "\n".join(output_lines)
 
     godot = _find_godot()
     if godot is None:
@@ -152,10 +156,47 @@ def run_checks() -> tuple[int, str]:
     return exit_code, "\n".join(line for line in output_lines if line)
 
 
-def main() -> int:
-    code, _output = run_checks()
+def run_checks(*, lint: bool = True, tests: bool = True) -> tuple[int, str]:
+    output_lines: list[str] = []
+
+    if lint:
+        lint_code, lint_output = run_lint()
+        output_lines.append(lint_output)
+        if lint_code != 0:
+            return lint_code, "\n".join(line for line in output_lines if line)
+
+    if tests:
+        test_code, test_output = run_tests()
+        output_lines.append(test_output)
+        if test_code != 0:
+            return test_code, "\n".join(line for line in output_lines if line)
+
+    return 0, "\n".join(line for line in output_lines if line)
+
+
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run gdlint and Godot unit tests.")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--lint-only",
+        action="store_true",
+        help="Run gdlint only.",
+    )
+    group.add_argument(
+        "--tests-only",
+        action="store_true",
+        help="Run Godot unit tests only.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv or sys.argv[1:])
+    lint = not args.tests_only
+    tests = not args.lint_only
+    code, output = run_checks(lint=lint, tests=tests)
     if code != 0:
-        print(_output, file=sys.stderr)
+        print(output, file=sys.stderr)
     return code
 
 
