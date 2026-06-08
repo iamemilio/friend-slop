@@ -87,12 +87,13 @@ def _find_gdlint() -> Path:
         [sys.executable, "-c", "import sysconfig; print(sysconfig.get_path('scripts'))"],
         text=True,
     ).strip()
-    gdlint = Path(scripts_dir) / "gdlint.exe"
-    if not gdlint.exists():
-        raise FileNotFoundError(
-            "gdlint not found. Install with: python -m pip install -r requirements-dev.txt"
-        )
-    return gdlint
+    for name in ("gdlint.exe", "gdlint"):
+        candidate = Path(scripts_dir) / name
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        "gdlint not found. Install with: python -m pip install -r requirements-dev.txt"
+    )
 
 
 def run_checks() -> tuple[int, str]:

@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+build/
 
 # Large voice recognition assets (install via tools/setup_gdvosk.ps1)
 .cache/

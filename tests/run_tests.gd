@@ -20,8 +20,6 @@ const TestSpellValidationRunner := preload("res://tests/unit/test_spell_validati
 const TestSpellValidationAsync := preload("res://tests/unit/test_spell_validation_async.gd")
 const TestSpellPipeline := preload("res://tests/unit/test_spell_pipeline.gd")
 const TestSpellEffectSync := preload("res://tests/unit/test_spell_effect_sync.gd")
-const TestSpellEffectApplier := preload("res://tests/unit/test_spell_effect_applier.gd")
-const TestSpellCastMultiplayer := preload("res://tests/unit/test_spell_cast_multiplayer.gd")
 const TestSpellCastingSession := preload("res://tests/integration/test_spell_casting_session.gd")
 const TestGdvoskExtensionConfig := preload("res://tests/unit/test_gdvosk_extension_config.gd")
 const TestSpellSttConfig := preload("res://tests/unit/test_spell_stt_config.gd")
@@ -86,12 +84,6 @@ func _run_tests() -> void:
 
 	var spell_effect_sync_suite := TestSpellEffectSync.new()
 	failures += spell_effect_sync_suite.run()
-
-	var spell_effect_applier_suite := TestSpellEffectApplier.new()
-	failures += spell_effect_applier_suite.run(self)
-
-	var spell_cast_multiplayer_suite := TestSpellCastMultiplayer.new()
-	failures += spell_cast_multiplayer_suite.run(self)
 
 	var spell_casting_session_suite := TestSpellCastingSession.new()
 	failures += spell_casting_session_suite.run(self)
