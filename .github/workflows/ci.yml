@@ -7,6 +7,7 @@ on:
 
 env:
   GODOT_VERSION: "4.6.3"
+  GODOT_CI_VERBOSE: "1"
 
 jobs:
   lint:
@@ -35,13 +36,19 @@ jobs:
   test:
     name: Godot unit tests
     runs-on: ubuntu-24.04
-    container:
-      image: barichello/godot-ci:4.6.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache Godot binary
+        id: godot-bin-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/godot
+          key: godot-bin-${{ env.GODOT_VERSION }}-${{ hashFiles('tools/versions.env') }}
+
       - name: Cache Godot import data
+        id: godot-import-cache
         uses: actions/cache@v4
         with:
           path: .godot
@@ -49,8 +56,20 @@ jobs:
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-
 
-      - name: Bootstrap CI container tools
-        run: bash tools/ci_container_bootstrap.sh
+      - name: Log cache status
+        run: |
+          source tools/ci_log.sh
+          ci_log "Godot binary cache hit: ${{ steps.godot-bin-cache.outputs.cache-hit }}"
+          ci_log "Godot import cache hit: ${{ steps.godot-import-cache.outputs.cache-hit }}"
+
+      - name: Install Godot
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip libfontconfig1
+          bash tools/setup_godot_linux.sh
+
+      - name: Import project assets
+        run: bash tools/run_godot_import.sh
 
       - name: Run unit tests
-        run: make test GODOT=godot
+        run: bash tools/run_godot_tests.sh

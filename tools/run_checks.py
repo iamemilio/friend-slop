@@ -137,6 +137,7 @@ def run_tests() -> tuple[int, str]:
 
     output_lines.append("Running Godot unit tests...")
     gdvosk_disabled = _disable_gdvosk_for_tests()
+    timeout_sec = int(os.environ.get("GODOT_TEST_TIMEOUT_SEC", "120"))
     try:
         test_proc = subprocess.run(
             [
@@ -150,7 +151,14 @@ def run_tests() -> tuple[int, str]:
             cwd=str(ROOT),
             capture_output=True,
             text=True,
+            timeout=timeout_sec,
         )
+    except subprocess.TimeoutExpired:
+        output_lines.append(
+            f"Godot unit tests timed out after {timeout_sec}s. "
+            + "Set GODOT_TEST_TIMEOUT_SEC to override."
+        )
+        return 1, "\n".join(output_lines)
     finally:
         _restore_gdvosk_after_tests(gdvosk_disabled)
     output_lines.append(test_proc.stdout)
