@@ -4,6 +4,9 @@ extends RefCounted
 ## File-based STT setup checks (safe on the main game thread without loading gdvosk).
 
 const GDEXTENSION_PATH := "res://addons/gdvosk/gdvosk.gdextension"
+const SETUP_SCRIPT_HINT := (
+	"Run make setup from the repo root (voice deps + dev tooling)."
+)
 const MODEL_SEARCH_PATHS: Array[String] = [
 	"res://addons/gdvosk/model",
 	"res://models/vosk",
@@ -19,14 +22,13 @@ static func get_setup_issue() -> String:
 	if not FileAccess.file_exists(GDEXTENSION_PATH):
 		return (
 			"Speech recognition not installed (gdvosk). "
-			+ "Enable Voice Stub in Settings (ESC) for testing, "
-			+ "or add the gdvosk addon under addons/gdvosk."
+			+ SETUP_SCRIPT_HINT
+			+ " Enable Voice Stub in Settings (ESC) to test without voice."
 		)
 	if find_model_path().is_empty():
 		return (
 			"Vosk speech model not found. "
-			+ "Download a small English model from alphacephei.com/vosk/models "
-			+ "and place it in res://models/vosk/."
+			+ SETUP_SCRIPT_HINT
 		)
 	return ""
 
@@ -39,12 +41,13 @@ static func get_runtime_issue() -> String:
 		if OS.has_feature("editor"):
 			return (
 				"gdvosk is not loaded in the Godot editor. "
-				+ "Run tools/setup_gdvosk.ps1, fully quit Godot, then reopen the project. "
-				+ "Check the Output panel at startup for GDExtension errors."
+				+ SETUP_SCRIPT_HINT
+				+ " Fully quit Godot, reopen the project, and check the Output panel for GDExtension errors."
 			)
 		return (
-			"gdvosk is not loaded. Run tools/setup_gdvosk.ps1, "
-			+ "then restart the game."
+			"gdvosk is not loaded. "
+			+ SETUP_SCRIPT_HINT
+			+ " Then restart the game."
 		)
 	if not GdvoskAdapter.is_model_loaded():
 		var loader_status: String = _speech_stt_loader_status()

@@ -23,11 +23,14 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
+      - name: Verify pinned versions
+        run: make verify-pinned-versions
+
       - name: Install Python tooling
-        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+        run: make setup-dev
 
       - name: Run gdlint
-        run: python tools/run_checks.py --lint-only
+        run: make lint
 
   test:
     name: Godot unit tests
@@ -46,5 +49,8 @@ jobs:
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-
 
+      - name: Bootstrap CI container tools
+        run: bash tools/ci_container_bootstrap.sh
+
       - name: Run unit tests
-        run: godot --headless --path . --script res://tests/run_tests.gd
+        run: make test GODOT=godot

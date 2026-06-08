@@ -28,7 +28,7 @@ static func validate_manifest(manifest_text: String) -> String:
 	return (
 		"gdvosk.gdextension is missing editor library entries required for Play-in-Editor: "
 		+ ", ".join(missing)
-		+ ". Re-run tools/setup_gdvosk.ps1."
+		+ ". Re-run make setup-voice."
 	)
 
 

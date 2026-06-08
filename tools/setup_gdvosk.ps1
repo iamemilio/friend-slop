@@ -1,15 +1,23 @@
 # Installs gdvosk GDExtension and a small English Vosk model for FriendSlop.
 # Run from repo root: powershell -ExecutionPolicy Bypass -File tools/setup_gdvosk.ps1
+# Downloads ~500 MB on first run; later runs reuse .cache/voice-setup/ and skip re-download.
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$VersionsFile = Join-Path $Root "tools\versions.env"
+Get-Content -Path $VersionsFile | ForEach-Object {
+    if ($_ -match '^\s*#' -or $_ -notmatch '=') { return }
+    $parts = $_ -split '=', 2
+    Set-Variable -Name $parts[0].Trim() -Value $parts[1].Trim() -Scope Script
+}
+
 $Cache = Join-Path $Root ".cache\voice-setup"
 $AddonsDir = Join-Path $Root "addons\gdvosk"
 $ModelDir = Join-Path $Root "models\vosk"
 
-$GdvoskUrl = "https://github.com/Nihlus/gdvosk/releases/download/v1.0/gdvosk_1.0.0.zip"
-$ModelUrl = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-$DownloadsZip = Join-Path $env:USERPROFILE "Downloads\gdvosk_1.0.0.zip"
+$GdvoskUrl = "https://github.com/Nihlus/gdvosk/releases/download/$GDVOSK_RELEASE_TAG/$GDVOSK_ZIP"
+$ModelUrl = "https://alphacephei.com/vosk/models/$VOSK_MODEL_ZIP"
+$DownloadsZip = Join-Path $env:USERPROFILE "Downloads\$GDVOSK_ZIP"
 
 New-Item -ItemType Directory -Force -Path $Cache | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path $AddonsDir) | Out-Null
@@ -24,8 +32,8 @@ function Get-FileIfMissing($Url, $Dest) {
     Invoke-WebRequest -Uri $Url -OutFile $Dest -UseBasicParsing
 }
 
-$GdvoskZip = Join-Path $Cache "gdvosk_1.0.0.zip"
-$ModelZip = Join-Path $Cache "vosk-model-small-en-us-0.15.zip"
+$GdvoskZip = Join-Path $Cache $GDVOSK_ZIP
+$ModelZip = Join-Path $Cache $VOSK_MODEL_ZIP
 
 if (Test-Path $DownloadsZip) {
     Write-Host "Using gdvosk zip from Downloads"

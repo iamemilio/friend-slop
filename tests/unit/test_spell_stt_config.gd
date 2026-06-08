@@ -24,8 +24,8 @@ func _test_upstream_manifest_blocks_editor_stt() -> int:
 	if not issue.contains("Play-in-Editor"):
 		push_error("Expected manifest validation to explain Play-in-Editor requirement")
 		return 1
-	if not issue.contains("setup_gdvosk"):
-		push_error("Expected manifest validation to mention setup_gdvosk.ps1")
+	if not issue.contains("make setup-voice"):
+		push_error("Expected manifest validation to mention make setup-voice")
 		return 1
 	return 0
 

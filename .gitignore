@@ -3,7 +3,7 @@
 /android/
 build/
 
-# Large voice recognition assets (install via tools/setup_gdvosk.ps1)
+# Large voice recognition assets (~500 MB; one-time setup via make setup-voice)
 .cache/
 addons/gdvosk/
 models/vosk/
