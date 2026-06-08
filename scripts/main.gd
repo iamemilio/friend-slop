@@ -194,20 +194,15 @@ func apply_synced_spell_cast(
 	if spell == null:
 		TomeDebug.log("Main", "synced spell cast skipped: unknown spell '%s'" % spell_id)
 		return
-	if player.get_effect_applier() == null:
+	var applier := player.get_effect_applier() as SpellEffectApplier
+	if applier == null:
 		return
 	TomeDebug.log(
 		"Main",
 		"synced spell cast peer=%d spell='%s' effect='%s'"
 		% [caster_peer_id, spell_id, spell.effect_id]
 	)
-	SpellEffectApplier.apply_synced_spell_cast_on_peer(
-		players_root,
-		spell_registry,
-		caster_peer_id,
-		spell_id,
-		params
-	)
+	applier.apply_synced_cast(player, spell, params)
 
 
 func _on_cast_state_changed(state: String, spell: SpellDefinition) -> void:

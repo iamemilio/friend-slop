@@ -37,7 +37,7 @@ func host(options: Dictionary) -> Error:
 	_ensure_offline_peer()
 
 	status_changed.emit("Connecting to Noray…")
-	var err := await Noray.connect_to_host(_noray_host, _noray_port)
+	var err: Error = await Noray.connect_to_host(_noray_host, _noray_port)
 	if err != OK:
 		status_changed.emit("Could not reach Noray.")
 		return err
@@ -76,7 +76,7 @@ func join(options: Dictionary) -> Error:
 	_ensure_offline_peer()
 
 	status_changed.emit("Connecting to Noray…")
-	var err := await Noray.connect_to_host(_noray_host, _noray_port)
+	var err: Error = await Noray.connect_to_host(_noray_host, _noray_port)
 	if err != OK:
 		status_changed.emit("Could not reach Noray.")
 		return err
@@ -163,7 +163,7 @@ func _handle_connect(address: String, port: int) -> void:
 	udp.bind(Noray.local_port)
 	udp.set_dest_address(address, port)
 
-	var err := await PacketHandshake.over_packet_peer(udp)
+	var err: Error = await PacketHandshake.over_packet_peer(udp)
 	udp.close()
 
 	if err != OK and err != ERR_BUSY:

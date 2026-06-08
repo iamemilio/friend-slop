@@ -44,23 +44,3 @@ func apply_synced_cast(
 	if params.is_empty():
 		return
 	SyncScript.apply(player, params)
-
-
-static func apply_synced_spell_cast_on_peer(
-	players_root: Node,
-	spell_registry: SpellRegistry,
-	caster_peer_id: int,
-	spell_id: String,
-	params: Dictionary
-) -> bool:
-	var player := players_root.get_node_or_null(str(caster_peer_id)) as CharacterBody3D
-	if player == null:
-		return false
-	var spell := spell_registry.get_spell(spell_id)
-	if spell == null:
-		return false
-	var applier := player.get_effect_applier() as SpellEffectApplier
-	if applier == null:
-		return false
-	applier.apply_synced_cast(player, spell, params)
-	return true

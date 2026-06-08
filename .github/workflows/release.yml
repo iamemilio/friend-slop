@@ -1,0 +1,83 @@
+name: Release Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: 4.6.3
+  EXPORT_NAME: FriendSlop
+
+jobs:
+  export:
+    name: Export ${{ matrix.platform_label }}
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.6.3
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - preset: Windows Desktop
+            platform_label: Windows
+            artifact_name: FriendSlop-windows
+            export_path: build/windows/FriendSlop.exe
+            output_dir: build/windows
+          - preset: Linux
+            platform_label: Linux
+            artifact_name: FriendSlop-linux
+            export_path: build/linux/FriendSlop.x86_64
+            output_dir: build/linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot export templates
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          mv "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" \
+            ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Install voice dependencies
+        run: bash tools/setup_gdvosk.sh
+
+      - name: Import project assets
+        run: godot --headless --path . --import
+
+      - name: Export game
+        run: |
+          mkdir -p "$(dirname "${{ matrix.export_path }}")"
+          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.export_path }}"
+
+      - name: Package release archive
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="manual-${{ github.run_number }}"
+          fi
+          ARCHIVE="${{ matrix.artifact_name }}-${TAG}.zip"
+          cd "${{ matrix.output_dir }}"
+          zip -r "../../${ARCHIVE}" .
+          cd ../..
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Upload release asset
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ARCHIVE }}
+          tag_name: ${{ github.event.release.tag_name }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload workflow artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARCHIVE }}
+          path: ${{ env.ARCHIVE }}
