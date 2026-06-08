@@ -18,10 +18,11 @@ jobs:
       - name: Install Python tooling
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends python3-pip
-          python3 -m pip install --disable-pip-version-check -r requirements-dev.txt
+          apt-get install -y --no-install-recommends python3-pip python3-venv
+          python3 -m venv .venv
+          .venv/bin/pip install --disable-pip-version-check -r requirements-dev.txt
 
       - name: Run lint and tests
         run: |
           export GODOT_PATH="$(command -v godot)"
-          python3 tools/run_checks.py
+          .venv/bin/python tools/run_checks.py
