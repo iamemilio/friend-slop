@@ -8,13 +8,12 @@ on:
 env:
   GODOT_VERSION: 4.6.3
   EXPORT_NAME: FriendSlop
+  GODOT_CI_VERBOSE: "1"
 
 jobs:
   export:
     name: Export ${{ matrix.platform_label }}
     runs-on: ubuntu-24.04
-    container:
-      image: barichello/godot-ci:4.6.3
     permissions:
       contents: write
     strategy:
@@ -35,9 +34,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore voice dependency cache
+      - name: Cache Godot binary
+        id: godot-bin-cache
         uses: actions/cache@v4
+        with:
+          path: .cache/godot
+          key: godot-bin-${{ env.GODOT_VERSION }}-${{ hashFiles('tools/versions.env') }}
+
+      - name: Cache Godot export templates
+        id: godot-export-cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/godot-export-templates
+          key: godot-export-templates-${{ env.GODOT_VERSION }}-${{ hashFiles('tools/versions.env') }}
+
+      - name: Restore voice dependency cache
         id: voice-cache
+        uses: actions/cache@v4
         with:
           path: |
             .cache/voice-setup
@@ -45,24 +58,8 @@ jobs:
             models/vosk
           key: voice-${{ hashFiles('tools/versions.env') }}
 
-      - name: Setup Godot export templates
-        run: |
-          mkdir -v -p ~/.local/share/godot/export_templates/
-          mv "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" \
-            ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
-
-      - name: Bootstrap CI container tools
-        run: bash tools/ci_container_bootstrap.sh
-
-      - name: Install voice dependencies
-        run: |
-          if [[ "${{ steps.voice-cache.outputs.cache-hit }}" != "true" ]]; then
-            apt-get update
-            apt-get install -y curl unzip
-          fi
-          make setup-voice
-
       - name: Cache Godot import data
+        id: godot-import-cache
         uses: actions/cache@v4
         with:
           path: .godot
@@ -70,26 +67,48 @@ jobs:
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-
 
+      - name: Log cache status
+        run: |
+          source tools/ci_log.sh
+          ci_log "Godot binary cache hit: ${{ steps.godot-bin-cache.outputs.cache-hit }}"
+          ci_log "Export templates cache hit: ${{ steps.godot-export-cache.outputs.cache-hit }}"
+          ci_log "Voice dependency cache hit: ${{ steps.voice-cache.outputs.cache-hit }}"
+          ci_log "Godot import cache hit: ${{ steps.godot-import-cache.outputs.cache-hit }}"
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip zip curl libfontconfig1
+
+      - name: Install Godot and export templates
+        run: |
+          bash tools/setup_godot_linux.sh
+          bash tools/setup_godot_export_templates.sh
+
+      - name: Install voice dependencies
+        run: bash tools/run_setup_voice.sh
+
       - name: Import project assets
-        run: make import GODOT=godot
+        run: bash tools/run_godot_import.sh
 
       - name: Export game
-        run: |
-          mkdir -p "$(dirname "${{ matrix.export_path }}")"
-          godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.export_path }}"
+        run: bash tools/run_godot_export.sh "${{ matrix.preset }}" "${{ matrix.export_path }}"
 
       - name: Package release archive
         run: |
+          source tools/ci_log.sh
           if [[ "${{ github.event_name }}" == "release" ]]; then
             TAG="${{ github.event.release.tag_name }}"
           else
             TAG="manual-${{ github.run_number }}"
           fi
           ARCHIVE="${{ matrix.artifact_name }}-${TAG}.zip"
+          ci_log "Packaging $ARCHIVE from ${{ matrix.output_dir }}"
           cd "${{ matrix.output_dir }}"
           zip -r "../../${ARCHIVE}" .
           cd ../..
           echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+          ci_log "Created $(du -h "$ARCHIVE" | awk '{print $1}') archive"
 
       - name: Upload release asset
         if: github.event_name == 'release'

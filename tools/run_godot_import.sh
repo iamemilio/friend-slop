@@ -23,6 +23,25 @@ fi
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
 
+GDEXT="$ROOT/addons/gdvosk/gdvosk.gdextension"
+GDEXT_DISABLED="$ROOT/addons/gdvosk/gdvosk.gdextension.disabled"
+GDVOSK_DISABLED=false
+
+restore_gdvosk() {
+	if [[ "$GDVOSK_DISABLED" == "true" && -f "$GDEXT_DISABLED" && ! -f "$GDEXT" ]]; then
+		mv "$GDEXT_DISABLED" "$GDEXT"
+		ci_log "Restored gdvosk.gdextension after import"
+	fi
+}
+
+if [[ -f "$GDEXT" ]]; then
+	rm -f "$GDEXT_DISABLED"
+	mv "$GDEXT" "$GDEXT_DISABLED"
+	GDVOSK_DISABLED=true
+	ci_log "Disabled gdvosk.gdextension during import (avoids headless unload crash)"
+fi
+trap restore_gdvosk EXIT
+
 ci_step_start "godot_import"
 ci_log "Godot binary: $GODOT_BIN"
 ci_log "Import timeout: ${IMPORT_TIMEOUT_SEC}s"
@@ -70,6 +89,12 @@ if [[ "$exit_code" -eq 124 ]]; then
 fi
 
 if [[ "$exit_code" -ne 0 ]]; then
+	if [[ "$exit_code" -eq 139 ]] && grep -q '\[ DONE \].*first_scan_filesystem' "$LOG_FILE" 2>/dev/null; then
+		ci_log "WARN: Godot import exited with segfault (139) after completing import; treating as success"
+		ci_log "Import finished OK (gdvosk unload crash on exit)"
+		ci_step_end "godot_import"
+		exit 0
+	fi
 	ci_log "ERROR: Godot import failed (exit $exit_code)"
 	tail -60 "$LOG_FILE" | sed 's/^/[godot] /'
 	ci_step_end "godot_import"

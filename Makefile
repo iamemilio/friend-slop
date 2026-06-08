@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help setup setup-dev setup-voice lint test test-ci check import verify-pinned-versions verify-voice ci-container-bootstrap
+.PHONY: help setup setup-dev setup-voice lint test test-ci release-ci check import verify-pinned-versions verify-voice ci-container-bootstrap
 
 ifeq ($(OS),Windows_NT)
 PYTHON ?= python
@@ -28,6 +28,7 @@ help:
 	@echo "  make lint                  gdlint via tools/run_checks.py"
 	@echo "  make test                  Godot unit tests via tools/run_checks.py"
 	@echo "  make test-ci               smoke-test the GitHub Actions test job locally"
+	@echo "  make release-ci            smoke-test the GitHub Actions release export (Linux)"
 	@echo "  make check                 lint + test"
 	@echo "  make import                godot --headless --import"
 	@echo "  make verify-pinned-versions  CI guard: workflows match tools/versions.env"
@@ -61,6 +62,9 @@ test:
 
 test-ci:
 	bash tools/ci_smoke_test_job.sh
+
+release-ci:
+	bash tools/ci_smoke_release_job.sh
 
 check: lint test
 
