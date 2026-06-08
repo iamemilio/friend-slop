@@ -1,0 +1,19 @@
+---
+description: Run gdlint after editing GDScript files
+globs: **/*.gd
+alwaysApply: false
+---
+
+# GDScript linting
+
+After editing `.gd` files, run the project checks:
+
+```powershell
+python tools/run_checks.py
+```
+
+Or use the VS Code task **Run All Checks**.
+
+Install the linter if missing: `python -m pip install -r requirements-dev.txt`
+
+Lint config lives in `.gdlintrc` at the repo root.

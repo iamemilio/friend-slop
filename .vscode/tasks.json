@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run All Checks",
+      "type": "shell",
+      "command": "python \"${workspaceFolder}/tools/run_checks.py\"",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "GDScript: Lint",
+      "type": "shell",
+      "command": "powershell -ExecutionPolicy Bypass -File \"${workspaceFolder}/tools/gdlint.ps1\" .",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Godot: Run Unit Tests",
+      "type": "shell",
+      "command": "\"C:/Users/iamem/Desktop/Design/Godot_v4.6.3-stable_win64.exe\" --headless --path \"${workspaceFolder}\" --script res://tests/run_tests.gd",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

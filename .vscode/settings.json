@@ -1,0 +1,8 @@
+{
+  "godotTools.editorPath": "C:/Users/iamem/Desktop/Design/Godot_v4.6.3-stable_win64.exe",
+  "godotTools.gdscript_lsp_server_protocol": "ws",
+  "[gdscript]": {
+    "editor.tabSize": 4,
+    "editor.insertSpaces": false
+  }
+}

@@ -1,0 +1,242 @@
+[gd_scene load_steps=3 format=3 uid="uid://csettingspanel001"]
+
+[ext_resource type="Script" path="res://scripts/ui/settings_panel.gd" id="1_settings"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.09, 0.18, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.45, 0.75, 0.95, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="SettingsPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_settings")
+
+[node name="Dimmer" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -320.0
+offset_top = -280.0
+offset_right = 320.0
+offset_bottom = 280.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="Panel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TitleLabel" type="Label" parent="Panel/MarginContainer/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = "Settings"
+horizontal_alignment = 1
+
+[node name="TabContainer" type="TabContainer" parent="Panel/MarginContainer/VBox"]
+custom_minimum_size = Vector2(0, 420)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="General" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/General"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="GeneralVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="CameraHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Camera"
+
+[node name="StartThirdPersonCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Start in third person"
+
+[node name="CameraHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "Choose the camera view when a game starts. You can still switch during play."
+
+[node name="Audio" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="AudioVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="OutputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Output Device"
+
+[node name="OutputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="InputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Input Device (Microphone)"
+
+[node name="InputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="MasterVolumeRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MasterVolumeCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Master Volume"
+
+[node name="MasterVolumeSlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 1.0
+
+[node name="MasterVolumeLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
+text = "100%"
+horizontal_alignment = 2
+
+[node name="MicTestLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Microphone Test"
+
+[node name="MicTestButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "Test Microphone"
+
+[node name="MicLevelBar" type="ProgressBar" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+show_percentage = false
+
+[node name="MicStatusLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "Press Test Microphone to check input."
+
+[node name="Developer" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="DevVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="DevHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Developer Options"
+
+[node name="DevTomeCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Spawn test tome at start"
+
+[node name="DevTomeSpellRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="DevTomeSpellLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevTomeSpellRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Test tome spell"
+
+[node name="DevTomeSpellOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevTomeSpellRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VoiceStubCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Stub voice validation (always succeed)"
+
+[node name="DevHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "Developer options are saved locally and apply on the next run."
+
+[node name="CloseButton" type="Button" parent="Panel/MarginContainer/VBox"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "Save & Close"

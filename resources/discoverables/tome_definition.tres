@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DiscoverableDefinition" load_steps=3 format=3 uid="uid://disc_tome"]
+
+[ext_resource type="Script" path="res://scripts/discoverables/discoverable_definition.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://ctome001" path="res://scenes/discoverables/tome.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "tome"
+display_name = "Spell Tome"
+scene = ExtResource("2")
+min_dist_from_special = 4
+min_dist_between = 6

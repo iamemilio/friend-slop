@@ -1,0 +1,15 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Large voice recognition assets (install via tools/setup_gdvosk.ps1)
+.cache/
+addons/gdvosk/
+models/vosk/
+
+# Cursor hook debug log
+.cursor/hooks/last-run.log
+
+# Python
+__pycache__/
+*.pyc

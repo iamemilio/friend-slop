@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="DiscoverableRunConfig" format=3 uid="uid://cyg7o8wvlijw5"]
+
+[ext_resource type="Script" uid="uid://dvi2i1671jiin" path="res://scripts/discoverables/discoverable_run_config.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://4udot86ajuk0" path="res://scripts/discoverables/discoverable_spawn_entry.gd" id="2_script"]
+[ext_resource type="Resource" path="res://resources/discoverables/tome_definition.tres" id="3_tome"]
+
+[sub_resource type="Resource" id="entry_1"]
+script = ExtResource("2_script")
+definition = ExtResource("3_tome")
+count = 3
+variant_ids = PackedStringArray("lumos", "haste", "fireball")
+
+[resource]
+script = ExtResource("1_script")
+entries = Array[ExtResource("2_script")]([SubResource("entry_1")])

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SpellDefinition" load_steps=2 format=3 uid="uid://spell_fireball"]
+
+[ext_resource type="Script" path="res://scripts/spells/spell_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "fireball"
+display_name = "Fireball"
+incantation_words = PackedStringArray("fireball")
+syllable_cadence_ms = PackedInt32Array(0)
+cooldown_sec = 8.0
+effect_id = "fireball"
