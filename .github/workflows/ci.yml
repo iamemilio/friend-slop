@@ -46,10 +46,5 @@ jobs:
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-
 
-      - name: Import project assets
-        run: godot --headless --path . --import
-
       - name: Run unit tests
-        run: |
-          export GODOT_PATH="$(command -v godot)"
-          python3 tools/run_checks.py --tests-only
+        run: godot --headless --path . --script res://tests/run_tests.gd
