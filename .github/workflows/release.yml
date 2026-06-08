@@ -35,17 +35,43 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore voice dependency cache
+        uses: actions/cache@v4
+        id: voice-cache
+        with:
+          path: |
+            .cache/voice-setup
+            addons/gdvosk
+            models/vosk
+          key: voice-${{ hashFiles('tools/versions.env') }}
+
       - name: Setup Godot export templates
         run: |
           mkdir -v -p ~/.local/share/godot/export_templates/
           mv "/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable" \
             ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
 
+      - name: Bootstrap CI container tools
+        run: bash tools/ci_container_bootstrap.sh
+
       - name: Install voice dependencies
-        run: bash tools/setup_gdvosk.sh
+        run: |
+          if [[ "${{ steps.voice-cache.outputs.cache-hit }}" != "true" ]]; then
+            apt-get update
+            apt-get install -y curl unzip
+          fi
+          make setup-voice
+
+      - name: Cache Godot import data
+        uses: actions/cache@v4
+        with:
+          path: .godot
+          key: godot-import-${{ env.GODOT_VERSION }}-${{ hashFiles('project.godot', '**/*.import') }}
+          restore-keys: |
+            godot-import-${{ env.GODOT_VERSION }}-
 
       - name: Import project assets
-        run: godot --headless --path . --import
+        run: make import GODOT=godot
 
       - name: Export game
         run: |

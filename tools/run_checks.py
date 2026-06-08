@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,7 +36,7 @@ def _validate_gdvosk_manifest() -> str | None:
     return (
         "gdvosk.gdextension is missing editor library entries: "
         + ", ".join(missing)
-        + ". Re-run tools/setup_gdvosk.ps1."
+        + ". Re-run make setup-voice."
     )
 
 
@@ -81,6 +82,10 @@ def _find_godot() -> Path | None:
             candidate = Path(str(editor_path))
             if candidate.exists():
                 return candidate
+
+    which_godot = shutil.which("godot")
+    if which_godot:
+        return Path(which_godot)
     return None
 
 
@@ -94,7 +99,7 @@ def _find_gdlint() -> Path:
         if candidate.exists():
             return candidate
     raise FileNotFoundError(
-        "gdlint not found. Install with: python -m pip install -r requirements-dev.txt"
+        "gdlint not found. Install with: make setup-dev"
     )
 
 
@@ -132,6 +137,7 @@ def run_tests() -> tuple[int, str]:
 
     output_lines.append("Running Godot unit tests...")
     gdvosk_disabled = _disable_gdvosk_for_tests()
+    timeout_sec = int(os.environ.get("GODOT_TEST_TIMEOUT_SEC", "120"))
     try:
         test_proc = subprocess.run(
             [
@@ -145,7 +151,14 @@ def run_tests() -> tuple[int, str]:
             cwd=str(ROOT),
             capture_output=True,
             text=True,
+            timeout=timeout_sec,
         )
+    except subprocess.TimeoutExpired:
+        output_lines.append(
+            f"Godot unit tests timed out after {timeout_sec}s. "
+            + "Set GODOT_TEST_TIMEOUT_SEC to override."
+        )
+        return 1, "\n".join(output_lines)
     finally:
         _restore_gdvosk_after_tests(gdvosk_disabled)
     output_lines.append(test_proc.stdout)

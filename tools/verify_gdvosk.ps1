@@ -26,17 +26,17 @@ if (Test-Path $GdExtensionDisabled) {
 }
 
 if (-not (Test-Path $GdExtension)) {
-    Write-Error "gdvosk not installed. Run tools/setup_gdvosk.ps1 first."
+    Write-Error "gdvosk not installed. Run make setup-voice first."
 }
 
 if (-not (Test-Path $WindowsLib)) {
-    Write-Error "gdvosk native library missing at $WindowsLib. Re-run tools/setup_gdvosk.ps1."
+    Write-Error "gdvosk native library missing at $WindowsLib. Re-run make setup-voice."
 }
 
 $manifest = Get-Content $GdExtension -Raw
 foreach ($key in $RequiredEditorKeys) {
     if ($manifest -notmatch [regex]::Escape("$key =")) {
-        Write-Error "gdvosk.gdextension is missing '$key'. Run tools/setup_gdvosk.ps1."
+        Write-Error "gdvosk.gdextension is missing '$key'. Run make setup-voice."
     }
 }
 
@@ -45,7 +45,7 @@ if (Test-Path $ModelDir) {
     $modelFound = @(Get-ChildItem -Path $ModelDir -Directory -ErrorAction SilentlyContinue).Count -gt 0
 }
 if (-not $modelFound) {
-    Write-Error "Vosk model not found under $ModelDir. Run tools/setup_gdvosk.ps1."
+    Write-Error "Vosk model not found under $ModelDir. Run make setup-voice."
 }
 
 Write-Host "gdvosk verify passed:"
