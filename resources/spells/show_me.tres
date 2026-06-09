@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SpellDefinition" load_steps=2 format=3 uid="uid://spell_show_me"]
+
+[ext_resource type="Script" path="res://scripts/spells/spell_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "show_me"
+display_name = "Show Me"
+incantation_words = PackedStringArray("show", "me")
+syllable_cadence_ms = PackedInt32Array(0, 200)
+cooldown_sec = 6.0
+effect_id = "light"

@@ -6,14 +6,13 @@ signal settings_applied
 
 const SETTINGS_PATH := "user://settings.cfg"
 const MIC_BUS_NAME := "MicCapture"
-const DEV_TOME_SPELL_IDS: Array[String] = ["lumos", "haste", "fireball"]
 
 var start_third_person: bool = false
 var master_volume: float = 1.0
 var input_device: String = ""
 var output_device: String = ""
-var dev_tome_at_spawn: bool = false
-var dev_tome_spell_id: String = "lumos"
+var dev_solo_role: int = GameState.PlayerRole.APPRENTICE
+var dev_solo_starting_node_id: String = ""
 var voice_use_stub: bool = false
 
 var _capture_effect: AudioEffectCapture
@@ -25,7 +24,6 @@ func _ready() -> void:
 	_ensure_mic_bus()
 	load_settings()
 	apply_audio_settings()
-	_sync_game_state()
 
 
 func load_settings() -> void:
@@ -37,32 +35,27 @@ func load_settings() -> void:
 	master_volume = config.get_value("audio", "master_volume", master_volume)
 	input_device = config.get_value("audio", "input_device", input_device)
 	output_device = config.get_value("audio", "output_device", output_device)
-	dev_tome_at_spawn = config.get_value("dev", "dev_tome_at_spawn", dev_tome_at_spawn)
-	dev_tome_spell_id = config.get_value("dev", "dev_tome_spell_id", dev_tome_spell_id)
+	dev_solo_role = int(config.get_value("dev", "dev_solo_role", dev_solo_role))
+	dev_solo_starting_node_id = String(
+		config.get_value("dev", "dev_solo_starting_node_id", dev_solo_starting_node_id)
+	)
 	voice_use_stub = config.get_value("dev", "voice_use_stub", voice_use_stub)
-	dev_tome_spell_id = normalize_dev_tome_spell_id(dev_tome_spell_id)
+	dev_solo_starting_node_id = _normalize_dev_starting_node_id(
+		dev_solo_role,
+		dev_solo_starting_node_id
+	)
 
 
-func get_dev_tome_spell_ids() -> Array[String]:
-	return DEV_TOME_SPELL_IDS.duplicate()
+func get_dev_solo_binding() -> Binding:
+	var binding := Binding.create_for_role(dev_solo_role)
+	var tree := binding.get_tree_definition()
+	if tree.is_valid_starting_node(dev_solo_starting_node_id):
+		binding.starting_node_id = dev_solo_starting_node_id
+	return binding
 
 
-func get_dev_tome_spell_label(spell_id: String) -> String:
-	match spell_id:
-		"lumos":
-			return "Lumos"
-		"haste":
-			return "Haste"
-		"fireball":
-			return "Fireball"
-		_:
-			return spell_id.capitalize()
-
-
-func normalize_dev_tome_spell_id(spell_id: String) -> String:
-	if spell_id in DEV_TOME_SPELL_IDS:
-		return spell_id
-	return DEV_TOME_SPELL_IDS[0]
+func apply_solo_dev_loadout_to_game_state() -> void:
+	GameState.apply_solo_dev_loadout(dev_solo_role, get_dev_solo_binding())
 
 
 func save_settings() -> void:
@@ -71,12 +64,14 @@ func save_settings() -> void:
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("audio", "input_device", input_device)
 	config.set_value("audio", "output_device", output_device)
-	config.set_value("dev", "dev_tome_at_spawn", dev_tome_at_spawn)
-	dev_tome_spell_id = normalize_dev_tome_spell_id(dev_tome_spell_id)
-	config.set_value("dev", "dev_tome_spell_id", dev_tome_spell_id)
+	dev_solo_starting_node_id = _normalize_dev_starting_node_id(
+		dev_solo_role,
+		dev_solo_starting_node_id
+	)
+	config.set_value("dev", "dev_solo_role", dev_solo_role)
+	config.set_value("dev", "dev_solo_starting_node_id", dev_solo_starting_node_id)
 	config.set_value("dev", "voice_use_stub", voice_use_stub)
 	config.save(SETTINGS_PATH)
-	_sync_game_state()
 	settings_applied.emit()
 
 
@@ -151,6 +146,14 @@ func poll_mic_level() -> float:
 	return sqrt(sum_sq / float(count))
 
 
+func _normalize_dev_starting_node_id(role: int, node_id: String) -> String:
+	var binding := Binding.create_for_role(role)
+	var tree := binding.get_tree_definition()
+	if tree.is_valid_starting_node(node_id):
+		return node_id
+	return tree.get_default_starting_node_id()
+
+
 func _ensure_mic_bus() -> void:
 	if AudioServer.get_bus_index(MIC_BUS_NAME) >= 0:
 		_cache_capture_effect()
@@ -173,8 +176,3 @@ func _cache_capture_effect() -> void:
 		if effect is AudioEffectCapture:
 			_capture_effect = effect
 			return
-
-
-func _sync_game_state() -> void:
-	GameState.dev_tome_at_spawn = dev_tome_at_spawn
-	GameState.dev_tome_spell_id = dev_tome_spell_id

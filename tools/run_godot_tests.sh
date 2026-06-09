@@ -23,6 +23,9 @@ fi
 GDEXT="$ROOT/addons/gdvosk/gdvosk.gdextension"
 GDEXT_DISABLED="$ROOT/addons/gdvosk/gdvosk.gdextension.disabled"
 GDVOSK_DISABLED=false
+STEAM_GDEXT="$ROOT/addons/godotsteam/godotsteam.gdextension"
+STEAM_GDEXT_DISABLED="$ROOT/addons/godotsteam/godotsteam.gdextension.disabled"
+GODOTSTEAM_DISABLED=false
 
 restore_gdvosk() {
 	if [[ "$GDVOSK_DISABLED" == "true" && -f "$GDEXT_DISABLED" && ! -f "$GDEXT" ]]; then
@@ -31,14 +34,40 @@ restore_gdvosk() {
 	fi
 }
 
+restore_godotsteam() {
+	if [[ "$GODOTSTEAM_DISABLED" == "true" && -f "$STEAM_GDEXT_DISABLED" && ! -f "$STEAM_GDEXT" ]]; then
+		mv "$STEAM_GDEXT_DISABLED" "$STEAM_GDEXT"
+		ci_log "Restored godotsteam.gdextension after tests"
+	fi
+}
+
+restore_test_extensions() {
+	restore_godotsteam
+	restore_gdvosk
+}
+
+ensure_extensions_restored() {
+	if [[ -f "$GDEXT_DISABLED" && ! -f "$GDEXT" ]]; then
+		mv "$GDEXT_DISABLED" "$GDEXT"
+	fi
+	if [[ -f "$STEAM_GDEXT_DISABLED" && ! -f "$STEAM_GDEXT" ]]; then
+		mv "$STEAM_GDEXT_DISABLED" "$STEAM_GDEXT"
+	fi
+}
+
 ci_step_start "godot_unit_tests"
+ensure_extensions_restored
 ci_log "Godot binary: $GODOT_BIN"
 ci_log "Test timeout: ${TIMEOUT_SEC}s"
 ci_log "Test log: $LOG_FILE"
 
-if [[ ! -f "$ROOT/addons/godotsteam/godotsteam.gdextension" ]]; then
-	ci_log "ERROR: GodotSteam missing. Run tools/run_setup_steam.sh first."
-	exit 1
+if [[ -f "$STEAM_GDEXT" ]]; then
+	rm -f "$STEAM_GDEXT_DISABLED"
+	mv "$STEAM_GDEXT" "$STEAM_GDEXT_DISABLED"
+	GODOTSTEAM_DISABLED=true
+	ci_log "Disabled godotsteam.gdextension for headless test run (no live Steam)"
+else
+	ci_log "godotsteam.gdextension not present (tests run offline without GodotSteam)"
 fi
 
 if [[ -f "$GDEXT" ]]; then
@@ -49,10 +78,12 @@ if [[ -f "$GDEXT" ]]; then
 else
 	ci_log "gdvosk.gdextension not present (skipping disable step)"
 fi
-trap restore_gdvosk EXIT
+trap restore_test_extensions EXIT
 
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
+
+export FRIEND_SLOP_TEST=1
 
 godot_args=(--headless --path . --script res://tests/run_tests.gd)
 if [[ "${GODOT_CI_VERBOSE:-}" == "1" ]]; then

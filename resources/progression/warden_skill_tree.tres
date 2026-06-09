@@ -1,0 +1,123 @@
+[gd_resource type="Resource" script_class="WardenSkillTreeDefinition" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/progression/warden_skill_tree_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/progression/skill_tree_node_definition.gd" id="2_node"]
+
+[sub_resource type="Resource" id="node_hunter"]
+script = ExtResource("2_node")
+node_id = "hunter"
+display_name = "Hunter"
+summary = "Track apprentices and strike from the shadows."
+tier = 0
+column = 0
+spell_ids = Array[String](["warden_stalk", "warden_pounce", "warden_mark"])
+stat_bonuses = {
+"Dread": "+5 starting dread"
+}
+
+[sub_resource type="Resource" id="node_deceiver"]
+script = ExtResource("2_node")
+node_id = "deceiver"
+display_name = "Deceiver"
+summary = "Sow mistrust with illusions and misdirection."
+tier = 0
+column = 1
+spell_ids = Array[String](["warden_whisper", "warden_mirror", "warden_fade"])
+passive_descriptions = Array[String](["Muffled footsteps while powers are ready."])
+
+[sub_resource type="Resource" id="node_architect"]
+script = ExtResource("2_node")
+node_id = "architect"
+display_name = "Architect"
+summary = "Reshape the maze and control the hunt."
+tier = 0
+column = 2
+spell_ids = Array[String](["warden_shift", "warden_seal", "warden_forge"])
+stat_bonuses = {
+"Control": "+10% mutation duration"
+}
+
+[sub_resource type="Resource" id="node_predator"]
+script = ExtResource("2_node")
+node_id = "predator"
+display_name = "Predator"
+summary = "Marked prey stays visible longer."
+tier = 1
+column = 0
+prerequisite_ids = Array[String](["hunter"])
+passive_descriptions = Array[String](["Mark reveals apprentices through one wall."])
+
+[sub_resource type="Resource" id="node_echo"]
+script = ExtResource("2_node")
+node_id = "echo"
+display_name = "Echo"
+summary = "Fake footsteps draw apprentices apart."
+tier = 1
+column = 1
+prerequisite_ids = Array[String](["deceiver"])
+passive_descriptions = Array[String](["Mirror leaves a decoy voice line on cast."])
+
+[sub_resource type="Resource" id="node_bulwark"]
+script = ExtResource("2_node")
+node_id = "bulwark"
+display_name = "Bulwark"
+summary = "Seal rooms more aggressively."
+tier = 1
+column = 2
+prerequisite_ids = Array[String](["architect"])
+stat_bonuses = {
+"Control": "+15% seal duration"
+}
+
+[sub_resource type="Resource" id="node_bloodscent"]
+script = ExtResource("2_node")
+node_id = "bloodscent"
+display_name = "Bloodscent"
+summary = "Split teams feed dread faster."
+tier = 2
+column = 0
+prerequisite_ids = Array[String](["predator"])
+stat_bonuses = {
+"Dread": "+20% gain when apprentices split"
+}
+
+[sub_resource type="Resource" id="node_phantom"]
+script = ExtResource("2_node")
+node_id = "phantom"
+display_name = "Phantom"
+summary = "Fade lets you slip through sealed doors briefly."
+tier = 2
+column = 1
+prerequisite_ids = Array[String](["echo"])
+spell_ids = Array[String](["warden_fade"])
+passive_descriptions = Array[String](["Whisper muffles apprentice voice in one room."])
+
+[sub_resource type="Resource" id="node_overseer"]
+script = ExtResource("2_node")
+node_id = "overseer"
+display_name = "Overseer"
+summary = "Forge permanent maze shortcuts."
+tier = 2
+column = 2
+prerequisite_ids = Array[String](["bulwark"])
+spell_ids = Array[String](["warden_forge"])
+stat_bonuses = {
+"Control": "+1 concurrent mutation"
+}
+
+[resource]
+script = ExtResource("1")
+tree_id = "warden"
+display_name = "Warden"
+starting_node_ids = Array[String](["hunter", "deceiver", "architect"])
+node_labels = {
+"architect": "Architect",
+"deceiver": "Deceiver",
+"hunter": "Hunter"
+}
+starting_node_spells = {
+"architect": ["warden_shift", "warden_seal", "warden_forge"],
+"deceiver": ["warden_whisper", "warden_mirror", "warden_fade"],
+"hunter": ["warden_stalk", "warden_pounce", "warden_mark"]
+}
+nodes = Array[ExtResource("2_node")]([SubResource("node_hunter"), SubResource("node_deceiver"), SubResource("node_architect"), SubResource("node_predator"), SubResource("node_echo"), SubResource("node_bulwark"), SubResource("node_bloodscent"), SubResource("node_phantom"), SubResource("node_overseer")])

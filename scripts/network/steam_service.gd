@@ -8,6 +8,7 @@ signal lobby_join_finished(result: Dictionary)
 signal lobby_invite_received(lobby_id: int)
 signal lobby_member_joined(steam_id: int)
 
+const TestEnv := preload("res://scripts/test/test_env.gd")
 const STEAM_INIT_OK := 0
 const LOBBY_CREATE_OK := 1
 const LOBBY_ENTER_OK := 1
@@ -21,6 +22,9 @@ var _signals_bound: bool = false
 
 
 func _ready() -> void:
+	if TestEnv.is_active():
+		set_process(false)
+		return
 	if not is_api_available():
 		TomeDebug.log("SteamService", "GodotSteam not loaded — install via docs/STEAM_SETUP.md")
 		api_initialized.emit(false)
@@ -83,6 +87,18 @@ func leave_lobby() -> void:
 		return
 	_steam_call("leaveLobby", [current_lobby_id])
 	current_lobby_id = 0
+
+
+func shutdown() -> void:
+	set_process(false)
+	leave_lobby()
+	if not initialized or not is_api_available():
+		initialized = false
+		return
+	var steam := _get_steam_object()
+	if steam != null and steam.has_method("steamShutdown"):
+		_steam_call("steamShutdown")
+	initialized = false
 
 
 func allow_p2p_relay() -> void:

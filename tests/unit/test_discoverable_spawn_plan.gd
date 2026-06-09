@@ -23,14 +23,13 @@ func run() -> int:
 	test_respects_spawn_exit_exclusion()
 	test_no_overlapping_placements()
 	test_large_maze()
-	test_dev_tome_cell_is_walkable()
 	test_all_placements_are_on_walkable_paths()
 	return failures
 
 
 func test_deterministic_placements() -> void:
 	var grid := MazeCarverScript.generate(10, 10, 4242, {})
-	var config := _make_config("tome", 3, ["lumos", "haste", "shield"])
+	var config := _make_config("tome", 3, ["show_me", "haste", "shield"])
 	var a := DiscoverableSpawnPlanScript.compute(
 		grid, 10, 10, Vector2i(0, 0), Vector2i(9, 9), config, 999
 	)
@@ -45,7 +44,7 @@ func test_deterministic_placements() -> void:
 
 func test_respects_spawn_exit_exclusion() -> void:
 	var grid := MazeCarverScript.generate(8, 8, 111, {})
-	var config := _make_config("tome", 5, ["lumos"])
+	var config := _make_config("tome", 5, ["show_me"])
 	var placements := DiscoverableSpawnPlanScript.compute(
 		grid, 8, 8, Vector2i(0, 0), Vector2i(7, 7), config, 555
 	)
@@ -77,32 +76,15 @@ func test_no_overlapping_placements() -> void:
 
 func test_large_maze() -> void:
 	var grid := MazeCarverScript.generate(45, 45, 5678, {})
-	var config := _make_config("tome", 3, ["lumos", "haste", "shield"])
+	var config := _make_config("tome", 3, ["show_me", "haste", "shield"])
 	var placements := DiscoverableSpawnPlanScript.compute(
 		grid, 45, 45, Vector2i(0, 0), Vector2i(44, 44), config, 12345
 	)
 	_assert_eq(placements.size(), 3, "45x45 maze should place requested discoverable count")
 
 
-func test_dev_tome_cell_is_walkable() -> void:
-	for maze_seed in [42, 111, 4242, 5678]:
-		var grid := MazeCarverScript.generate(15, 15, maze_seed, {})
-		var spawn := Vector2i(0, 0)
-		var cell := DiscoverableSpawnPlanScript.find_dev_tome_cell(
-			grid, 15, 15, spawn
-		)
-		_assert_true(
-			DiscoverableSpawnPlanScript.is_walkable_cell(grid, cell),
-			"dev tome cell should be walkable for seed %d" % maze_seed
-		)
-		_assert_true(
-			_is_reachable_from_spawn(grid, 15, 15, spawn, cell),
-			"dev tome cell should be reachable from spawn for seed %d" % maze_seed
-		)
-
-
 func test_all_placements_are_on_walkable_paths() -> void:
-	var config := _make_config("tome", 3, ["lumos", "haste", "shield"])
+	var config := _make_config("tome", 3, ["show_me", "haste", "shield"])
 	for maze_seed in [42, 111, 4242, 5678, 9999]:
 		var grid := MazeCarverScript.generate(45, 45, maze_seed, {})
 		var spawn := Vector2i(0, 0)

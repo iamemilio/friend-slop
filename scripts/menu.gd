@@ -20,6 +20,7 @@ func _on_solo_pressed() -> void:
 		await SpeechSttLoader.loading_finished
 		$CenterContainer/VBoxContainer/StartButton.disabled = false
 	GameState.reset_for_new_game()
+	SettingsManager.apply_solo_dev_loadout_to_game_state()
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 

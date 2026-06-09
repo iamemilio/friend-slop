@@ -69,7 +69,7 @@ func _test_coaching_tip_for_long_cast() -> int:
 	result.audio_rms = 0.03
 	result.audio_duration_sec = 1.4
 	result.expected_duration_sec = 0.7
-	result.incantation_text = "lumos"
+	result.incantation_text = "show me"
 
 	var tip: String = result.get_coaching_lines()[0]
 	if not tip.contains("too long"):
@@ -81,7 +81,7 @@ func _test_coaching_tip_for_long_cast() -> int:
 func _test_coaching_tip_for_quiet_cast() -> int:
 	var result := CastValidationResultScript.fail("Too quiet")
 	result.audio_rms = 0.005
-	result.incantation_text = "lumos"
+	result.incantation_text = "show me"
 
 	var tip: String = result.get_coaching_lines()[0]
 	if not tip.to_lower().contains("quiet"):
@@ -92,8 +92,8 @@ func _test_coaching_tip_for_quiet_cast() -> int:
 
 func _test_easy_spell_passes_with_transcript() -> int:
 	var spell := SpellDefinitionScript.new()
-	spell.id = "lumos"
-	spell.incantation_words = PackedStringArray(["lumos"])
+	spell.id = "show_me"
+	spell.incantation_words = PackedStringArray(["show", "me"])
 	spell.require_rhythm = false
 
 	var sample_rate := 44100
@@ -105,7 +105,7 @@ func _test_easy_spell_passes_with_transcript() -> int:
 		spell,
 		samples,
 		sample_rate,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)
@@ -137,22 +137,22 @@ func _test_free_cast_requires_transcript() -> int:
 
 
 func _test_free_cast_identifies_single_word_spell() -> int:
-	var lumos := SpellDefinitionScript.new()
-	lumos.id = "lumos"
-	lumos.incantation_words = PackedStringArray(["lumos"])
-	lumos.require_rhythm = false
+	var show_me := SpellDefinitionScript.new()
+	show_me.id = "show_me"
+	show_me.incantation_words = PackedStringArray(["show", "me"])
+	show_me.require_rhythm = false
 
 	var match: Dictionary = SpellCastValidatorScript.resolve_free_cast(
-		[lumos],
+		[show_me],
 		_loud_samples(0.3),
 		44100,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)
 	var spell := match.get("spell") as SpellDefinitionScript
-	if spell == null or spell.id != "lumos":
-		push_error("Expected free cast to identify lumos")
+	if spell == null or spell.id != "show_me":
+		push_error("Expected free cast to identify show_me")
 		return 1
 	return 0
 
@@ -188,7 +188,7 @@ func _test_free_cast_rejects_wrong_word_for_only_known_spell() -> int:
 		[fireball],
 		_loud_samples(0.3),
 		44100,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)

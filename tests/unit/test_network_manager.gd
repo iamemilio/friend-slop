@@ -3,6 +3,8 @@ extends RefCounted
 
 const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 const MultiplayerTransportScript := preload("res://scripts/network/multiplayer_transport.gd")
+const LobbyMatchStateScript := preload("res://scripts/match/lobby_match_state.gd")
+const GameStateScript := preload("res://scripts/game_state.gd")
 
 
 func run() -> int:
@@ -13,6 +15,8 @@ func run() -> int:
 	failures += _test_collect_lobby_peer_ids()
 	failures += _test_client_player_index_from_lobby_roster()
 	failures += _test_format_lobby_player_label()
+	failures += _test_normalize_lobby_roles()
+	failures += _test_pack_roles_for_peers()
 	return failures
 
 
@@ -93,6 +97,37 @@ func _test_disconnect_session_delegates_to_transport() -> int:
 		return 1
 	if fake.disconnect_calls != 1:
 		push_error("Expected disconnect_session to delegate to transport")
+		return 1
+	return 0
+
+
+func _test_normalize_lobby_roles() -> int:
+	var normalized := LobbyMatchStateScript.normalize_roles({
+		"1": GameStateScript.PlayerRole.WARDEN,
+		2: GameStateScript.PlayerRole.APPRENTICE,
+	})
+	if int(normalized[1]) != GameStateScript.PlayerRole.WARDEN:
+		push_error("Expected normalized roles to coerce string keys to int")
+		return 1
+	if int(normalized[2]) != GameStateScript.PlayerRole.APPRENTICE:
+		push_error("Expected normalized roles to preserve int keys")
+		return 1
+	return 0
+
+
+func _test_pack_roles_for_peers() -> int:
+	var roles := {
+		1: GameStateScript.PlayerRole.WARDEN,
+		2: GameStateScript.PlayerRole.APPRENTICE,
+		99: GameStateScript.PlayerRole.APPRENTICE,
+	}
+	var peers: Array[int] = [1, 2]
+	var packed := LobbyMatchStateScript.pack_roles_for_peers(roles, peers)
+	if packed.size() != 2:
+		push_error("Expected packed roles to include only connected peers")
+		return 1
+	if int(packed[1]) != GameStateScript.PlayerRole.WARDEN:
+		push_error("Expected packed roles to include Warden for peer 1")
 		return 1
 	return 0
 

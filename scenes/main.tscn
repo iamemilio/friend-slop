@@ -1,17 +1,27 @@
 [gd_scene format=3 uid="uid://cmain001"]
 
 [ext_resource type="Script" uid="uid://divchbbi8rx6x" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/smoke_trail_manager.gd" id="1_smoke_trails"]
 [ext_resource type="Script" uid="uid://dvm6473ovmcmk" path="res://scripts/maze_generator.gd" id="2_maze"]
 [ext_resource type="Script" uid="uid://dgeo1cql2kx4k" path="res://scripts/discoverables/discoverable_spawner.gd" id="4_spawner"]
 [ext_resource type="Resource" uid="uid://cyg7o8wvlijw5" path="res://resources/discoverables/default_run_config.tres" id="5_run_cfg"]
 [ext_resource type="Script" uid="uid://dwdwxw8dalcmm" path="res://scripts/spells/spell_definition.gd" id="6_eb6dy"]
 [ext_resource type="Script" uid="uid://bkvka4fuy7rl2" path="res://scripts/spells/spell_registry.gd" id="6_registry"]
-[ext_resource type="Resource" path="res://resources/spells/lumos.tres" id="7_lumos"]
+[ext_resource type="Resource" path="res://resources/spells/show_me.tres" id="7_show_me"]
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
 [ext_resource type="PackedScene" uid="uid://cpausemenu001" path="res://scenes/ui/pause_menu.tscn" id="14_pause"]
 [ext_resource type="Resource" path="res://resources/spells/fireball.tres" id="15_fireball"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_stalk.tres" id="16_stalk"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_pounce.tres" id="17_pounce"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_mark.tres" id="18_mark"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_whisper.tres" id="19_whisper"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_mirror.tres" id="20_mirror"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_fade.tres" id="21_fade"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_shift.tres" id="22_shift"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_seal.tres" id="23_seal"]
+[ext_resource type="Resource" path="res://resources/spells/warden/warden_forge.tres" id="24_forge"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.08, 0.06, 0.14, 1)
@@ -48,7 +58,8 @@ light_color = Color(0.75, 0.7, 0.95, 1)
 light_energy = 0.6
 shadow_enabled = true
 
-[node name="SlimeTrails" type="Node3D" parent="." unique_id=1526258182]
+[node name="SmokeTrails" type="Node3D" parent="." unique_id=1526258182]
+script = ExtResource("1_smoke_trails")
 
 [node name="MazeGenerator" type="Node3D" parent="." unique_id=2059492572]
 script = ExtResource("2_maze")
@@ -61,7 +72,7 @@ run_config = ExtResource("5_run_cfg")
 
 [node name="SpellRegistry" type="Node" parent="." unique_id=1904759634]
 script = ExtResource("6_registry")
-spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_lumos"), ExtResource("8_haste"), ExtResource("15_fireball")])
+spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
 
 [node name="VoiceSpellValidator" type="Node" parent="." unique_id=1384260685]
 script = ExtResource("10_validator")

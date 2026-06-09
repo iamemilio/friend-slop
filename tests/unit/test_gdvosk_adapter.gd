@@ -35,10 +35,10 @@ func _test_extract_words_from_result_entries() -> int:
 
 func _test_extract_words_from_text_field() -> int:
 	var parsed: Dictionary = GdvoskAdapterScript.extract_words_and_starts({
-		"text": "lumos",
+		"text": "show me",
 	})
 	var words: PackedStringArray = parsed.get("words", PackedStringArray())
-	if words.size() != 1 or words[0] != "lumos":
-		push_error("Expected text field word, got: %s" % words)
+	if words.size() != 2 or words[0] != "show" or words[1] != "me":
+		push_error("Expected text field words show/me, got: %s" % words)
 		return 1
 	return 0

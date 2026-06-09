@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cd4v6kvl3kiuq"]
 
 [ext_resource type="Script" path="res://scripts/ui/lobby_panel.gd" id="1_lobby"]
+[ext_resource type="PackedScene" uid="uid://ccharactersetup001" path="res://scenes/ui/character_setup_panel.tscn" id="2_setup"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.09, 0.18, 0.96)
@@ -41,9 +42,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -280.0
-offset_top = -260.0
+offset_top = -310.0
 offset_right = 280.0
-offset_bottom = 260.0
+offset_bottom = 310.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -112,13 +113,17 @@ theme_override_constants/separation = 6
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 theme_override_font_sizes/font_size = 16
-text = "Players in lobby"
+text = "Players"
 
-[node name="PlayerList" type="ItemList" parent="Panel/MarginContainer/VBox/PlayersSection"]
-custom_minimum_size = Vector2(0, 120)
+[node name="PlayerListScroll" type="ScrollContainer" parent="Panel/MarginContainer/VBox/PlayersSection"]
+custom_minimum_size = Vector2(0, 160)
 layout_mode = 2
-focus_mode = 0
-select_mode = 0
+size_flags_vertical = 3
+
+[node name="PlayerListVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/PlayersSection/PlayerListScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
 
 [node name="StatusLabel" type="Label" parent="Panel/MarginContainer/VBox"]
 layout_mode = 2
@@ -136,3 +141,5 @@ text = "Start Game"
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Back"
+
+[node name="CharacterSetupPanel" parent="." instance=ExtResource("2_setup")]

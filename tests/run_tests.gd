@@ -2,6 +2,9 @@ extends SceneTree
 
 ## Headless test entry point.
 ## Run: godot --headless --path . --script res://tests/run_tests.gd
+## Offline only — no live Steam client or Steamworks session required.
+
+const TestEnv := preload("res://scripts/test/test_env.gd")
 
 const TestMazeCarver := preload("res://tests/unit/test_maze_carver.gd")
 const TestDiscoverableSpawnPlan := preload("res://tests/unit/test_discoverable_spawn_plan.gd")
@@ -15,6 +18,12 @@ const TestGameState := preload("res://tests/unit/test_game_state.gd")
 const TestMultiplayerTransport := preload("res://tests/unit/test_multiplayer_transport.gd")
 const TestSteamTransport := preload("res://tests/unit/test_steam_transport.gd")
 const TestNetworkManager := preload("res://tests/unit/test_network_manager.gd")
+const TestMatchState := preload("res://tests/unit/test_match_state.gd")
+const TestRoleAssignment := preload("res://tests/unit/test_role_assignment.gd")
+const TestPlayerCharacterConfig := preload("res://tests/unit/test_player_character_config.gd")
+const TestBinding := preload("res://tests/unit/test_binding.gd")
+const TestSkillTree := preload("res://tests/unit/test_skill_tree.gd")
+const TestTrailRegistry := preload("res://tests/unit/test_trail_registry.gd")
 const TestPlayerSpawnLayout := preload("res://tests/unit/test_player_spawn_layout.gd")
 const TestSpellValidationRunner := preload("res://tests/unit/test_spell_validation_runner.gd")
 const TestSpellValidationAsync := preload("res://tests/unit/test_spell_validation_async.gd")
@@ -31,7 +40,10 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	print("Running FriendSlop unit tests...")
+	print("Running FriendSlop unit tests (offline — no Steam required)...")
+	if not _assert_steam_offline():
+		_finish(1)
+		return
 	var failures := 0
 
 	var maze_suite := TestMazeCarver.new()
@@ -70,6 +82,24 @@ func _run_tests() -> void:
 	var network_manager_suite := TestNetworkManager.new()
 	failures += network_manager_suite.run()
 
+	var match_state_suite := TestMatchState.new()
+	failures += match_state_suite.run()
+
+	var role_assignment_suite := TestRoleAssignment.new()
+	failures += role_assignment_suite.run()
+
+	var player_character_config_suite := TestPlayerCharacterConfig.new()
+	failures += player_character_config_suite.run()
+
+	var binding_suite := TestBinding.new()
+	failures += binding_suite.run()
+
+	var skill_tree_suite := TestSkillTree.new()
+	failures += skill_tree_suite.run()
+
+	var trail_registry_suite := TestTrailRegistry.new()
+	failures += trail_registry_suite.run()
+
 	var player_spawn_layout_suite := TestPlayerSpawnLayout.new()
 	failures += player_spawn_layout_suite.run()
 
@@ -106,4 +136,29 @@ func _run_tests() -> void:
 
 
 func _finish(exit_code: int) -> void:
+	_prepare_exit()
 	quit(exit_code)
+
+
+func _prepare_exit() -> void:
+	for child in root.get_children():
+		if child is SpellValidationRunner:
+			(child as SpellValidationRunner).shutdown()
+		elif child is CharacterBody3D:
+			child.free()
+	var steam_service := get_root().get_node_or_null("SteamService")
+	if steam_service != null and steam_service.has_method("shutdown"):
+		steam_service.shutdown()
+	GdvoskAdapter.unload_model()
+
+
+func _assert_steam_offline() -> bool:
+	if not TestEnv.is_active():
+		return true
+	var steam_service := get_root().get_node_or_null("SteamService")
+	if steam_service == null:
+		return true
+	if steam_service.get("initialized"):
+		push_error("Unit tests must not initialize Steam (check FRIEND_SLOP_TEST=1)")
+		return false
+	return true

@@ -52,29 +52,6 @@ static func collect_reachable_cells(
 	return reachable
 
 
-static func find_dev_tome_cell(
-	wall_grid: Array,
-	maze_width: int,
-	maze_height: int,
-	spawn_cell: Vector2i
-) -> Vector2i:
-	## Returns a walkable maze cell connected to spawn for dev tome placement.
-	for dir in _CARDINAL_DIRS:
-		var neighbor: Vector2i = spawn_cell + dir
-		if not _is_in_maze_bounds(neighbor, maze_width, maze_height):
-			continue
-		if not is_walkable_cell(wall_grid, neighbor):
-			continue
-		if _are_cells_connected(wall_grid, spawn_cell, neighbor):
-			return neighbor
-
-	for cell in collect_reachable_cells(wall_grid, maze_width, maze_height, spawn_cell):
-		if cell != spawn_cell:
-			return cell
-
-	return spawn_cell
-
-
 static func compute(
 	wall_grid: Array,
 	maze_width: int,

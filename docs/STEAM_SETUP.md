@@ -78,7 +78,7 @@ make release-ci   # ubuntu:24.04 container — Godot + GodotSteam + Linux export
 
 | Symptom | Fix |
 |---------|-----|
-| “GodotSteam not installed” in tests | `make setup-steam` |
+| “GodotSteam not installed” in tests | Not required for `make test` — tests run offline. Use `make verify-steam` before export. |
 | “GodotSteam not loaded” in game | Re-run `make setup-steam`, restart Godot |
 | “Steam is not running” | Launch Steam client |
 | Host + client both connect as host | Ensure client uses `connect_to_lobby`, not host path on join |

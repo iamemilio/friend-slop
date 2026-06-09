@@ -1,35 +1,51 @@
-[gd_scene load_steps=10 format=3 uid="uid://cplayer001"]
+[gd_scene load_steps=8 format=3 uid="uid://cplayer001"]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
-[ext_resource type="Script" path="res://scripts/slime_trail.gd" id="2_slime"]
+[ext_resource type="Script" path="res://scripts/position_trail_recorder.gd" id="2_trail"]
 [ext_resource type="Script" path="res://scripts/spells/spell_book.gd" id="3_spellbook"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="4_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="5_effects"]
-[ext_resource type="Script" path="res://addons/netfox/state-synchronizer.gd" id="6_state_sync"]
-[ext_resource type="Script" path="res://addons/netfox/tick-interpolator.gd" id="7_tick_interp"]
+[ext_resource type="Script" path="res://scripts/player/player_wand.gd" id="6_wand"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
-radius = 0.25
-height = 0.35
-
-[sub_resource type="SphereMesh" id="SphereMesh_snail"]
 radius = 0.28
-height = 0.45
+height = 0.16
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.2
+height = 0.4
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.16
+height = 0.32
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_player"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:velocity")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath("Head:rotation")
+properties/2/spawn = true
+properties/2/replication_mode = 1
 
 [node name="Player" type="CharacterBody3D"]
 script = ExtResource("1_player")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
 shape = SubResource("CapsuleShape3D_player")
 
-[node name="SnailPlaceholder" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.22, 0)
-visible = false
-mesh = SubResource("SphereMesh_snail")
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("SphereMesh_body")
 
 [node name="Head" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+
+[node name="HeadMesh" type="MeshInstance3D" parent="Head"]
+mesh = SubResource("SphereMesh_head")
 
 [node name="CameraPivot" type="Node3D" parent="Head"]
 
@@ -37,14 +53,18 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
 current = true
 fov = 75.0
 
+[node name="Wand" type="Node3D" parent="Head/CameraPivot/FirstPersonCamera"]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0.34, -0.26, -0.52)
+script = ExtResource("6_wand")
+
 [node name="ThirdPersonAnchor" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
 
 [node name="ThirdPersonCamera" type="Camera3D" parent="."]
 fov = 75.0
 
-[node name="SlimeTrail" type="Node" parent="."]
-script = ExtResource("2_slime")
+[node name="PositionTrailRecorder" type="Node" parent="."]
+script = ExtResource("2_trail")
 
 [node name="SpellBook" type="Node" parent="."]
 script = ExtResource("3_spellbook")
@@ -55,12 +75,6 @@ script = ExtResource("4_session")
 [node name="SpellEffectApplier" type="Node" parent="."]
 script = ExtResource("5_effects")
 
-[node name="StateSynchronizer" type="Node" parent="."]
-script = ExtResource("6_state_sync")
-root = NodePath("..")
-properties = Array[String]([":position", ":velocity", "Head:rotation"])
-
-[node name="TickInterpolator" type="Node" parent="."]
-script = ExtResource("7_tick_interp")
-root = NodePath("..")
-properties = Array[String]([":position", "Head:rotation"])
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+root_path = NodePath("..")
+replication_config = SubResource("SceneReplicationConfig_player")
