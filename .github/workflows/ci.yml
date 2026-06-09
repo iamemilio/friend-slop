@@ -56,17 +56,30 @@ jobs:
           restore-keys: |
             godot-import-${{ env.GODOT_VERSION }}-
 
+      - name: Restore GodotSteam cache
+        id: steam-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/steam-setup
+            addons/godotsteam
+          key: steam-${{ hashFiles('tools/versions.env') }}
+
       - name: Log cache status
         run: |
           source tools/ci_log.sh
           ci_log "Godot binary cache hit: ${{ steps.godot-bin-cache.outputs.cache-hit }}"
           ci_log "Godot import cache hit: ${{ steps.godot-import-cache.outputs.cache-hit }}"
+          ci_log "GodotSteam cache hit: ${{ steps.steam-cache.outputs.cache-hit }}"
 
       - name: Install Godot
         run: |
           sudo apt-get update
           sudo apt-get install -y unzip libfontconfig1
           bash tools/setup_godot_linux.sh
+
+      - name: Install GodotSteam
+        run: bash tools/run_setup_steam.sh
 
       - name: Import project assets
         run: bash tools/run_godot_import.sh

@@ -66,22 +66,6 @@ theme_override_font_sizes/font_size = 28
 text = "Host Game"
 horizontal_alignment = 1
 
-[node name="NorayHostRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="NorayHostCaption" type="Label" parent="Panel/MarginContainer/VBox/NorayHostRow"]
-custom_minimum_size = Vector2(100, 0)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
-text = "Noray Server"
-
-[node name="NorayHostEdit" type="LineEdit" parent="Panel/MarginContainer/VBox/NorayHostRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "tomfol.io"
-placeholder_text = "tomfol.io"
-
 [node name="RoomCodeHostRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox"]
 layout_mode = 2
 theme_override_constants/separation = 8
@@ -90,7 +74,7 @@ theme_override_constants/separation = 8
 custom_minimum_size = Vector2(88, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
-text = "Room code"
+text = "Lobby ID"
 
 [node name="RoomCodeDisplay" type="LineEdit" parent="Panel/MarginContainer/VBox/RoomCodeHostRow"]
 layout_mode = 2
@@ -108,10 +92,16 @@ layout_mode = 2
 disabled = true
 text = "Copy"
 
+[node name="InviteFriendsButton" type="Button" parent="Panel/MarginContainer/VBox/RoomCodeHostRow"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+disabled = true
+text = "Invite"
+
 [node name="RoomCodeEdit" type="LineEdit" parent="Panel/MarginContainer/VBox"]
 visible = false
 layout_mode = 2
-placeholder_text = "Paste host room code"
+placeholder_text = "Paste Steam lobby ID"
 
 [node name="PlayersSection" type="VBoxContainer" parent="Panel/MarginContainer/VBox"]
 visible = false
@@ -135,7 +125,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
 theme_override_font_sizes/font_size = 14
 autowrap_mode = 2
-text = "Share the room code with friends so they can join."
+text = "Enter the host's Steam lobby ID or accept a Steam invite."
 
 [node name="PrimaryButton" type="Button" parent="Panel/MarginContainer/VBox"]
 custom_minimum_size = Vector2(0, 44)

@@ -12,6 +12,7 @@
 #   RELEASE_SMOKE_PRESET   Export preset (default: Linux)
 #   RELEASE_SMOKE_PATH     Output path (default: build/linux/FriendSlop.x86_64)
 #   RELEASE_SMOKE_SKIP_VOICE=1  Skip voice setup (faster, STT omitted from build)
+#   RELEASE_SMOKE_SKIP_STEAM=1    Skip GodotSteam setup (online multiplayer omitted)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,6 +31,7 @@ if [[ -z "${CI_SMOKE_NATIVE:-}" ]] && command -v docker >/dev/null 2>&1 && docke
 		-e RELEASE_SMOKE_PRESET="$PRESET" \
 		-e RELEASE_SMOKE_PATH="$EXPORT_PATH" \
 		-e RELEASE_SMOKE_SKIP_VOICE="${RELEASE_SMOKE_SKIP_VOICE:-0}" \
+		-e RELEASE_SMOKE_SKIP_STEAM="${RELEASE_SMOKE_SKIP_STEAM:-0}" \
 		-v "$ROOT:/project" -w /project ubuntu:24.04 bash -lc '
 		set -euo pipefail
 		export DEBIAN_FRONTEND=noninteractive
@@ -53,6 +55,11 @@ if [[ "${RELEASE_SMOKE_SKIP_VOICE:-}" != "1" ]]; then
 	bash tools/run_setup_voice.sh
 else
 	ci_log "Skipping voice setup (RELEASE_SMOKE_SKIP_VOICE=1)"
+fi
+if [[ "${RELEASE_SMOKE_SKIP_STEAM:-}" != "1" ]]; then
+	bash tools/run_setup_steam.sh
+else
+	ci_log "Skipping GodotSteam setup (RELEASE_SMOKE_SKIP_STEAM=1)"
 fi
 bash tools/run_godot_import.sh
 bash tools/run_godot_export.sh "$PRESET" "$EXPORT_PATH"

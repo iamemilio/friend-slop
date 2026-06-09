@@ -2,9 +2,13 @@ class_name MultiplayerTransport
 extends RefCounted
 
 ## Connection backend for multiplayer sessions.
-## Implementations: NorayTransport now, SteamTransport later.
+## Implementation: SteamTransport.
 
 signal status_changed(message: String)
+
+
+func setup(_tree: SceneTree) -> void:
+	pass
 
 
 func host(_options: Dictionary) -> Error:
@@ -22,4 +26,16 @@ func disconnect_session() -> void:
 
 
 func get_room_code() -> String:
+	return ""
+
+
+func uses_steam() -> bool:
+	return false
+
+
+func invite_to_session() -> void:
+	pass
+
+
+func get_player_display_name(_peer_id: int) -> String:
 	return ""

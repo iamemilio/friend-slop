@@ -1,6 +1,6 @@
 extends Node
 
-## Session lifecycle for online games. Swap NorayTransport for SteamTransport later.
+## Session lifecycle for online games. Transport: Steam P2P.
 
 signal status_changed(message: String)
 signal connection_failed(message: String)
@@ -10,20 +10,28 @@ signal peer_connected(peer_id: int)
 signal peer_disconnected(peer_id: int)
 signal lobby_roster_changed
 signal session_ended(reason: String)
+signal steam_lobby_invite_received(lobby_id: int)
 
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
-var transport: MultiplayerTransport = NorayTransport.new()
+const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
+
+var transport: MultiplayerTransport
 var is_session_active: bool = false
 
 var _transport_ready: bool = false
 
 
 func _ready() -> void:
-	if transport is NorayTransport:
-		(transport as NorayTransport).setup(get_tree())
+	_configure_transport()
 	transport.status_changed.connect(_forward_transport_status)
 	_transport_ready = true
+
+	if SteamService.lobby_invite_received.is_connected(_on_steam_lobby_invite_received):
+		SteamService.lobby_invite_received.disconnect(_on_steam_lobby_invite_received)
+	SteamService.lobby_invite_received.connect(_on_steam_lobby_invite_received)
+	SteamService.lobby_member_joined.connect(_on_steam_lobby_member_joined)
+	became_host.connect(_on_became_host_sync_steam_peers)
 
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -89,6 +97,12 @@ func get_lobby_peer_ids() -> Array[int]:
 
 
 func get_lobby_player_label(peer_id: int) -> String:
+	var steam_name := transport.get_player_display_name(peer_id)
+	var suffix := " (You)" if peer_id == multiplayer.get_unique_id() else ""
+	if not steam_name.is_empty():
+		if peer_id == 1:
+			return "Host — %s%s" % [steam_name, suffix]
+		return "%s%s" % [steam_name, suffix]
 	return format_lobby_player_label(
 		peer_id,
 		multiplayer.get_unique_id(),
@@ -96,14 +110,12 @@ func get_lobby_player_label(peer_id: int) -> String:
 	)
 
 
-func host_session(noray_host: String = NorayTransport.DEFAULT_NORAY_HOST) -> Error:
+func host_session(options: Dictionary = {}) -> Error:
 	if not _transport_ready:
 		return ERR_UNCONFIGURED
 	disconnect_session()
 
-	var err: Error = await transport.host({
-		"noray_host": noray_host,
-	})
+	var err: Error = await transport.host(options)
 	if err != OK:
 		connection_failed.emit("Hosting failed.")
 		return err
@@ -114,18 +126,15 @@ func host_session(noray_host: String = NorayTransport.DEFAULT_NORAY_HOST) -> Err
 	return OK
 
 
-func join_session(
-	room_code: String,
-	noray_host: String = NorayTransport.DEFAULT_NORAY_HOST
-) -> Error:
+func join_session(room_code: String, options: Dictionary = {}) -> Error:
 	if not _transport_ready:
 		return ERR_UNCONFIGURED
 	disconnect_session()
 
-	var err: Error = await transport.join({
-		"noray_host": noray_host,
-		"room_code": room_code,
-	})
+	var join_options := options.duplicate()
+	join_options["room_code"] = room_code
+
+	var err: Error = await transport.join(join_options)
 	if err != OK:
 		connection_failed.emit("Join failed.")
 		return err
@@ -136,16 +145,26 @@ func join_session(
 	return OK
 
 
+func invite_friends() -> void:
+	transport.invite_to_session()
+
+
 func start_game() -> void:
 	if not is_host():
 		return
+	_sync_steam_lobby_peers()
 	var run_seed := randi()
+	TomeDebug.log(
+		"NetworkManager",
+		"Starting game seed=%s remote_peers=%s" % [run_seed, multiplayer.get_peers()]
+	)
 	_rpc_start_game.rpc(run_seed)
 
 
 func disconnect_session() -> void:
 	is_session_active = false
-	transport.disconnect_session()
+	if transport != null:
+		transport.disconnect_session()
 
 
 func spawn_players(
@@ -188,6 +207,10 @@ func spawn_player_for_peer(
 
 @rpc("authority", "call_local", "reliable")
 func _rpc_start_game(run_seed: int) -> void:
+	TomeDebug.log(
+		"NetworkManager",
+		"Start game RPC received (peer_id=%s, seed=%s)" % [multiplayer.get_unique_id(), run_seed]
+	)
 	GameState.prepare_multiplayer_game(run_seed)
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
@@ -215,8 +238,68 @@ func _execute_spell_cast(caster_peer_id: int, spell_id: String, params: Dictiona
 		main.apply_synced_spell_cast(caster_peer_id, spell_id, params)
 
 
+func _configure_transport() -> void:
+	if not SteamService.is_api_available():
+		TomeDebug.log(
+			"NetworkManager",
+			"GodotSteam unavailable — online play requires the GodotSteam editor or GDExtension."
+		)
+	transport = SteamTransportScript.new()
+	transport.setup(get_tree())
+
+
 func _forward_transport_status(message: String) -> void:
 	status_changed.emit(message)
+
+
+func _on_steam_lobby_invite_received(lobby_id: int) -> void:
+	steam_lobby_invite_received.emit(lobby_id)
+
+
+func _on_became_host_sync_steam_peers(_room_code: String) -> void:
+	call_deferred("_sync_steam_lobby_peers")
+
+
+func _on_steam_lobby_member_joined(steam_id: int) -> void:
+	if not is_host():
+		return
+	if steam_id == SteamService.get_steam_id():
+		return
+	_try_add_steam_peer(steam_id)
+
+
+func _sync_steam_lobby_peers() -> void:
+	if not is_host():
+		return
+	var lobby_id := SteamService.current_lobby_id
+	if lobby_id == 0:
+		return
+	var count := SteamService.get_lobby_member_count(lobby_id)
+	for index in range(count):
+		var member_id := SteamService.get_lobby_member_by_index(index, lobby_id)
+		if member_id == 0 or member_id == SteamService.get_steam_id():
+			continue
+		_try_add_steam_peer(member_id)
+
+
+func _try_add_steam_peer(steam_id: int) -> void:
+	var mp_peer := multiplayer.multiplayer_peer
+	if mp_peer == null or not mp_peer.has_method("add_peer"):
+		TomeDebug.log("NetworkManager", "Cannot add Steam peer %s — multiplayer peer missing" % steam_id)
+		return
+	if _steam_peer_already_connected(mp_peer, steam_id):
+		return
+	var err: Error = mp_peer.call("add_peer", steam_id, 0)
+	TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
+
+
+func _steam_peer_already_connected(mp_peer: Object, steam_id: int) -> bool:
+	if not mp_peer.has_method("get_steam_id_for_peer_id"):
+		return false
+	for peer_id in multiplayer.get_peers():
+		if int(mp_peer.call("get_steam_id_for_peer_id", peer_id)) == steam_id:
+			return true
+	return false
 
 
 func _on_peer_connected(peer_id: int) -> void:
