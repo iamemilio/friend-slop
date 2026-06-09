@@ -15,9 +15,24 @@ const EFFECT_HASTE := "haste"
 const EFFECT_LIGHT := "light"
 const EFFECT_FIREBALL := "fireball"
 
-const DEFAULT_LIGHT_DURATION := 6.0
+const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
 const DEFAULT_HASTE_MULTIPLIER := 1.65
+const DEFAULT_FIREBALL_CAST_DURATION := 0.0
+
+
+static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary = {}) -> float:
+	if spell == null:
+		return 0.0
+	match spell.effect_id:
+		EFFECT_LIGHT:
+			return float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
+		EFFECT_HASTE:
+			return float(params.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
+		EFFECT_FIREBALL:
+			return DEFAULT_FIREBALL_CAST_DURATION
+		_:
+			return 0.0
 
 
 static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dictionary:
@@ -49,6 +64,7 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			)
 		EFFECT_LIGHT:
 			player.apply_light_pulse(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
+			TrailRegistry.reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 		EFFECT_FIREBALL:
 			_apply_fireball(player, params)
 		_:
@@ -62,6 +78,8 @@ static func is_supported_effect(effect_id: String) -> bool:
 
 
 static func _fireball_direction(player: CharacterBody3D) -> Vector3:
+	if player.has_method("get_wand_cast_direction"):
+		return player.call("get_wand_cast_direction")
 	var camera_pivot: Node3D = player.get_node_or_null("Head/CameraPivot")
 	if camera_pivot != null:
 		var basis := camera_pivot.global_transform.basis if camera_pivot.is_inside_tree() \
@@ -73,6 +91,8 @@ static func _fireball_direction(player: CharacterBody3D) -> Vector3:
 
 
 static func _fireball_origin(player: CharacterBody3D) -> Vector3:
+	if player.has_method("get_wand_cast_origin"):
+		return player.call("get_wand_cast_origin")
 	var head: Node3D = player.get_node_or_null("Head")
 	var forward := _fireball_direction(player)
 	if head != null:

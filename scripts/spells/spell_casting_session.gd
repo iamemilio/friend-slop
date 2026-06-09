@@ -483,11 +483,19 @@ func _apply_validation_payload(payload: Dictionary) -> bool:
 	if result.passed:
 		if _free_cast and _spell != null and _spell_book != null \
 				and not _spell_book.can_cast(_spell.id):
-			var cd_left: float = _spell_book.cooldown_remaining(_spell.id)
-			var cd_reason := "%s is on cooldown (%.1fs left)" % [
-				_spell.display_name,
-				cd_left,
-			]
+			var active_left: float = _spell_book.effect_active_remaining(_spell.id)
+			var cd_reason: String
+			if active_left > 0.0:
+				cd_reason = "%s is still active (%.1fs left)" % [
+					_spell.display_name,
+					active_left,
+				]
+			else:
+				var cd_left: float = _spell_book.cooldown_remaining(_spell.id)
+				cd_reason = "%s is on cooldown (%.1fs left)" % [
+					_spell.display_name,
+					cd_left,
+				]
 			TomeDebug.log("CastSession", "validation FAILED: %s" % cd_reason)
 			var cd_fail := CastValidationResult.fail(cd_reason)
 			cd_fail.incantation_text = _spell.get_incantation_text()

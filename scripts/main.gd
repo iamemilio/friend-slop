@@ -1,6 +1,7 @@
 extends Node3D
 
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
+const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 
 var _game_won: bool = false
 var _learn_confirm_pending: bool = false
@@ -8,7 +9,7 @@ var _local_player: CharacterBody3D
 
 @onready var maze: Node3D = $MazeGenerator
 @onready var players_root: Node3D = $Players
-@onready var slime_trails: Node3D = $SlimeTrails
+@onready var smoke_trails: SmokeTrailManager = $SmokeTrails
 @onready var discoverable_spawner = $DiscoverableSpawner
 @onready var spell_registry: SpellRegistry = $SpellRegistry
 @onready var game_hud: CanvasLayer = $GameHUD
@@ -25,12 +26,21 @@ func _ready() -> void:
 
 	if GameState.is_multiplayer:
 		multiplayer.peer_connected.connect(_on_peer_connected)
+		var role_name := RoleAssignment.role_label(GameState.get_local_role())
+		var phase_name := MatchState.phase_to_string(MatchStateManager.get_phase())
+		TomeDebug.log(
+			"Main",
+			"Match start — role=%s phase=%s seed=%s"
+			% [role_name, phase_name, GameState.run_seed]
+		)
+		MatchStateManager.log_summary()
+
+	TrailRegistry.reset()
 
 	await _ensure_speech_stt_ready()
 
 	NetworkManager.spawn_players(
 		players_root,
-		slime_trails,
 		_configure_local_player
 	)
 
@@ -65,6 +75,7 @@ func _wire_spell_system(player: CharacterBody3D) -> void:
 	var effect_applier: Node = player.get_effect_applier()
 
 	spell_book.configure(spell_registry.get_all_spells())
+	_apply_role_starting_spells(spell_book)
 	game_hud.configure(spell_book, casting_session)
 	casting_session.configure(voice_validator, spell_book)
 	casting_session.add_to_group("casting_session")
@@ -75,11 +86,21 @@ func _wire_spell_system(player: CharacterBody3D) -> void:
 	player.configure_interaction(spell_book, casting_session, game_hud, effect_applier)
 
 
+func _apply_role_starting_spells(spell_book: SpellBook) -> void:
+	var peer_id := 1
+	if GameState.is_multiplayer:
+		peer_id = multiplayer.get_unique_id()
+	var config := GameState.get_character_config_for_peer(peer_id)
+	if GameState.is_multiplayer and config.role != GameState.PlayerRole.WARDEN:
+		return
+	for spell_id in config.get_starting_spell_ids():
+		spell_book.learn(spell_id)
+
+
 func _on_peer_connected(peer_id: int) -> void:
 	NetworkManager.spawn_player_for_peer(
 		peer_id,
 		players_root,
-		slime_trails,
 		_configure_local_player
 	)
 
@@ -117,9 +138,6 @@ func _on_maze_ready(
 		var player := players[i]
 		player.global_position = spawn_positions[i]
 		player.velocity = Vector3.ZERO
-		var tick_interpolator: Node = player.get_node_or_null("TickInterpolator")
-		if tick_interpolator != null and tick_interpolator.has_method("teleport"):
-			tick_interpolator.teleport()
 
 	if discoverable_spawner.run_config == null:
 		return
@@ -139,24 +157,6 @@ func _on_maze_ready(
 		placements,
 		Callable(maze, "cell_to_world"),
 		wall_grid
-	)
-
-	if GameState.dev_tome_at_spawn:
-		_spawn_dev_tome_at_start(spawn_cell, wall_grid)
-
-
-func _spawn_dev_tome_at_start(spawn_cell: Vector2i, wall_grid: Array) -> void:
-	var tome_cell: Vector2i = DiscoverableSpawnPlan.find_dev_tome_cell(
-		wall_grid,
-		maze.maze_width,
-		maze.maze_height,
-		spawn_cell
-	)
-	discoverable_spawner.spawn_dev_tome_at(
-		maze.cell_to_world(tome_cell.x, tome_cell.y),
-		GameState.dev_tome_spell_id,
-		wall_grid,
-		tome_cell
 	)
 
 
@@ -214,6 +214,8 @@ func _on_cast_state_changed(state: String, spell: SpellDefinition) -> void:
 			return
 		game_hud.hide_casting()
 		return
+	if casting_session.is_free_cast() and not casting_session.is_tome_teaching():
+		return
 	game_hud.show_casting_state(
 		state,
 		spell,
@@ -256,10 +258,15 @@ func _on_cast_succeeded(
 		_learn_confirm_pending = false
 		game_hud.hide_casting()
 	else:
-		spell_book.mark_cast(spell.id)
+		var params := SpellEffectSyncScript.build_params(spell, _local_player)
+		var effect_duration := SpellEffectSyncScript.get_effect_duration_sec(spell, params)
 		effect_applier.cast_spell(_local_player, spell)
+		spell_book.begin_active_effect(spell.id, effect_duration)
+		if effect_duration > 0.0:
+			game_hud.show_spell_active(spell.id, effect_duration)
+		if casting_session.is_free_cast():
+			return
 		game_hud.show_cast_success(spell, validation)
-		game_hud.track_spell_cooldown(spell.id, spell.cooldown_sec)
 		await get_tree().create_timer(2.0).timeout
 		game_hud.hide_casting()
 
@@ -284,13 +291,21 @@ func _on_cast_failed(
 	):
 		TomeDebug.log("Main", partial.get_speech_match_line())
 	var from_tome: bool = casting_session.is_tome_teaching()
-	if partial != null:
-		game_hud.show_cast_feedback(partial, from_tome)
-	else:
-		game_hud.show_cast_feedback(CastValidationResult.fail(reason), from_tome)
-	if not from_tome and _spell != null and spell_book.cooldown_remaining(_spell.id) > 0.0:
-		game_hud.show_cooldown_blocked(_spell, spell_book.cooldown_remaining(_spell.id))
+	var free_cast: bool = casting_session.is_free_cast()
+	if not free_cast:
+		if partial != null:
+			game_hud.show_cast_feedback(partial, from_tome)
+		else:
+			game_hud.show_cast_feedback(CastValidationResult.fail(reason), from_tome)
+	if not from_tome and _spell != null:
+		var active_left: float = spell_book.effect_active_remaining(_spell.id)
+		if active_left > 0.0:
+			game_hud.show_cooldown_blocked(_spell, active_left, true)
+		elif spell_book.cooldown_remaining(_spell.id) > 0.0:
+			game_hud.show_cooldown_blocked(_spell, spell_book.cooldown_remaining(_spell.id))
 	if from_tome:
+		return
+	if free_cast:
 		return
 	await get_tree().create_timer(3.0).timeout
 	game_hud.hide_casting()

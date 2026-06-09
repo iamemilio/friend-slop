@@ -7,7 +7,7 @@
 
 FriendSlop targets **Steam release** with friend invites, reliable NAT traversal, and no third-party relay dependency.
 
-Godot high-level multiplayer (`@rpc`, `multiplayer.get_unique_id()`, netfox sync) stays unchanged; only the **peer layer** uses Steam.
+Godot high-level multiplayer (`@rpc`, `multiplayer.get_unique_id()`, built-in `MultiplayerSynchronizer`) stays unchanged; only the **peer layer** uses Steam.
 
 ## Decision
 

@@ -36,37 +36,6 @@ func spawn_from_plan(
 		_spawn_one(placement, cell_to_world, wall_grid)
 
 
-func spawn_dev_tome_at(
-	world_position: Vector3,
-	variant_id: String = "lumos",
-	wall_grid: Array = [],
-	cell: Vector2i = Vector2i(-1, -1)
-) -> void:
-	if not wall_grid.is_empty() and cell != Vector2i(-1, -1):
-		if not DiscoverableSpawnPlan.is_walkable_cell(wall_grid, cell):
-			push_warning("DiscoverableSpawner: dev tome cell is not walkable")
-			return
-
-	var definition: DiscoverableDefinition = _definition_by_id.get("tome")
-	if definition == null or definition.scene == null:
-		push_warning("DiscoverableSpawner: no tome definition for dev spawn")
-		return
-
-	var placement := DiscoverablePlacement.new("tome", variant_id, cell, 0)
-	var instance: Node = definition.scene.instantiate()
-	add_child(instance)
-
-	if instance is Node3D:
-		instance.global_position = world_position
-
-	if instance.has_method("initialize"):
-		instance.initialize(placement, definition)
-	TomeDebug.log(
-		"Spawner",
-		"spawned dev tome variant='%s' at %s" % [variant_id, str(world_position)]
-	)
-
-
 func _spawn_one(
 	placement: DiscoverablePlacement,
 	cell_to_world: Callable,

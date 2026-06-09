@@ -33,9 +33,9 @@ func _loud_samples(duration_sec: float, sample_rate: int = 44100) -> PackedFloat
 
 
 func _test_requires_transcript_for_targeted_cast() -> int:
-	var lumos := _make_spell("lumos", ["lumos"])
+	var show_me := _make_spell("show_me", ["show", "me"])
 	var result := SpellCastValidatorScript.validate(
-		lumos,
+		show_me,
 		_loud_samples(0.5),
 		44100,
 		PackedStringArray(),
@@ -57,7 +57,7 @@ func _test_rejects_wrong_words_with_loud_audio() -> int:
 		fireball,
 		_loud_samples(0.5),
 		44100,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)
@@ -71,12 +71,12 @@ func _test_rejects_wrong_words_with_loud_audio() -> int:
 
 
 func _test_passes_matching_words_and_audio() -> int:
-	var lumos := _make_spell("lumos", ["lumos"])
+	var show_me := _make_spell("show_me", ["show", "me"])
 	var result := SpellCastValidatorScript.validate(
-		lumos,
+		show_me,
 		_loud_samples(0.5),
 		44100,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)
@@ -90,9 +90,9 @@ func _test_passes_matching_words_and_audio() -> int:
 
 
 func _test_stub_bypasses_checks() -> int:
-	var lumos := _make_spell("lumos", ["lumos"])
+	var show_me := _make_spell("show_me", ["show", "me"])
 	var result := SpellCastValidatorScript.validate(
-		lumos,
+		show_me,
 		PackedFloat32Array(),
 		44100,
 		PackedStringArray(),
@@ -122,19 +122,19 @@ func _test_free_cast_rejects_without_transcript() -> int:
 
 
 func _test_free_cast_picks_matching_spell() -> int:
-	var lumos := _make_spell("lumos", ["lumos"])
+	var show_me := _make_spell("show_me", ["show", "me"])
 	var fireball := _make_spell("fireball", ["fireball"])
 	var match: Dictionary = SpellCastValidatorScript.resolve_free_cast(
-		[lumos, fireball],
+		[show_me, fireball],
 		_loud_samples(0.3),
 		44100,
-		PackedStringArray(["lumos"]),
+		PackedStringArray(["show", "me"]),
 		PackedFloat32Array(),
 		false
 	)
 	var spell := match.get("spell") as SpellDefinitionScript
-	if spell == null or spell.id != "lumos":
-		push_error("Expected free cast to pick lumos when transcript matches")
+	if spell == null or spell.id != "show_me":
+		push_error("Expected free cast to pick show_me when transcript matches")
 		return 1
 	return 0
 
@@ -151,6 +151,6 @@ func _test_stub_free_cast_single_selected_spell() -> int:
 	)
 	var spell := match.get("spell") as SpellDefinitionScript
 	if spell == null or spell.id != "fireball":
-		push_error("Expected stub free cast to work with one selected spell")
+		push_error("Expected stub free cast to pick the only candidate spell")
 		return 1
 	return 0

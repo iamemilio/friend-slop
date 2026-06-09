@@ -4,12 +4,17 @@ extends Node
 
 signal loading_finished(ready: bool)
 
+const TestEnv := preload("res://scripts/test/test_env.gd")
+
 var _is_ready := false
 var _loading := false
 var _status := ""
 
 
 func _ready() -> void:
+	if TestEnv.is_active():
+		_set_state(false, "disabled in tests")
+		return
 	SettingsManager.settings_applied.connect(_on_settings_applied)
 	call_deferred("_start_prewarm")
 

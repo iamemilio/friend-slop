@@ -25,17 +25,14 @@ GameState="*res://scripts/game_state.gd"
 SettingsManager="*res://scripts/settings_manager.gd"
 TomeDebug="*res://scripts/debug/tome_debug.gd"
 SpeechSttLoader="*res://scripts/spells/speech_stt_loader.gd"
-NetworkTime="*uid://cnqdxyjptkfvp"
-NetworkTimeSynchronizer="*uid://5rmn2ik3kjo8"
-NetworkRollback="*uid://gas743comroj"
-NetworkEvents="*uid://bdmobxxptryj0"
-NetworkPerformance="*uid://cqgf7aqmjfoa3"
+TrailRegistry="*res://scripts/trails/trail_registry.gd"
 SteamService="*res://scripts/network/steam_service.gd"
 NetworkManager="*res://scripts/network/network_manager.gd"
+MatchStateManager="*res://scripts/match/match_state_manager.gd"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/netfox.internals/plugin.cfg", "res://addons/netfox/plugin.cfg")
+enabled=PackedStringArray()
 
 [input]
 

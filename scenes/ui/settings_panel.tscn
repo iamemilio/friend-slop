@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://csettingspanel001"]
+[gd_scene load_steps=4 format=3 uid="uid://csettingspanel001"]
 
 [ext_resource type="Script" path="res://scripts/ui/settings_panel.gd" id="1_settings"]
+[ext_resource type="PackedScene" uid="uid://cskilltreeview001" path="res://scenes/ui/skill_tree_view.tscn" id="2_tree_view"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.09, 0.18, 0.96)
@@ -40,10 +41,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -320.0
-offset_top = -280.0
-offset_right = 320.0
-offset_bottom = 280.0
+offset_left = -360.0
+offset_top = -320.0
+offset_right = 360.0
+offset_bottom = 320.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -67,7 +68,7 @@ text = "Settings"
 horizontal_alignment = 1
 
 [node name="TabContainer" type="TabContainer" parent="Panel/MarginContainer/VBox"]
-custom_minimum_size = Vector2(0, 420)
+custom_minimum_size = Vector2(0, 460)
 layout_mode = 2
 size_flags_vertical = 3
 
@@ -205,24 +206,48 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Developer Options"
 
-[node name="DevTomeCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+[node name="DevSoloLoadoutLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
-text = "Spawn test tome at start"
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Solo test loadout"
 
-[node name="DevTomeSpellRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+[node name="DevSoloHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "Pick a role and starting kit. Solo Game spawns with those spells unlocked."
 
-[node name="DevTomeSpellLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevTomeSpellRow"]
+[node name="DevRoleSection" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DevRoleCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevRoleSection"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Role"
+
+[node name="DevApprenticeButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevRoleSection"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
-text = "Test tome spell"
+text = "Apprentice"
 
-[node name="DevTomeSpellOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevTomeSpellRow"]
+[node name="DevWardenButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevRoleSection"]
 layout_mode = 2
 size_flags_horizontal = 3
+text = "Warden"
+
+[node name="DevTreeNameLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 16
+text = "Firemage"
+
+[node name="DevSkillTreeView" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox" instance=ExtResource("2_tree_view")]
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+size_flags_vertical = 3
 
 [node name="VoiceStubCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
@@ -234,7 +259,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
-text = "Developer options are saved locally and apply on the next run."
+text = "Saved locally. Solo Game uses the loadout above; multiplayer is unchanged."
 
 [node name="CloseButton" type="Button" parent="Panel/MarginContainer/VBox"]
 custom_minimum_size = Vector2(0, 44)

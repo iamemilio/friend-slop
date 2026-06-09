@@ -8,7 +8,7 @@
 script = ExtResource("2_script")
 definition = ExtResource("3_tome")
 count = 3
-variant_ids = PackedStringArray("lumos", "haste", "fireball")
+variant_ids = PackedStringArray("show_me", "haste", "fireball")
 
 [resource]
 script = ExtResource("1_script")

@@ -1,10 +1,15 @@
 extends Node
 
-## Shared game context for the cursed-wizard snail race.
+## Shared game context for asymmetric horror runs.
 
 enum PlayerForm {
 	SNAIL,
 	HUMAN,
+}
+
+enum PlayerRole {
+	APPRENTICE,
+	WARDEN,
 }
 
 const SNAIL_COLORS: Array[Color] = [
@@ -21,20 +26,79 @@ const SNAIL_COLORS: Array[Color] = [
 var local_player_form: PlayerForm = PlayerForm.SNAIL
 var is_multiplayer: bool = false
 var run_seed: int = -1
-var dev_tome_at_spawn: bool = false
-var dev_tome_spell_id: String = "lumos"
+var peer_roles: Dictionary = {}
+var peer_character_configs: Dictionary = {}
 
 
 func reset_for_new_game() -> void:
 	is_multiplayer = false
 	local_player_form = PlayerForm.SNAIL
 	run_seed = randi()
+	peer_roles = {}
+	peer_character_configs = {}
 
 
-func prepare_multiplayer_game(seed: int) -> void:
+func prepare_match(
+	seed: int,
+	roles: Dictionary,
+	character_configs: Dictionary = {}
+) -> void:
 	is_multiplayer = true
 	local_player_form = PlayerForm.SNAIL
 	run_seed = seed
+	peer_roles = _normalize_peer_roles(roles)
+	peer_character_configs = _normalize_peer_configs(character_configs)
+
+
+func get_local_role() -> PlayerRole:
+	var peer_id := 1
+	if is_multiplayer:
+		var tree := Engine.get_main_loop()
+		if tree is SceneTree:
+			peer_id = tree.get_multiplayer().get_unique_id()
+	return get_role_for_peer(peer_id)
+
+
+func get_role_for_peer(peer_id: int) -> PlayerRole:
+	if peer_roles.has(peer_id):
+		return int(peer_roles[peer_id]) as PlayerRole
+	return PlayerRole.APPRENTICE
+
+
+func get_binding_for_peer(peer_id: int) -> Binding:
+	var config := get_character_config_for_peer(peer_id)
+	return config.binding
+
+
+func get_character_config_for_peer(peer_id: int) -> PlayerCharacterConfig:
+	if peer_character_configs.has(peer_id):
+		return PlayerCharacterConfig.from_dict(peer_character_configs[peer_id])
+	return PlayerCharacterConfig.create_default(get_role_for_peer(peer_id))
+
+
+func apply_solo_dev_loadout(role: int, binding: Binding) -> void:
+	is_multiplayer = false
+	peer_roles = {1: role}
+	var config := PlayerCharacterConfig.create_default(role)
+	config.role = role
+	config.binding = binding
+	peer_character_configs = {1: config.to_dict()}
+
+
+func _normalize_peer_roles(roles: Dictionary) -> Dictionary:
+	var normalized: Dictionary = {}
+	for key in roles.keys():
+		normalized[int(key)] = int(roles[key])
+	return normalized
+
+
+func _normalize_peer_configs(configs: Dictionary) -> Dictionary:
+	var normalized: Dictionary = {}
+	for key in configs.keys():
+		var entry: Variant = configs[key]
+		if entry is Dictionary:
+			normalized[int(key)] = PlayerCharacterConfig.from_dict(entry).to_dict()
+	return normalized
 
 
 func get_snail_color(player_index: int) -> Color:

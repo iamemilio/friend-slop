@@ -81,12 +81,21 @@ func abort() -> void:
 	_finished = false
 	_payload = {}
 	_active_generation = -1
-	if _thread != null and not _thread.is_alive():
+	set_process(false)
+	if _thread != null:
 		_thread.wait_to_finish()
 		_thread = null
-		set_process(false)
-	elif _thread == null:
-		set_process(false)
+
+
+func shutdown() -> void:
+	_generation += 1
+	_pending = false
+	_active_generation = -1
+	set_process(false)
+	if _thread == null:
+		return
+	_thread.wait_to_finish()
+	_thread = null
 
 
 func _process(_delta: float) -> void:

@@ -5,6 +5,9 @@ extends CanvasLayer
 
 const SpellDefinitionScript := preload("res://scripts/spells/spell_definition.gd")
 
+const STRIP_PHASE_ACTIVE := "active"
+const STRIP_PHASE_COOLDOWN := "cooldown"
+
 var _spellbook: Node
 var _selected_spell_id: String = ""
 var _spellbook_open := false
@@ -46,6 +49,8 @@ func configure(spellbook: Node, casting_session: Node = null) -> void:
 	_spellbook = spellbook
 	if _spellbook != null and _spellbook.has_signal("spell_learned"):
 		_spellbook.spell_learned.connect(_on_spell_learned)
+	if _spellbook != null and _spellbook.has_signal("spell_cooldown_started"):
+		_spellbook.spell_cooldown_started.connect(_on_spell_cooldown_started)
 	if casting_session != null and casting_session.has_signal("listen_level_changed"):
 		casting_session.listen_level_changed.connect(update_listen_level)
 	if casting_session != null and casting_session.has_signal("listen_coaching_changed"):
@@ -275,28 +280,57 @@ func show_cast_success(spell: Resource, validation: RefCounted = null) -> void:
 	mic_level_bar.visible = false
 
 
+func show_spell_active(spell_id: String, duration_sec: float) -> void:
+	if _spellbook == null or duration_sec <= 0.0:
+		return
+	_ensure_strip_row(spell_id)
+	var row: Dictionary = _cooldown_rows[spell_id]
+	var now := Time.get_ticks_msec() / 1000.0
+	row["phase"] = STRIP_PHASE_ACTIVE
+	row["total_sec"] = duration_sec
+	row["active_until"] = now + duration_sec
+	_refresh_strip_row(spell_id)
+	_cooldown_strip.visible = true
+
+
 func track_spell_cooldown(spell_id: String, total_sec: float) -> void:
 	if _spellbook == null or total_sec <= 0.0:
 		return
-	_ensure_cooldown_row(spell_id, total_sec)
+	_ensure_strip_row(spell_id)
+	var row: Dictionary = _cooldown_rows[spell_id]
+	row["phase"] = STRIP_PHASE_COOLDOWN
+	row["total_sec"] = total_sec
+	_refresh_strip_row(spell_id)
+	_cooldown_strip.visible = true
 
 
-func show_cooldown_blocked(spell: Resource, remaining_sec: float) -> void:
+func show_cooldown_blocked(
+	spell: Resource,
+	remaining_sec: float,
+	still_active: bool = false
+) -> void:
 	var def := spell as SpellDefinitionScript
 	if def == null or remaining_sec <= 0.0:
 		return
 	_cooldown_blocked_spell_id = def.id
 	_cooldown_blocked_until = Time.get_ticks_msec() / 1000.0 + remaining_sec
-	track_spell_cooldown(def.id, def.cooldown_sec)
+	if not still_active:
+		track_spell_cooldown(def.id, def.cooldown_sec)
 	casting_panel.visible = true
-	casting_title.text = "%s on cooldown" % def.display_name
+	if still_active:
+		casting_title.text = "%s still active" % def.display_name
+		casting_status.text = "Wait for the effect to finish"
+		casting_feedback.text = "Active: %.1fs remaining" % remaining_sec
+	else:
+		casting_title.text = "%s on cooldown" % def.display_name
+		casting_status.text = "Wait before casting again"
+		casting_feedback.text = "Cooldown: %.1fs remaining" % remaining_sec
 	casting_words.text = 'Incantation: "%s"' % def.get_incantation_text()
-	casting_status.text = "Wait before casting again"
-	casting_feedback.text = "Cooldown: %.1fs remaining" % remaining_sec
 	casting_detail.text = "Press [F] to try a different spell."
 	mic_level_bar.visible = false
-	mic_level_bar.value = 1.0 - clampf(remaining_sec / def.cooldown_sec, 0.0, 1.0)
-	mic_level_bar.visible = true
+	if not still_active:
+		mic_level_bar.value = 1.0 - clampf(remaining_sec / def.cooldown_sec, 0.0, 1.0)
+		mic_level_bar.visible = true
 
 
 func update_tome_coaching_countdown(seconds_left: float) -> void:
@@ -341,8 +375,11 @@ func _refresh_spell_list() -> void:
 			var def := spell as SpellDefinitionScript
 			if def != null:
 				label = def.display_name
+		var active: float = _spellbook.effect_active_remaining(spell_id)
 		var cd: float = _spellbook.cooldown_remaining(spell_id)
-		if cd > 0.0:
+		if active > 0.0:
+			label += " (active %.1fs)" % active
+		elif cd > 0.0:
 			label += " (%.1fs)" % cd
 		spell_list.add_item(label)
 		var item_index := spell_list.item_count - 1
@@ -372,6 +409,15 @@ func _on_spell_learned(spell_id: String) -> void:
 		_refresh_spell_list()
 
 
+func _on_spell_cooldown_started(spell_id: String) -> void:
+	if _spellbook == null:
+		return
+	var spell: Resource = _spellbook.get_spell_definition(spell_id)
+	var def := spell as SpellDefinitionScript
+	var total_sec: float = def.cooldown_sec if def != null else 8.0
+	track_spell_cooldown(spell_id, total_sec)
+
+
 func _process(_delta: float) -> void:
 	if _spellbook_open and _spellbook != null:
 		_refresh_spell_list_if_cooling()
@@ -393,47 +439,59 @@ func _setup_cooldown_strip() -> void:
 	_cooldown_strip.visible = false
 
 
-func _ensure_cooldown_row(spell_id: String, total_sec: float) -> void:
-	if _spellbook == null:
-		return
-	var remaining: float = _spellbook.cooldown_remaining(spell_id)
-	if remaining <= 0.0:
-		_remove_cooldown_row(spell_id)
-		return
-
-	var row: Dictionary
+func _ensure_strip_row(spell_id: String) -> void:
 	if _cooldown_rows.has(spell_id):
-		row = _cooldown_rows[spell_id]
-	else:
-		var container := HBoxContainer.new()
-		container.add_theme_constant_override("separation", 8)
-		var label := Label.new()
-		label.custom_minimum_size = Vector2(72, 0)
-		label.add_theme_font_size_override("font_size", 14)
-		label.add_theme_color_override("font_color", Color(0.92, 0.88, 1, 1))
-		var bar := ProgressBar.new()
-		bar.custom_minimum_size = Vector2(120, 14)
-		bar.min_value = 0.0
-		bar.max_value = 1.0
-		bar.show_percentage = false
-		container.add_child(label)
-		container.add_child(bar)
-		_cooldown_strip.add_child(container)
-		row = {"container": container, "label": label, "bar": bar, "total_sec": total_sec}
-		_cooldown_rows[spell_id] = row
+		return
+	var container := HBoxContainer.new()
+	container.add_theme_constant_override("separation", 8)
+	var label := Label.new()
+	label.custom_minimum_size = Vector2(96, 0)
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(0.92, 0.88, 1, 1))
+	var bar := ProgressBar.new()
+	bar.custom_minimum_size = Vector2(120, 14)
+	bar.min_value = 0.0
+	bar.max_value = 1.0
+	bar.show_percentage = false
+	container.add_child(label)
+	container.add_child(bar)
+	_cooldown_strip.add_child(container)
+	_cooldown_rows[spell_id] = {
+		"container": container,
+		"label": label,
+		"bar": bar,
+		"phase": STRIP_PHASE_COOLDOWN,
+		"total_sec": 1.0,
+	}
 
+
+func _refresh_strip_row(spell_id: String) -> void:
+	if _spellbook == null or not _cooldown_rows.has(spell_id):
+		return
+	var row: Dictionary = _cooldown_rows[spell_id]
 	var spell: Resource = _spellbook.get_spell_definition(spell_id)
 	var display_name: String = spell_id
 	if spell != null:
 		var def := spell as SpellDefinitionScript
 		if def != null:
 			display_name = def.display_name
-	var bar_ref: ProgressBar = row["bar"]
-	var total: float = float(row.get("total_sec", total_sec))
-	var fill: float = 1.0 - clampf(remaining / total, 0.0, 1.0)
-	bar_ref.value = fill
-	row["label"].text = "%s %.1fs" % [display_name, remaining]
-	_cooldown_strip.visible = not _cooldown_rows.is_empty()
+	var label: Label = row["label"]
+	var bar: ProgressBar = row["bar"]
+	if row.get("phase") == STRIP_PHASE_ACTIVE:
+		var remaining: float = maxf(
+			0.0,
+			float(row.get("active_until", 0.0)) - Time.get_ticks_msec() / 1000.0
+		)
+		var total: float = maxf(float(row.get("total_sec", 1.0)), 0.001)
+		bar.value = clampf(remaining / total, 0.0, 1.0)
+		label.text = "%s %.1fs" % [display_name, remaining]
+		label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.72, 1))
+	else:
+		var remaining_cd: float = _spellbook.cooldown_remaining(spell_id)
+		var total_cd: float = maxf(float(row.get("total_sec", 1.0)), 0.001)
+		bar.value = 1.0 - clampf(remaining_cd / total_cd, 0.0, 1.0)
+		label.text = "%s %.1fs" % [display_name, remaining_cd]
+		label.add_theme_color_override("font_color", Color(0.82, 0.84, 0.92, 1))
 
 
 func _remove_cooldown_row(spell_id: String) -> void:
@@ -450,20 +508,22 @@ func _update_cooldown_strip() -> void:
 	if _spellbook == null:
 		return
 	for spell_id in _cooldown_rows.keys():
+		var row: Dictionary = _cooldown_rows[spell_id]
+		if row.get("phase") == STRIP_PHASE_ACTIVE:
+			var remaining: float = maxf(
+				0.0,
+				float(row.get("active_until", 0.0)) - Time.get_ticks_msec() / 1000.0
+			)
+			if remaining <= 0.0 and _spellbook.cooldown_remaining(spell_id) <= 0.0:
+				_remove_cooldown_row(spell_id)
+				continue
+			_refresh_strip_row(spell_id)
+			continue
 		if _spellbook.cooldown_remaining(spell_id) <= 0.0:
 			_remove_cooldown_row(spell_id)
 			continue
-		var row: Dictionary = _cooldown_rows[spell_id]
-		var remaining: float = _spellbook.cooldown_remaining(spell_id)
-		var total: float = float(row.get("total_sec", 1.0))
-		row["bar"].value = 1.0 - clampf(remaining / total, 0.0, 1.0)
-		var spell: Resource = _spellbook.get_spell_definition(spell_id)
-		var display_name: String = spell_id
-		if spell != null:
-			var def := spell as SpellDefinitionScript
-			if def != null:
-				display_name = def.display_name
-		row["label"].text = "%s %.1fs" % [display_name, remaining]
+		_refresh_strip_row(spell_id)
+	_cooldown_strip.visible = not _cooldown_rows.is_empty()
 
 
 func _update_cooldown_blocked_overlay() -> void:
@@ -487,6 +547,7 @@ func _update_cooldown_blocked_overlay() -> void:
 
 func _refresh_spell_list_if_cooling() -> void:
 	for spell_id in _spellbook.get_known_spell_ids():
-		if _spellbook.cooldown_remaining(spell_id) > 0.0:
+		if _spellbook.effect_active_remaining(spell_id) > 0.0 \
+				or _spellbook.cooldown_remaining(spell_id) > 0.0:
 			_refresh_spell_list()
 			return

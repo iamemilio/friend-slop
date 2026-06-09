@@ -193,7 +193,7 @@ func _apply_tome_color(color: Color) -> void:
 
 func _spell_color_for(spell_id: String) -> Color:
 	match spell_id:
-		"lumos":
+		"show_me":
 			return Color(0.95, 0.85, 0.35)
 		"haste":
 			return Color(0.35, 0.85, 0.95)

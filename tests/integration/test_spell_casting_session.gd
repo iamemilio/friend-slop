@@ -236,11 +236,11 @@ func _test_cast_fireball_wrong_words_fails(tree: SceneTree) -> int:
 	)
 
 	session.start(FireballSpell, SpellCastingSession.Mode.CAST)
-	_drive_listen_and_validate(session, PackedStringArray(["lumos"]))
+	_drive_listen_and_validate(session, PackedStringArray(["show", "me"]))
 	_free_session(session)
 
 	if not failed:
-		push_error("Expected fireball cast to fail when incantation was 'lumos'")
+		push_error("Expected fireball cast to fail when incantation was 'show me'")
 		return 1
 	if fail_reason.is_empty():
 		push_error("Expected a failure reason for wrong incantation")

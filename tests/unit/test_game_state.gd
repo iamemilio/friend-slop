@@ -2,12 +2,13 @@ class_name TestGameState
 extends RefCounted
 
 const GameStateScript := preload("res://scripts/game_state.gd")
+const PlayerCharacterConfigScript := preload("res://scripts/match/player_character_config.gd")
 
 
 func run() -> int:
 	var failures := 0
 	failures += _test_reset_for_new_game()
-	failures += _test_prepare_multiplayer_game()
+	failures += _test_prepare_match()
 	failures += _test_get_snail_color_wraps()
 	failures += _test_is_snail_tracks_form()
 	return failures
@@ -37,17 +38,33 @@ func _test_reset_for_new_game() -> int:
 	return 0
 
 
-func _test_prepare_multiplayer_game() -> int:
+func _test_prepare_match() -> int:
 	var state := _make_state()
 	state.reset_for_new_game()
 
-	state.prepare_multiplayer_game(987654)
+	var roles := {
+		1: GameStateScript.PlayerRole.WARDEN,
+		2: GameStateScript.PlayerRole.APPRENTICE,
+		3: GameStateScript.PlayerRole.APPRENTICE,
+	}
+	var config_dict := PlayerCharacterConfigScript.create_default(
+		GameStateScript.PlayerRole.APPRENTICE
+	).to_dict()
+	config_dict["binding"] = {"tree_id": "firemage", "starting_node_id": "haste"}
+	state.prepare_match(12345, roles, {1: config_dict})
 
 	if not state.is_multiplayer:
-		push_error("Expected prepare_multiplayer_game to enable multiplayer")
+		push_error("Expected prepare_match to enable multiplayer")
 		return 1
-	if state.run_seed != 987654:
-		push_error("Expected prepare_multiplayer_game to set run_seed")
+	if state.run_seed != 12345:
+		push_error("Expected prepare_match to set run_seed")
+		return 1
+	if state.get_role_for_peer(1) != GameStateScript.PlayerRole.WARDEN:
+		push_error("Expected peer 1 to be Warden")
+		return 1
+	var restored := state.get_character_config_for_peer(1)
+	if restored.binding.starting_node_id != "haste":
+		push_error("Expected prepare_match to store character configs")
 		return 1
 	if state.local_player_form != GameStateScript.PlayerForm.SNAIL:
 		push_error("Expected multiplayer start to begin in snail form")

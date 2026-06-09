@@ -4,7 +4,7 @@ extends RefCounted
 const SyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 const FireballSpell := preload("res://resources/spells/fireball.tres")
 const HasteSpell := preload("res://resources/spells/haste.tres")
-const LumosSpell := preload("res://resources/spells/lumos.tres")
+const ShowMeSpell := preload("res://resources/spells/show_me.tres")
 
 
 func run() -> int:
@@ -86,7 +86,7 @@ func _make_player_stub() -> CharacterBody3D:
 
 
 func _test_all_spells_are_supported() -> int:
-	for spell in [FireballSpell, HasteSpell, LumosSpell]:
+	for spell in [FireballSpell, HasteSpell, ShowMeSpell]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
 			return 1
@@ -127,13 +127,13 @@ func _test_build_haste_params() -> int:
 
 func _test_build_light_params() -> int:
 	var player := _make_player_stub()
-	var params := SyncScript.build_params(LumosSpell, player)
+	var params := SyncScript.build_params(ShowMeSpell, player)
 	player.queue_free()
 	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_LIGHT:
 		push_error("Expected light effect id in params")
 		return 1
-	if float(params.get(SyncScript.KEY_DURATION, 0.0)) <= 0.0:
-		push_error("Expected light duration in params")
+	if float(params.get(SyncScript.KEY_DURATION, 0.0)) != SyncScript.DEFAULT_LIGHT_DURATION:
+		push_error("Expected show_me light duration to match DEFAULT_LIGHT_DURATION")
 		return 1
 	return 0
 

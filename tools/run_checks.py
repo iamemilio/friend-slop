@@ -14,9 +14,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 VERSIONS_ENV = ROOT / "tools" / "versions.env"
 LINT_PATHS = ("scripts", "tests")
+TEST_LOG = ROOT / ".cache" / "godot-tests.log"
 GDVOSK_GDEXTENSION = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension"
 GDVOSK_GDEXTENSION_DISABLED = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension.disabled"
 GODOTSTEAM_GDEXTENSION = ROOT / "addons" / "godotsteam" / "godotsteam.gdextension"
+GODOTSTEAM_GDEXTENSION_DISABLED = (
+    ROOT / "addons" / "godotsteam" / "godotsteam.gdextension.disabled"
+)
 GODOTSTEAM_LINUX_LIB = (
     ROOT / "addons" / "godotsteam" / "linux64" / "libgodotsteam.linux.template_debug.x86_64.so"
 )
@@ -31,13 +35,24 @@ GDVOSK_EDITOR_LIBRARY_KEYS = (
 
 
 def _validate_godotsteam() -> str | None:
-    if not GODOTSTEAM_GDEXTENSION.exists():
+    """Used by verify-steam tooling — unit tests do not call this."""
+    if not (
+        GODOTSTEAM_GDEXTENSION.exists() or GODOTSTEAM_GDEXTENSION_DISABLED.exists()
+    ):
         return "GodotSteam not installed. Run: make setup-steam"
     if not GODOTSTEAM_LINUX_LIB.exists():
         return "GodotSteam Linux libraries missing. Re-run: make setup-steam"
     if not (ROOT / "steam_appid.txt").exists():
         return "steam_appid.txt missing at repo root."
     return None
+
+
+def _ensure_extensions_restored() -> None:
+    """Recover from a prior test run that exited before restoring .gdextension files."""
+    if GDVOSK_GDEXTENSION_DISABLED.exists() and not GDVOSK_GDEXTENSION.exists():
+        GDVOSK_GDEXTENSION_DISABLED.rename(GDVOSK_GDEXTENSION)
+    if GODOTSTEAM_GDEXTENSION_DISABLED.exists() and not GODOTSTEAM_GDEXTENSION.exists():
+        GODOTSTEAM_GDEXTENSION_DISABLED.rename(GODOTSTEAM_GDEXTENSION)
 
 
 def _validate_gdvosk_manifest() -> str | None:
@@ -69,6 +84,22 @@ def _restore_gdvosk_after_tests(was_disabled: bool) -> None:
         return
     if GDVOSK_GDEXTENSION_DISABLED.exists() and not GDVOSK_GDEXTENSION.exists():
         GDVOSK_GDEXTENSION_DISABLED.rename(GDVOSK_GDEXTENSION)
+
+
+def _disable_godotsteam_for_tests() -> bool:
+    if not GODOTSTEAM_GDEXTENSION.exists():
+        return False
+    if GODOTSTEAM_GDEXTENSION_DISABLED.exists():
+        GODOTSTEAM_GDEXTENSION_DISABLED.unlink()
+    GODOTSTEAM_GDEXTENSION.rename(GODOTSTEAM_GDEXTENSION_DISABLED)
+    return True
+
+
+def _restore_godotsteam_after_tests(was_disabled: bool) -> None:
+    if not was_disabled:
+        return
+    if GODOTSTEAM_GDEXTENSION_DISABLED.exists() and not GODOTSTEAM_GDEXTENSION.exists():
+        GODOTSTEAM_GDEXTENSION_DISABLED.rename(GODOTSTEAM_GDEXTENSION)
 
 
 def _normalize_test_exit(returncode: int, stdout: str, stderr: str) -> int:
@@ -152,17 +183,28 @@ def run_lint() -> tuple[int, str]:
     return lint_proc.returncode, "\n".join(line for line in output_lines if line)
 
 
+def _kill_process_tree(pid: int) -> None:
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True,
+            check=False,
+        )
+        return
+    try:
+        os.kill(pid, 15)
+    except OSError:
+        pass
+
+
 def run_tests() -> tuple[int, str]:
     output_lines: list[str] = []
+
+    _ensure_extensions_restored()
 
     manifest_issue = _validate_gdvosk_manifest()
     if manifest_issue is not None:
         output_lines.append(manifest_issue)
-        return 1, "\n".join(output_lines)
-
-    steam_issue = _validate_godotsteam()
-    if steam_issue is not None:
-        output_lines.append(steam_issue)
         return 1, "\n".join(output_lines)
 
     godot = _find_godot()
@@ -176,35 +218,48 @@ def run_tests() -> tuple[int, str]:
 
     output_lines.append("Running Godot unit tests...")
     gdvosk_disabled = _disable_gdvosk_for_tests()
+    godotsteam_disabled = _disable_godotsteam_for_tests()
     timeout_sec = int(os.environ.get("GODOT_TEST_TIMEOUT_SEC", "120"))
+    env = os.environ.copy()
+    env["FRIEND_SLOP_TEST"] = "1"
+    TEST_LOG.parent.mkdir(parents=True, exist_ok=True)
+    stdout_text = ""
     try:
-        test_proc = subprocess.run(
-            [
-                str(godot),
-                "--headless",
-                "--path",
-                str(ROOT),
-                "--script",
-                "res://tests/run_tests.gd",
-            ],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
-        )
-    except subprocess.TimeoutExpired:
+        with TEST_LOG.open("w", encoding="utf-8") as log_handle:
+            test_proc = subprocess.run(
+                [
+                    str(godot),
+                    "--headless",
+                    "--path",
+                    str(ROOT),
+                    "--script",
+                    "res://tests/run_tests.gd",
+                ],
+                cwd=str(ROOT),
+                env=env,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_sec,
+            )
+        stdout_text = TEST_LOG.read_text(encoding="utf-8")
+    except subprocess.TimeoutExpired as exc:
+        proc = getattr(exc, "process", None)
+        if proc is not None and proc.pid:
+            _kill_process_tree(proc.pid)
+        if TEST_LOG.exists():
+            stdout_text = TEST_LOG.read_text(encoding="utf-8")
         output_lines.append(
             f"Godot unit tests timed out after {timeout_sec}s. "
             + "Set GODOT_TEST_TIMEOUT_SEC to override."
         )
-        return 1, "\n".join(output_lines)
+        if stdout_text:
+            output_lines.append(stdout_text)
+        return 1, "\n".join(line for line in output_lines if line)
     finally:
         _restore_gdvosk_after_tests(gdvosk_disabled)
-    output_lines.append(test_proc.stdout)
-    output_lines.append(test_proc.stderr)
-    exit_code = _normalize_test_exit(
-        test_proc.returncode, test_proc.stdout, test_proc.stderr
-    )
+        _restore_godotsteam_after_tests(godotsteam_disabled)
+    output_lines.append(stdout_text)
+    exit_code = _normalize_test_exit(test_proc.returncode, stdout_text, "")
     return exit_code, "\n".join(line for line in output_lines if line)
 
 
