@@ -12,9 +12,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+VERSIONS_ENV = ROOT / "tools" / "versions.env"
 LINT_PATHS = ("scripts", "tests")
 GDVOSK_GDEXTENSION = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension"
 GDVOSK_GDEXTENSION_DISABLED = ROOT / "addons" / "gdvosk" / "gdvosk.gdextension.disabled"
+GODOTSTEAM_GDEXTENSION = ROOT / "addons" / "godotsteam" / "godotsteam.gdextension"
+GODOTSTEAM_LINUX_LIB = (
+    ROOT / "addons" / "godotsteam" / "linux64" / "libgodotsteam.linux.template_debug.x86_64.so"
+)
 # Windows STATUS_ACCESS_VIOLATION when gdvosk unloads after headless test runs.
 GDVOSK_CRASH_EXIT = 3221225477
 GDVOSK_EDITOR_LIBRARY_KEYS = (
@@ -23,6 +28,16 @@ GDVOSK_EDITOR_LIBRARY_KEYS = (
     "linux.editor.x86_64",
     "macos.editor",
 )
+
+
+def _validate_godotsteam() -> str | None:
+    if not GODOTSTEAM_GDEXTENSION.exists():
+        return "GodotSteam not installed. Run: make setup-steam"
+    if not GODOTSTEAM_LINUX_LIB.exists():
+        return "GodotSteam Linux libraries missing. Re-run: make setup-steam"
+    if not (ROOT / "steam_appid.txt").exists():
+        return "steam_appid.txt missing at repo root."
+    return None
 
 
 def _validate_gdvosk_manifest() -> str | None:
@@ -67,10 +82,29 @@ def _normalize_test_exit(returncode: int, stdout: str, stderr: str) -> int:
     return returncode
 
 
+def _read_versions_env(key: str) -> str:
+    if not VERSIONS_ENV.exists():
+        return ""
+    for line in VERSIONS_ENV.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        line_key, value = stripped.split("=", 1)
+        if line_key.strip() == key:
+            return value.strip()
+    return ""
+
+
 def _find_godot() -> Path | None:
     env_path = os.environ.get("GODOT_PATH", "").strip()
     if env_path:
         candidate = Path(env_path)
+        if candidate.exists():
+            return candidate
+
+    pinned_win = _read_versions_env("GODOT_EDITOR_WIN")
+    if pinned_win:
+        candidate = Path(pinned_win)
         if candidate.exists():
             return candidate
 
@@ -126,11 +160,16 @@ def run_tests() -> tuple[int, str]:
         output_lines.append(manifest_issue)
         return 1, "\n".join(output_lines)
 
+    steam_issue = _validate_godotsteam()
+    if steam_issue is not None:
+        output_lines.append(steam_issue)
+        return 1, "\n".join(output_lines)
+
     godot = _find_godot()
     if godot is None:
         message = (
-            "Godot executable not found. Set GODOT_PATH or "
-            "godotTools.editorPath in .vscode/settings.json"
+            "Godot executable not found. Set GODOT_PATH, GODOT_EDITOR_WIN in "
+            "tools/versions.env, or godotTools.editorPath in .vscode/settings.json"
         )
         output_lines.append(message)
         return 1, "\n".join(output_lines)

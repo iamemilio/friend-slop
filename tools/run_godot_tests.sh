@@ -36,6 +36,11 @@ ci_log "Godot binary: $GODOT_BIN"
 ci_log "Test timeout: ${TIMEOUT_SEC}s"
 ci_log "Test log: $LOG_FILE"
 
+if [[ ! -f "$ROOT/addons/godotsteam/godotsteam.gdextension" ]]; then
+	ci_log "ERROR: GodotSteam missing. Run tools/run_setup_steam.sh first."
+	exit 1
+fi
+
 if [[ -f "$GDEXT" ]]; then
 	rm -f "$GDEXT_DISABLED"
 	mv "$GDEXT" "$GDEXT_DISABLED"

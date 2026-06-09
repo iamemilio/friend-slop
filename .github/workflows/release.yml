@@ -58,6 +58,15 @@ jobs:
             models/vosk
           key: voice-${{ hashFiles('tools/versions.env') }}
 
+      - name: Restore GodotSteam cache
+        id: steam-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/steam-setup
+            addons/godotsteam
+          key: steam-${{ hashFiles('tools/versions.env') }}
+
       - name: Cache Godot import data
         id: godot-import-cache
         uses: actions/cache@v4
@@ -73,6 +82,7 @@ jobs:
           ci_log "Godot binary cache hit: ${{ steps.godot-bin-cache.outputs.cache-hit }}"
           ci_log "Export templates cache hit: ${{ steps.godot-export-cache.outputs.cache-hit }}"
           ci_log "Voice dependency cache hit: ${{ steps.voice-cache.outputs.cache-hit }}"
+          ci_log "GodotSteam cache hit: ${{ steps.steam-cache.outputs.cache-hit }}"
           ci_log "Godot import cache hit: ${{ steps.godot-import-cache.outputs.cache-hit }}"
 
       - name: Install host dependencies
@@ -87,6 +97,9 @@ jobs:
 
       - name: Install voice dependencies
         run: bash tools/run_setup_voice.sh
+
+      - name: Install GodotSteam
+        run: bash tools/run_setup_steam.sh
 
       - name: Import project assets
         run: bash tools/run_godot_import.sh

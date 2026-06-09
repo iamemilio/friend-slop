@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help setup setup-dev setup-voice lint test test-ci release-ci check import verify-pinned-versions verify-voice ci-container-bootstrap
+.PHONY: help setup setup-dev setup-voice setup-steam lint test test-ci release-ci check import verify-pinned-versions verify-voice verify-steam ci-container-bootstrap
 
 ifeq ($(OS),Windows_NT)
 PYTHON ?= python
@@ -17,14 +17,19 @@ endif
 
 include tools/versions.mk
 
+ifeq ($(OS),Windows_NT)
+GODOT ?= $(GODOT_EDITOR_WIN)
+else
 GODOT ?= godot
+endif
 
 help:
-	@echo "FriendSlop dev targets (Godot $(GODOT_VERSION))"
+	@echo "FriendSlop dev targets (Godot $(GODOT_VERSION), GodotSteam $(GODOTSTEAM_VERSION))"
 	@echo ""
-	@echo "  make setup                 Python tooling + voice deps (full local setup)"
+	@echo "  make setup                 Python tooling + voice + GodotSteam (full local setup)"
 	@echo "  make setup-dev             pip install -r requirements-dev.txt (uses .venv)"
 	@echo "  make setup-voice           gdvosk + Vosk model (~500 MB first run)"
+	@echo "  make setup-steam           GodotSteam GDExtension (~27 MB first run)"
 	@echo "  make lint                  gdlint via tools/run_checks.py"
 	@echo "  make test                  Godot unit tests via tools/run_checks.py"
 	@echo "  make test-ci               smoke-test the GitHub Actions test job locally"
@@ -33,11 +38,13 @@ help:
 	@echo "  make import                godot --headless --import"
 	@echo "  make verify-pinned-versions  CI guard: workflows match tools/versions.env"
 	@echo "  make verify-voice          quick file check for gdvosk install"
+	@echo "  make verify-steam          quick file check for GodotSteam install"
 	@echo ""
 	@echo "Override Godot binary: make test GODOT=/path/to/godot"
+	@echo "Windows default Godot: tools/versions.env GODOT_EDITOR_WIN"
 	@echo "Pinned versions live in tools/versions.env"
 
-setup: setup-dev setup-voice
+setup: setup-dev setup-voice setup-steam
 
 setup-dev:
 	@$(PYTHON) -m venv .venv || ( \
@@ -52,6 +59,13 @@ ifeq ($(OS),Windows_NT)
 	powershell -ExecutionPolicy Bypass -File tools/setup_gdvosk.ps1
 else
 	bash tools/setup_gdvosk.sh
+endif
+
+setup-steam:
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File tools/setup_godotsteam.ps1
+else
+	bash tools/setup_godotsteam.sh
 endif
 
 lint:
@@ -90,4 +104,11 @@ else
 	@grep -q 'windows\.editor\.x86_64' addons/gdvosk/gdvosk.gdextension || \
 		(echo "gdvosk.gdextension needs editor entries. Run: make setup-voice" >&2; exit 1)
 	@echo "Voice dependencies OK ($(GDVOSK_ZIP), $(VOSK_MODEL_ZIP))"
+endif
+
+verify-steam:
+ifeq ($(OS),Windows_NT)
+	powershell -ExecutionPolicy Bypass -File tools/verify_godotsteam.ps1
+else
+	bash tools/verify_godotsteam.sh
 endif

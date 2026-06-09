@@ -39,6 +39,7 @@ done
 
 JOB_START=$SECONDS
 bash tools/setup_godot_linux.sh
+bash tools/run_setup_steam.sh
 bash tools/run_godot_import.sh
 bash tools/run_godot_tests.sh
 ci_log "CI test job smoke finished in $((SECONDS - JOB_START))s"
