@@ -6,6 +6,7 @@ extends RefCounted
 const CodecScript := preload("res://scripts/spells/spell_validation_codec.gd")
 const GdvoskAdapterScript := preload("res://scripts/spells/gdvosk_adapter.gd")
 const SpellCastValidatorScript := preload("res://scripts/spells/spell_cast_validator.gd")
+const SpellGrammarBuilderScript := preload("res://scripts/spells/spell_grammar_builder.gd")
 const SpellLogScript := preload("res://scripts/spells/spell_log.gd")
 
 ## Test hook: artificial delay inside the worker thread.
@@ -30,7 +31,10 @@ static func run(work: Dictionary) -> Dictionary:
 	var sample_rate: int = int(work.get("sample_rate", 0))
 
 	if transcript_words.is_empty() and not use_stub:
-		var stt := _transcribe_for_validation(raw_samples, samples, sample_rate)
+		var grammar_json := _grammar_json_for_work(work)
+		var stt := _transcribe_for_validation(
+			raw_samples, samples, sample_rate, grammar_json
+		)
 		var words: Variant = stt.get("words")
 		var starts: Variant = stt.get("starts")
 		if words is PackedStringArray:
@@ -40,18 +44,20 @@ static func run(work: Dictionary) -> Dictionary:
 		if transcript_words.is_empty():
 			SpellLogScript.debug(
 				"CastSession",
-				"stt returned no words (samples=%d trimmed=%d rate=%d model_loaded=%s)"
+				"stt returned no words (samples=%d trimmed=%d rate=%d model_loaded=%s grammar=%s)"
 				% [
 					raw_samples.size(),
 					samples.size(),
 					sample_rate,
 					str(GdvoskAdapterScript.is_model_loaded()),
+					not grammar_json.is_empty(),
 				]
 			)
 		else:
 			SpellLogScript.debug(
 				"CastSession",
-				'stt transcript="%s"' % " ".join(transcript_words)
+				'stt transcript="%s" grammar=%s'
+				% [" ".join(transcript_words), not grammar_json.is_empty()]
 			)
 
 	if str(work.get("mode", "")) == "free_cast":
@@ -74,18 +80,33 @@ static func run(work: Dictionary) -> Dictionary:
 	)
 
 
+static func _grammar_json_for_work(work: Dictionary) -> String:
+	var spell_dicts: Array = work.get("grammar_spells", [])
+	if spell_dicts.is_empty():
+		if str(work.get("mode", "")) == "free_cast":
+			spell_dicts = work.get("candidates", [])
+		else:
+			var spell: Variant = work.get("spell", {})
+			if spell is Dictionary and not spell.is_empty():
+				spell_dicts = [spell]
+	return SpellGrammarBuilderScript.build_json_from_spell_dicts(spell_dicts)
+
+
 static func _transcribe_for_validation(
 	samples: PackedFloat32Array,
 	trimmed: PackedFloat32Array,
-	sample_rate: int
+	sample_rate: int,
+	grammar_json: String
 ) -> Dictionary:
-	var stt := GdvoskAdapterScript.transcribe_samples(samples, sample_rate)
+	var stt := GdvoskAdapterScript.transcribe_samples(
+		samples, sample_rate, grammar_json
+	)
 	var words: Variant = stt.get("words")
 	if words is PackedStringArray and not words.is_empty():
 		return stt
 	if trimmed.is_empty() or trimmed.size() == samples.size():
 		return stt
-	return GdvoskAdapterScript.transcribe_samples(trimmed, sample_rate)
+	return GdvoskAdapterScript.transcribe_samples(trimmed, sample_rate, grammar_json)
 
 
 static func _build_targeted_response(

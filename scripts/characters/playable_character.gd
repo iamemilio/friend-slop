@@ -34,6 +34,7 @@ var _effect_applier: Node
 var _speed_boost_multiplier: float = 1.0
 var _speed_boost_timer: float = 0.0
 var _wand: PlayerWand
+var _casting_lmb_held := false
 
 @onready var head: Node3D = %Head
 @onready var camera_pivot: Node3D = %CameraPivot
@@ -342,7 +343,9 @@ func _on_wand_button_pressed() -> void:
 		return
 	if _casting_session != null and _casting_session.is_tome_teaching():
 		return
+	_casting_lmb_held = true
 	if _casting_session != null and _casting_session.is_active():
+		_casting_session.cancel()
 		return
 	_try_free_cast()
 
@@ -350,10 +353,14 @@ func _on_wand_button_pressed() -> void:
 func _on_wand_button_released() -> void:
 	if not is_multiplayer_authority():
 		return
+	if not _casting_lmb_held:
+		return
+	_casting_lmb_held = false
 	if _casting_session == null:
 		return
-	if _casting_session.is_free_cast() and _casting_session.is_active():
-		_casting_session.release_wand_hold()
+	if not _casting_session.is_free_cast() or not _casting_session.is_active():
+		return
+	_casting_session.release_wand_hold()
 
 
 func _try_tome_teaching_interact() -> bool:
@@ -425,7 +432,7 @@ func _update_interaction_prompt() -> void:
 
 func _default_cast_prompt() -> String:
 	if _spell_loadout != null and _spell_loadout.has_known_spells():
-		return "Hold [LMB] to cast · Spell codex [B]"
+		return "Hold [LMB], speak, then release to cast"
 	return ""
 
 

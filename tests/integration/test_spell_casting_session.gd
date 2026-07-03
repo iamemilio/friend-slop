@@ -5,8 +5,12 @@ extends RefCounted
 ## Requires a SceneTree so nodes can be added; drives _process directly.
 
 const FireballSpell := preload("res://resources/spells/fireball.tres")
+const ShowMeSpell := preload("res://resources/spells/show_me.tres")
+const HasteSpell := preload("res://resources/spells/haste.tres")
 const WorkerScript := preload("res://scripts/spells/spell_validation_worker.gd")
 const SpellSttConfigScript := preload("res://scripts/spells/spell_stt_config.gd")
+const CharacterSpellLoadoutScript := preload("res://scripts/spells/character_spell_loadout.gd")
+const SpellGrammarBuilderScript := preload("res://scripts/spells/spell_grammar_builder.gd")
 
 
 func run(tree: SceneTree) -> int:
@@ -18,6 +22,10 @@ func run(tree: SceneTree) -> int:
 	failures += _test_cast_fireball_stub_succeeds(tree)
 	failures += _test_cast_fireball_heard_transcript_succeeds(tree)
 	failures += _test_cast_fireball_wrong_words_fails(tree)
+	failures += _test_free_cast_hold_blocks_silence_auto_commit(tree)
+	failures += _test_free_cast_release_commits(tree)
+	failures += _test_free_cast_returns_idle_after_success(tree)
+	failures += _test_grammar_spells_come_from_player_loadout(tree)
 	return failures
 
 
@@ -273,6 +281,128 @@ func _test_offline_session_runs_process(tree: SceneTree) -> int:
 			"Expected offline cast session to advance to listening, got: %s"
 			% state_after
 		)
+		return 1
+	return 0
+
+
+func _pump_to_listening(session: SpellCastingSession) -> void:
+	for _i in 30:
+		if session.get_state() == SpellCastingSession.STATE_LISTENING:
+			return
+		session._process(0.016)
+
+
+func _test_free_cast_hold_blocks_silence_auto_commit(tree: SceneTree) -> int:
+	var session := _make_session(tree)
+	var validator := VoiceSpellValidator.new()
+	validator.use_stub = true
+	session.configure(validator)
+
+	session.start_free_cast([FireballSpell])
+	_pump_to_listening(session)
+
+	session._speech_detected = true
+	session._listen_elapsed = 1.0
+	session._silence_after_speech = 1.0
+	session._update_listen_coaching(0.0, 0.2)
+
+	if session.get_state() != SpellCastingSession.STATE_LISTENING:
+		_free_session(session)
+		push_error("Expected silence not to auto-commit while hold release is required")
+		return 1
+
+	_free_session(session)
+	return 0
+
+
+func _test_free_cast_release_commits(tree: SceneTree) -> int:
+	var session := _make_session(tree)
+	var validator := VoiceSpellValidator.new()
+	validator.use_stub = true
+	session.configure(validator)
+
+	var succeeded := false
+	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
+		succeeded = true
+	)
+
+	session.start_free_cast([FireballSpell])
+	_pump_to_listening(session)
+	session._recorded_samples = _loud_samples(0.5)
+	session._sample_rate = 48000
+	session.release_wand_hold()
+
+	for _attempt in 300:
+		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
+			break
+		_pump_session_frame(session)
+
+	_free_session(session)
+
+	if not succeeded:
+		push_error("Expected free cast to commit on wand release")
+		return 1
+	return 0
+
+
+func _test_grammar_spells_come_from_player_loadout(tree: SceneTree) -> int:
+	var session := _make_session(tree)
+	var loadout: CharacterSpellLoadout = CharacterSpellLoadoutScript.new()
+	loadout.configure([FireballSpell, ShowMeSpell, HasteSpell])
+	loadout.learn_spell("fireball", "test")
+	loadout.learn_spell("haste", "test")
+
+	var validator := VoiceSpellValidator.new()
+	validator.use_stub = true
+	session.configure(validator, loadout)
+
+	# Pass a different candidate list; grammar must still use the loadout.
+	session.start_free_cast([ShowMeSpell])
+	var grammar := session._grammar_spells_for_player()
+	var grammar_ids: Array[String] = []
+	for spell in grammar:
+		grammar_ids.append(spell.id)
+	grammar_ids.sort()
+
+	_free_session(session)
+
+	if grammar_ids != ["fireball", "haste"]:
+		push_error(
+			"Expected grammar from player loadout known spells, got: %s" % str(grammar_ids)
+		)
+		return 1
+
+	var phrases: Variant = JSON.parse_string(
+		SpellGrammarBuilderScript.build_json_from_spell_dicts(
+			SpellValidationCodec.spells_to_dict_array(grammar)
+		)
+	)
+	if not phrases is Array or phrases.size() != 3:
+		push_error("Expected grammar JSON for known spells plus [unk], got: %s" % phrases)
+		return 1
+	return 0
+
+
+func _test_free_cast_returns_idle_after_success(tree: SceneTree) -> int:
+	var session := _make_session(tree)
+	var validator := VoiceSpellValidator.new()
+	validator.use_stub = true
+	session.configure(validator)
+
+	session.start_free_cast([FireballSpell])
+	_pump_to_listening(session)
+	session._recorded_samples = _loud_samples(0.5)
+	session._sample_rate = 48000
+	session.release_wand_hold()
+	for _attempt in 300:
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
+		_pump_session_frame(session)
+
+	_free_session(session)
+
+	if session.get_state() != SpellCastingSession.STATE_IDLE:
+		push_error("Expected free cast to return idle after one successful cast")
 		return 1
 	return 0
 

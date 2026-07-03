@@ -87,7 +87,7 @@ func _wire_spell_system(player: CharacterBody3D) -> void:
 	loadout.configure(spell_registry.get_all_spells())
 	_apply_role_starting_spells(loadout)
 	game_hud.configure(loadout, casting_session)
-	casting_session.configure(voice_validator)
+	casting_session.configure(voice_validator, loadout)
 	casting_session.add_to_group("casting_session")
 	casting_session.state_changed.connect(_on_cast_state_changed)
 	casting_session.cast_succeeded.connect(_on_cast_succeeded)

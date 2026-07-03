@@ -10,6 +10,7 @@ const TestMazeCarver := preload("res://tests/unit/test_maze_carver.gd")
 const TestDiscoverableSpawnPlan := preload("res://tests/unit/test_discoverable_spawn_plan.gd")
 const TestVoiceSpellValidator := preload("res://tests/unit/test_voice_spell_validator.gd")
 const TestIncantationMatcher := preload("res://tests/unit/test_incantation_matcher.gd")
+const TestSpellGrammarBuilder := preload("res://tests/unit/test_spell_grammar_builder.gd")
 const TestSpellCastValidator := preload("res://tests/unit/test_spell_cast_validator.gd")
 const TestCharacterSpellLoadout := preload("res://tests/unit/test_character_spell_loadout.gd")
 const TestGdvoskAdapter := preload("res://tests/unit/test_gdvosk_adapter.gd")
@@ -30,6 +31,8 @@ const TestSpellValidationAsync := preload("res://tests/unit/test_spell_validatio
 const TestSpellPipeline := preload("res://tests/unit/test_spell_pipeline.gd")
 const TestSpellEffectSync := preload("res://tests/unit/test_spell_effect_sync.gd")
 const TestSpellCastingSession := preload("res://tests/integration/test_spell_casting_session.gd")
+const TestPlayableCharacterWand := preload("res://tests/unit/test_playable_character_wand.gd")
+const TestVoiceCaptureWorker := preload("res://tests/unit/test_voice_capture_worker.gd")
 const TestGdvoskExtensionConfig := preload("res://tests/unit/test_gdvosk_extension_config.gd")
 const TestSpellSttConfig := preload("res://tests/unit/test_spell_stt_config.gd")
 const TestGdvoskRuntime := preload("res://tests/integration/test_gdvosk_runtime.gd")
@@ -57,6 +60,9 @@ func _run_tests() -> void:
 
 	var matcher_suite := TestIncantationMatcher.new()
 	failures += matcher_suite.run()
+
+	var grammar_suite := TestSpellGrammarBuilder.new()
+	failures += grammar_suite.run()
 
 	var cast_validator_suite := TestSpellCastValidator.new()
 	failures += cast_validator_suite.run()
@@ -117,6 +123,12 @@ func _run_tests() -> void:
 
 	var spell_casting_session_suite := TestSpellCastingSession.new()
 	failures += spell_casting_session_suite.run(self)
+
+	var wand_input_suite := TestPlayableCharacterWand.new()
+	failures += wand_input_suite.run(self)
+
+	var voice_capture_suite := TestVoiceCaptureWorker.new()
+	failures += voice_capture_suite.run()
 
 	var gdvosk_extension_config_suite := TestGdvoskExtensionConfig.new()
 	failures += gdvosk_extension_config_suite.run()

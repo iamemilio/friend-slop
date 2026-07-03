@@ -58,14 +58,16 @@ func get_cast_direction() -> Vector3:
 	return -global_transform.basis.z.normalized()
 
 
-func play_cast_success(spell: SpellDefinition = null) -> void:
-	set_armed(false)
+func play_cast_success(spell: SpellDefinition = null, keep_armed: bool = false) -> void:
+	if not keep_armed:
+		set_armed(false)
 	_emit_burst(_success_particles, _success_color_for_spell(spell))
 	_pulse_tip(Color(1.0, 0.98, 0.92), 0.35)
 
 
-func play_fizzle() -> void:
-	set_armed(false)
+func play_fizzle(keep_armed: bool = false) -> void:
+	if not keep_armed:
+		set_armed(false)
 	_emit_burst(_fizzle_particles, Color(0.55, 0.5, 0.65))
 	_pulse_tip(Color(0.65, 0.55, 0.75), 0.2)
 

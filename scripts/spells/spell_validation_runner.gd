@@ -42,11 +42,19 @@ func start(
 	target_spell: SpellDefinition,
 	candidate_spells: Array[SpellDefinition],
 	transcript_words: PackedStringArray,
-	word_starts_sec: PackedFloat32Array
+	word_starts_sec: PackedFloat32Array,
+	grammar_spells: Array[SpellDefinition] = []
 ) -> bool:
 	abort()
 	_finished = false
 	_payload = {}
+
+	var grammar_source: Array = grammar_spells
+	if grammar_source.is_empty():
+		if mode == "free_cast":
+			grammar_source = candidate_spells
+		elif target_spell != null:
+			grammar_source = [target_spell]
 
 	var trimmed := SpellAudioUtilsScript.extract_speech_samples(samples, sample_rate)
 	var work := {
@@ -57,6 +65,7 @@ func start(
 		"use_stub": use_stub,
 		"spell": CodecScript.spell_to_dict(target_spell),
 		"candidates": CodecScript.spells_to_dict_array(candidate_spells),
+		"grammar_spells": CodecScript.spells_to_dict_array(grammar_source),
 		"transcript_words": CodecScript.array_from_strings(transcript_words),
 		"word_starts_sec": CodecScript.array_from_floats(word_starts_sec),
 	}
