@@ -6,6 +6,11 @@ const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.g
 var _game_won: bool = false
 var _learn_confirm_pending: bool = false
 var _local_player: CharacterBody3D
+var _maze_spawn_cell: Vector2i = Vector2i(-1, -1)
+var _maze_exit_cell: Vector2i = Vector2i(-1, -1)
+var _maze_layout_ready: bool = false
+var _players_spawned: bool = false
+var _discoverables_spawned: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
 @onready var players_root: Node3D = $Players
@@ -26,7 +31,6 @@ func _ready() -> void:
 
 	if GameState.is_multiplayer:
 		multiplayer.peer_connected.connect(_on_peer_connected)
-		FriendSlopVoiceAdapter.setup_for_match(players_root)
 		var role_name := RoleAssignment.role_label(GameState.get_local_role())
 		var phase_name := MatchState.phase_to_string(MatchStateManager.get_phase())
 		TomeDebug.log(
@@ -44,6 +48,8 @@ func _ready() -> void:
 		players_root,
 		_configure_local_player
 	)
+	_players_spawned = true
+	_finish_match_layout()
 
 
 func _ensure_speech_stt_ready() -> void:
@@ -55,6 +61,9 @@ func _ensure_speech_stt_ready() -> void:
 		await SpeechSttLoader.loading_finished
 	elif not SpeechSttLoader.is_ready():
 		SpeechSttLoader.ensure_ready()
+		if SpeechSttLoader.is_loading():
+			TomeDebug.log("Main", "Waiting for speech model to load...")
+			await SpeechSttLoader.loading_finished
 	if SpeechSttLoader.is_ready():
 		TomeDebug.log("Main", "Speech STT ready")
 	else:
@@ -68,8 +77,6 @@ func _apply_voice_settings() -> void:
 func _configure_local_player(player: CharacterBody3D) -> void:
 	_local_player = player
 	_wire_spell_system(player)
-	if GameState.is_multiplayer:
-		FriendSlopVoiceAdapter.register_local_player(player)
 
 
 func _wire_spell_system(player: CharacterBody3D) -> void:
@@ -106,9 +113,6 @@ func _on_peer_connected(peer_id: int) -> void:
 		players_root,
 		_configure_local_player
 	)
-	var player := players_root.get_node_or_null(str(peer_id)) as CharacterBody3D
-	if player != null:
-		FriendSlopVoiceAdapter.register_peer_player(player)
 
 
 func _on_quit_to_menu() -> void:
@@ -125,16 +129,29 @@ func _on_maze_ready(
 	spawn_cell: Vector2i,
 	exit_cell: Vector2i
 ) -> void:
+	_maze_spawn_cell = spawn_cell
+	_maze_exit_cell = exit_cell
+	_maze_layout_ready = true
+	_finish_match_layout()
+
+
+func _finish_match_layout() -> void:
+	if not _maze_layout_ready or not _players_spawned:
+		return
+
 	var players: Array[CharacterBody3D] = []
 	for child in players_root.get_children():
 		if child is CharacterBody3D:
 			players.append(child)
+	if players.is_empty():
+		return
+
 	players.sort_custom(func(a: CharacterBody3D, b: CharacterBody3D) -> bool:
 		return a.player_index < b.player_index
 	)
 
 	var spawn_positions: Array[Vector3] = PlayerSpawnLayoutScript.compute_positions(
-		spawn_cell,
+		_maze_spawn_cell,
 		maze.get_wall_grid(),
 		maze.maze_width,
 		maze.maze_height,
@@ -145,22 +162,25 @@ func _on_maze_ready(
 		var player := players[i]
 		player.global_position = spawn_positions[i]
 		player.velocity = Vector3.ZERO
+		if player is PlayableCharacter:
+			(player as PlayableCharacter).refresh_camera_after_spawn()
 
 	if GameState.is_multiplayer:
 		FriendSlopVoiceAdapter.on_maze_ready(maze)
 		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
 
-	if discoverable_spawner.run_config == null:
+	if _discoverables_spawned or discoverable_spawner.run_config == null:
 		return
 
+	_discoverables_spawned = true
 	var placement_seed: int = DiscoverableSpawnPlan.derive_seed(GameState.run_seed)
 	var wall_grid: Array = maze.get_wall_grid()
 	var placements: Array[DiscoverablePlacement] = DiscoverableSpawnPlan.compute(
 		wall_grid,
 		maze.maze_width,
 		maze.maze_height,
-		spawn_cell,
-		exit_cell,
+		_maze_spawn_cell,
+		_maze_exit_cell,
 		discoverable_spawner.run_config,
 		placement_seed
 	)

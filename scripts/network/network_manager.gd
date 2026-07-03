@@ -14,7 +14,8 @@ signal lobby_character_configs_changed
 signal session_ended(reason: String)
 signal steam_lobby_invite_received(lobby_id: int)
 
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const APPRENTICE_SCENE := preload("res://scenes/characters/apprentice.tscn")
+const WARDEN_SCENE := preload("res://scenes/characters/warden.tscn")
 const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_config.tres")
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
@@ -216,7 +217,7 @@ func spawn_players(
 		child.queue_free()
 
 	if not GameState.is_multiplayer:
-		var solo_player: CharacterBody3D = PLAYER_SCENE.instantiate()
+		var solo_player := _instantiate_player_for_peer(1)
 		solo_player.name = "Player"
 		players_root.add_child(solo_player)
 		solo_player.initialize_player(0)
@@ -235,7 +236,7 @@ func spawn_player_for_peer(
 	if players_root.get_node_or_null(str(peer_id)) != null:
 		return
 
-	var player: CharacterBody3D = PLAYER_SCENE.instantiate()
+	var player := _instantiate_player_for_peer(peer_id)
 	player.name = str(peer_id)
 	player.set_multiplayer_authority(peer_id)
 	players_root.add_child(player)
@@ -472,3 +473,12 @@ func _pack_character_configs_for_current_peers() -> Dictionary:
 		lobby.character_configs,
 		get_lobby_peer_ids()
 	)
+
+
+func _instantiate_player_for_peer(peer_id: int) -> CharacterBody3D:
+	var scene := (
+		WARDEN_SCENE
+		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.WARDEN
+		else APPRENTICE_SCENE
+	)
+	return scene.instantiate() as CharacterBody3D

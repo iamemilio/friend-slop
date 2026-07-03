@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3 uid="uid://bwarden001" inherit="res://scenes/characters/playable_character.tscn"]
+
+[ext_resource type="Script" path="res://scripts/characters/warden.gd" id="1_warden"]
+
+[node name="PlayableCharacter" type="CharacterBody3D"]
+script = ExtResource("1_warden")
+
+[node name="Body" parent="." index="1"]
+transform = Transform3D(1.08, 0, 0, 0, 1.08, 0, 0, 0, 1.08, 0, 0.2, 0)
+
+[node name="Head" parent="." index="2"]
+transform = Transform3D(1.05, 0, 0, 0, 1.05, 0, 0, 0, 1.05, 0, 0.62, 0)

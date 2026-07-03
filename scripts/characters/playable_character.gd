@@ -1,4 +1,7 @@
+class_name PlayableCharacter
 extends CharacterBody3D
+
+## Base playable character: movement, camera, spells, and optional wand/trail in derived scenes.
 
 const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
@@ -23,7 +26,7 @@ const FireballProjectileScript := preload("res://scripts/spells/fireball_project
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 var _third_person: bool = false
-var _snail_color: Color = Color.WHITE
+var _character_color: Color = Color.WHITE
 var _spell_book: SpellBook
 var _casting_session: SpellCastingSession
 var _game_hud: CanvasLayer
@@ -32,29 +35,28 @@ var _speed_boost_multiplier: float = 1.0
 var _speed_boost_timer: float = 0.0
 var _wand: PlayerWand
 
-@onready var head: Node3D = $Head
-@onready var camera_pivot: Node3D = $Head/CameraPivot
-@onready var first_person_camera: Camera3D = $Head/CameraPivot/FirstPersonCamera
-@onready var third_person_anchor: Node3D = $ThirdPersonAnchor
-@onready var third_person_camera: Camera3D = $ThirdPersonCamera
-@onready var position_trail: Node = $PositionTrailRecorder
-@onready var spell_book: SpellBook = $SpellBook
-@onready var casting_session: SpellCastingSession = $SpellCastingSession
-@onready var effect_applier: Node = $SpellEffectApplier
-@onready var _body_mesh: MeshInstance3D = $Body
-@onready var _head_mesh: MeshInstance3D = $Head/HeadMesh
-@onready var _body_collision: CollisionShape3D = $CollisionShape3D
-@onready var _wand_node: PlayerWand = $Head/CameraPivot/FirstPersonCamera/Wand
+@onready var head: Node3D = %Head
+@onready var camera_pivot: Node3D = %CameraPivot
+@onready var first_person_camera: Camera3D = %FirstPersonCamera
+@onready var third_person_anchor: Node3D = %ThirdPersonAnchor
+@onready var third_person_camera: Camera3D = %ThirdPersonCamera
+@onready var spell_book: SpellBook = %SpellBook
+@onready var casting_session: SpellCastingSession = %SpellCastingSession
+@onready var effect_applier: Node = %SpellEffectApplier
+@onready var _body_mesh: MeshInstance3D = %Body
+@onready var _head_mesh: MeshInstance3D = %HeadMesh
+@onready var _body_collision: CollisionShape3D = %CollisionShape3D
+
 
 func _ready() -> void:
 	add_to_group("player")
 	floor_block_on_wall = false
 	floor_snap_length = 0.15
 	safe_margin = 0.04
-	_wand = _wand_node
+	_wand = get_node_or_null("Head/CameraPivot/FirstPersonCamera/Wand") as PlayerWand
 	_configure_collision()
-	_snail_color = GameState.get_snail_color(player_index)
-	_apply_snail_color(_snail_color)
+	_character_color = GameState.get_snail_color(player_index)
+	_apply_character_color(_character_color)
 	_configure_network_player()
 
 
@@ -81,9 +83,13 @@ func _configure_network_player() -> void:
 
 func initialize_player(index: int) -> void:
 	player_index = index
-	_snail_color = GameState.get_snail_color(player_index)
-	_apply_snail_color(_snail_color)
-	position_trail.setup(self)
+	_character_color = GameState.get_snail_color(player_index)
+	_apply_character_color(_character_color)
+	_on_player_initialized()
+
+
+func _on_player_initialized() -> void:
+	pass
 
 
 func configure_interaction(
@@ -150,6 +156,10 @@ func get_wand_cast_direction() -> Vector3:
 	if _wand != null:
 		return _wand.get_cast_direction()
 	return _camera_aim_direction()
+
+
+func get_snail_color() -> Color:
+	return _character_color
 
 
 func _camera_aim_direction() -> Vector3:
@@ -250,6 +260,10 @@ func _apply_camera_mode() -> void:
 		_update_third_person_camera()
 
 
+func refresh_camera_after_spawn() -> void:
+	_apply_camera_mode()
+
+
 func _update_third_person_camera() -> void:
 	third_person_anchor.rotation.y = head.rotation.y
 
@@ -291,7 +305,7 @@ func _separate_from_players() -> void:
 		global_position += away.normalized() * (PLAYER_MIN_SEPARATION - distance)
 
 
-func _apply_snail_color(color: Color) -> void:
+func _apply_character_color(color: Color) -> void:
 	var material := StandardMaterial3D.new()
 	material.albedo_color = color
 	material.roughness = 0.55
@@ -305,17 +319,9 @@ func _apply_snail_color(color: Color) -> void:
 	_head_mesh.material_override = head_material
 
 
-func get_snail_color() -> Color:
-	return _snail_color
-
-
 func _try_interact() -> void:
 	TomeDebug.log("Player", "F pressed — try_interact")
 	if _casting_session != null and _casting_session.is_active():
-		TomeDebug.log(
-			"Player",
-			"ignored: casting session active (state=%s)" % _casting_session.get_state()
-		)
 		return
 
 	if _try_tome_teaching_interact():
@@ -323,15 +329,6 @@ func _try_interact() -> void:
 
 	var interactable: Interactable = _find_nearest_interactable()
 	if interactable != null:
-		TomeDebug.log(
-			"Player",
-			"interacting with %s (%s) dist=%.2f"
-			% [
-				interactable.name,
-				interactable.get_class(),
-				global_position.distance_to(interactable.global_position),
-			]
-		)
 		interactable.interact(self)
 		return
 
@@ -344,14 +341,11 @@ func _try_wand_arm() -> void:
 	if _casting_session != null and _casting_session.is_tome_teaching():
 		return
 	if _casting_session != null and _casting_session.is_active():
-		TomeDebug.log("Player", "canceling wand cast")
 		_casting_session.cancel()
 		if _wand != null:
 			_wand.set_armed(false)
 		return
-	if _try_free_cast():
-		return
-	TomeDebug.log("Player", "wand arm ignored — no cast available")
+	_try_free_cast()
 
 
 func _try_tome_teaching_interact() -> bool:
@@ -375,11 +369,6 @@ func _try_free_cast() -> bool:
 	var candidates := _get_free_cast_candidates()
 	if candidates.is_empty():
 		return false
-	TomeDebug.log(
-		"Player",
-		"starting free voice cast (%s)"
-		% _format_candidate_ids(candidates)
-	)
 	_casting_session.start_free_cast(candidates)
 	return true
 
@@ -396,17 +385,7 @@ func _get_free_cast_candidates() -> Array[SpellDefinition]:
 			if selected != null:
 				return [selected]
 
-	if candidates.size() == 1:
-		return candidates
 	return candidates
-
-
-func _format_candidate_ids(candidates: Array[SpellDefinition]) -> String:
-	var ids: PackedStringArray = PackedStringArray()
-	for spell in candidates:
-		if spell != null:
-			ids.append(spell.id)
-	return ", ".join(ids)
 
 
 func _find_nearest_interactable() -> Interactable:
@@ -453,10 +432,13 @@ func _update_interaction_prompt() -> void:
 	if interactable != null:
 		_game_hud.set_interaction_prompt(interactable.get_prompt())
 		return
+	_game_hud.set_interaction_prompt(_default_cast_prompt())
+
+
+func _default_cast_prompt() -> String:
 	if _spell_book != null and _spell_book.has_known_spells():
-		_game_hud.set_interaction_prompt("Arm wand [LMB] · Spellbook [B]")
-		return
-	_game_hud.set_interaction_prompt("")
+		return "Arm wand [LMB] · Spellbook [B]"
+	return ""
 
 
 func _physics_process(delta: float) -> void:
