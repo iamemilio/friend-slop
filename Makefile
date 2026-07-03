@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help setup setup-dev setup-voice setup-steam lint test test-ci release-ci check import verify-pinned-versions verify-voice verify-steam ci-container-bootstrap
+.PHONY: help setup setup-dev setup-voice setup-steam sync-voice-addon lint test test-voice test-ci release-ci check import verify-pinned-versions verify-voice verify-steam ci-container-bootstrap
 
 ifeq ($(OS),Windows_NT)
 PYTHON ?= python
@@ -31,7 +31,9 @@ help:
 	@echo "  make setup-voice           gdvosk + Vosk model (~500 MB first run)"
 	@echo "  make setup-steam           GodotSteam GDExtension (~27 MB first run)"
 	@echo "  make lint                  gdlint via tools/run_checks.py"
-	@echo "  make test                  Godot unit tests via tools/run_checks.py"
+	@echo "  make test                  Godot unit tests (game + godot-steam-voice library)"
+	@echo "  make test-voice              godot-steam-voice library tests only"
+	@echo "  make sync-voice-addon        Package vendor/godot-steam-voice into addons/"
 	@echo "  make test-ci               smoke-test the GitHub Actions test job locally"
 	@echo "  make release-ci            smoke-test the GitHub Actions release export (Linux)"
 	@echo "  make check                 lint + test"
@@ -73,6 +75,12 @@ lint:
 
 test:
 	GODOT_PATH="$(GODOT)" $(RUN_PYTHON) tools/run_checks.py --tests-only
+
+test-voice:
+	GODOT_PATH="$(GODOT)" $(RUN_PYTHON) vendor/godot-steam-voice/tools/run_tests.py --tests-only
+
+sync-voice-addon:
+	$(RUN_PYTHON) tools/sync_godot_steam_voice.py --clone
 
 test-ci:
 	bash tools/ci_smoke_test_job.sh

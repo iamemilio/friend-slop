@@ -26,6 +26,7 @@ func _ready() -> void:
 
 	if GameState.is_multiplayer:
 		multiplayer.peer_connected.connect(_on_peer_connected)
+		FriendSlopVoiceAdapter.setup_for_match(players_root)
 		var role_name := RoleAssignment.role_label(GameState.get_local_role())
 		var phase_name := MatchState.phase_to_string(MatchStateManager.get_phase())
 		TomeDebug.log(
@@ -67,6 +68,8 @@ func _apply_voice_settings() -> void:
 func _configure_local_player(player: CharacterBody3D) -> void:
 	_local_player = player
 	_wire_spell_system(player)
+	if GameState.is_multiplayer:
+		FriendSlopVoiceAdapter.register_local_player(player)
 
 
 func _wire_spell_system(player: CharacterBody3D) -> void:
@@ -103,10 +106,14 @@ func _on_peer_connected(peer_id: int) -> void:
 		players_root,
 		_configure_local_player
 	)
+	var player := players_root.get_node_or_null(str(peer_id)) as CharacterBody3D
+	if player != null:
+		FriendSlopVoiceAdapter.register_peer_player(player)
 
 
 func _on_quit_to_menu() -> void:
 	SettingsManager.stop_mic_test()
+	FriendSlopVoiceAdapter.end_voice()
 	NetworkManager.disconnect_session()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
@@ -138,6 +145,10 @@ func _on_maze_ready(
 		var player := players[i]
 		player.global_position = spawn_positions[i]
 		player.velocity = Vector3.ZERO
+
+	if GameState.is_multiplayer:
+		FriendSlopVoiceAdapter.on_maze_ready(maze)
+		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
 
 	if discoverable_spawner.run_config == null:
 		return

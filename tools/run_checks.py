@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+VOICE_LIB_ROOT = ROOT / "vendor" / "godot-steam-voice"
+VOICE_ADDON_TEST_RUNNER = VOICE_LIB_ROOT / "tools" / "run_tests.py"
 VERSIONS_ENV = ROOT / "tools" / "versions.env"
 LINT_PATHS = ("scripts", "tests")
 TEST_LOG = ROOT / ".cache" / "godot-tests.log"
@@ -222,6 +224,7 @@ def run_tests() -> tuple[int, str]:
     timeout_sec = int(os.environ.get("GODOT_TEST_TIMEOUT_SEC", "120"))
     env = os.environ.copy()
     env["FRIEND_SLOP_TEST"] = "1"
+    env["STEAM_PROXIMITY_VOICE_TEST"] = "1"
     TEST_LOG.parent.mkdir(parents=True, exist_ok=True)
     stdout_text = ""
     try:
@@ -263,6 +266,41 @@ def run_tests() -> tuple[int, str]:
     return exit_code, "\n".join(line for line in output_lines if line)
 
 
+def run_voice_addon_tests() -> tuple[int, str]:
+    """Run godot-steam-voice tests from vendor clone (GdUnit4, no Friend Slop deps)."""
+    if not VOICE_ADDON_TEST_RUNNER.is_file():
+        sync_script = ROOT / "tools" / "sync_godot_steam_voice.py"
+        if sync_script.is_file():
+            subprocess.run(
+                [sys.executable, str(sync_script), "--clone"],
+                cwd=str(ROOT),
+                check=False,
+            )
+    if not VOICE_ADDON_TEST_RUNNER.is_file():
+        return 0, (
+            "godot-steam-voice test runner not found — skipping. "
+            "Run: make sync-voice-addon"
+        )
+
+    output_lines: list[str] = ["Running godot-steam-voice tests (vendor library)..."]
+    godot = _find_godot()
+    env = os.environ.copy()
+    if godot is not None:
+        env["GODOT_PATH"] = str(godot)
+
+    proc = subprocess.run(
+        [sys.executable, str(VOICE_ADDON_TEST_RUNNER), "--tests-only"],
+        cwd=str(VOICE_LIB_ROOT),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=int(os.environ.get("GODOT_TEST_TIMEOUT_SEC", "120")),
+    )
+    output_lines.append(proc.stdout)
+    return proc.returncode, "\n".join(line for line in output_lines if line)
+
+
 def run_checks(*, lint: bool = True, tests: bool = True) -> tuple[int, str]:
     output_lines: list[str] = []
 
@@ -277,6 +315,11 @@ def run_checks(*, lint: bool = True, tests: bool = True) -> tuple[int, str]:
         output_lines.append(test_output)
         if test_code != 0:
             return test_code, "\n".join(line for line in output_lines if line)
+
+        voice_code, voice_output = run_voice_addon_tests()
+        output_lines.append(voice_output)
+        if voice_code != 0:
+            return voice_code, "\n".join(line for line in output_lines if line)
 
     return 0, "\n".join(line for line in output_lines if line)
 

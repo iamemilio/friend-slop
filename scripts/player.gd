@@ -30,7 +30,6 @@ var _game_hud: CanvasLayer
 var _effect_applier: Node
 var _speed_boost_multiplier: float = 1.0
 var _speed_boost_timer: float = 0.0
-var _light_pulse: OmniLight3D
 var _wand: PlayerWand
 
 @onready var head: Node3D = $Head
@@ -126,17 +125,8 @@ func apply_speed_boost(duration: float, multiplier: float) -> void:
 
 
 func apply_light_pulse(duration: float) -> void:
-	if _light_pulse == null:
-		_light_pulse = OmniLight3D.new()
-		_light_pulse.light_color = Color(0.95, 0.85, 0.45)
-		_light_pulse.omni_range = 14.0
-		_light_pulse.position = Vector3(0.0, 0.8, 0.0)
-		add_child(_light_pulse)
-	_light_pulse.visible = true
-	_light_pulse.light_energy = 3.5
-	var tween := create_tween()
-	tween.tween_property(_light_pulse, "light_energy", 0.0, duration)
-	tween.tween_callback(func() -> void: _light_pulse.visible = false)
+	if _wand != null:
+		_wand.play_spell_light(duration)
 
 
 func launch_fireball() -> void:

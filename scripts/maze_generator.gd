@@ -68,6 +68,13 @@ func cell_to_world(cell_x: int, cell_y: int) -> Vector3:
 	return pos
 
 
+func world_to_cell(world_position: Vector3) -> Vector2i:
+	var offset := _maze_offset()
+	var gx := int(round((world_position.x + offset.x) / cell_size))
+	var gy := int(round((world_position.z + offset.z) / cell_size))
+	return Vector2i(gx, gy)
+
+
 func _clear_maze() -> void:
 	for child in get_children():
 		child.queue_free()

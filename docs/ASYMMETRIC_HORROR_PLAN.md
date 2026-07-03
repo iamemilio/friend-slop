@@ -252,6 +252,11 @@ Headless Godot scenes:
 
 ### Technical spike (ADR required)
 
+**Done** — see `docs/adr/001-proximity-voice.md` and packaged addon at `addons/godot-steam-voice/`. Game wiring: `FriendSlopVoiceAdapter` autoload; maze muffling via `MufflingMap`; spatial rules enabled on `MatchState.ACTIVE`.
+
+<details>
+<summary>Original spike notes (historical)</summary>
+
 Document choice in `docs/adr/001-proximity-voice.md`:
 
 | Option | Pros | Cons |
@@ -262,12 +267,11 @@ Document choice in `docs/adr/001-proximity-voice.md`:
 
 **Recommendation:** Phase 1a local attenuation prototype → Phase 1b networked VoIP (WebRTC or encoded audio over game peer) with **signaling via host RPC**. Do not use Steam’s built-in lobby voice for gameplay.
 
+</details>
+
 ### Deliverables
 
-1. **`ProximityVoiceManager` autoload**
-   - `register_speaker(peer_id, AudioStreamPlayer3D or bus)`
-   - `set_listener(position, room_id)`
-   - Attenuation curve: full volume ≤ 3m, silent ≥ 25m (tune in resource).
+1. **`FriendSlopVoiceAdapter`** (replaces planned `ProximityVoiceManager`) — wires `VoiceSession` to player heads and maze muffling.
 2. **Occlusion model v1:** maze grid **room id** per cell (from `MazeCarver`); same room = clear; adjacent = −12 dB; 2+ walls = −24 dB; sealed chamber = leak profile.
 3. **Lobby vs match:** full voice in lobby; on `MatchState.ACTIVE`, enforce proximity rules.
 4. **Settings:** push-to-talk override (streamer mode); emote wheel (short-range presets) — optional stub UI.

@@ -12,10 +12,15 @@ const SHAFT_LENGTH := 0.28
 const SHAFT_TOP_RADIUS := 0.007
 const SHAFT_BOTTOM_RADIUS := 0.010
 const TIP_RADIUS := 0.012
+const SPELL_LIGHT_ENERGY := 3.5
+const SPELL_LIGHT_RANGE := 14.0
 
 var _shaft_mesh: MeshInstance3D
 var _tip_mesh: MeshInstance3D
 var _tip_light: OmniLight3D
+var _spell_light_anchor: Marker3D
+var _spell_cast_light: OmniLight3D
+var _spell_light_tween: Tween
 var _cast_origin: Marker3D
 var _fizzle_particles: CPUParticles3D
 var _success_particles: CPUParticles3D
@@ -63,6 +68,22 @@ func play_fizzle() -> void:
 	set_armed(false)
 	_emit_burst(_fizzle_particles, Color(0.55, 0.5, 0.65))
 	_pulse_tip(Color(0.65, 0.55, 0.75), 0.2)
+
+
+func play_spell_light(duration: float) -> void:
+	if _spell_cast_light == null:
+		return
+	if _spell_light_tween != null and _spell_light_tween.is_valid():
+		_spell_light_tween.kill()
+	_spell_cast_light.visible = true
+	_spell_cast_light.light_energy = SPELL_LIGHT_ENERGY
+	if _tip_mesh.material_override is StandardMaterial3D:
+		var mat: StandardMaterial3D = _tip_mesh.material_override
+		mat.emission = Color(0.95, 0.85, 0.45)
+		mat.emission_energy_multiplier = 2.4
+	_spell_light_tween = create_tween()
+	_spell_light_tween.tween_property(_spell_cast_light, "light_energy", 0.0, duration)
+	_spell_light_tween.tween_callback(_finish_spell_light)
 
 
 func _build_wand_meshes() -> void:
@@ -113,6 +134,19 @@ func _build_wand_meshes() -> void:
 	_cast_origin.name = "CastOrigin"
 	_cast_origin.position = tip_offset + Vector3(0.0, 0.0, -0.025)
 	add_child(_cast_origin)
+
+	_spell_light_anchor = Marker3D.new()
+	_spell_light_anchor.name = "SpellLightAnchor"
+	_spell_light_anchor.position = tip_offset
+	add_child(_spell_light_anchor)
+
+	_spell_cast_light = OmniLight3D.new()
+	_spell_cast_light.name = "SpellCastLight"
+	_spell_cast_light.light_color = Color(0.95, 0.85, 0.45)
+	_spell_cast_light.omni_range = SPELL_LIGHT_RANGE
+	_spell_cast_light.light_energy = 0.0
+	_spell_cast_light.visible = false
+	_spell_light_anchor.add_child(_spell_cast_light)
 
 
 func _build_particles() -> void:
@@ -174,6 +208,12 @@ func _emit_burst(particles: CPUParticles3D, color: Color) -> void:
 	particles.position = Vector3(0.0, 0.0, -SHAFT_LENGTH)
 	particles.restart()
 	particles.emitting = true
+
+
+func _finish_spell_light() -> void:
+	if _spell_cast_light != null:
+		_spell_cast_light.visible = false
+	_refresh_tip_light()
 
 
 func _success_color_for_spell(spell: SpellDefinition) -> Color:

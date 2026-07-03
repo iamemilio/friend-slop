@@ -264,6 +264,23 @@ func _rpc_start_game(
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 
+func sync_match_phase(next: int) -> void:
+	if not is_host():
+		return
+	var snapshot := MatchStateManager.snapshot
+	if snapshot.is_empty():
+		return
+	var state := MatchState.from_snapshot(snapshot)
+	if state.transition_to(next as MatchState.Phase) != OK:
+		return
+	_rpc_sync_match_snapshot.rpc(MatchStateSnapshot.pack(state))
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_match_snapshot(data: Dictionary) -> void:
+	MatchStateManager.apply_snapshot(data)
+
+
 @rpc("authority", "call_local", "reliable")
 func _sync_lobby_roles(roles: Dictionary) -> void:
 	lobby.roles = LobbyMatchState.normalize_roles(roles)
