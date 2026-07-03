@@ -27,7 +27,7 @@ const FireballProjectileScript := preload("res://scripts/spells/fireball_project
 
 var _third_person: bool = false
 var _character_color: Color = Color.WHITE
-var _spell_book: SpellBook
+var _spell_loadout: Node
 var _casting_session: SpellCastingSession
 var _game_hud: CanvasLayer
 var _effect_applier: Node
@@ -40,7 +40,7 @@ var _wand: PlayerWand
 @onready var first_person_camera: Camera3D = %FirstPersonCamera
 @onready var third_person_anchor: Node3D = %ThirdPersonAnchor
 @onready var third_person_camera: Camera3D = %ThirdPersonCamera
-@onready var spell_book: SpellBook = %SpellBook
+@onready var spell_loadout: Node = %CharacterSpellLoadout
 @onready var casting_session: SpellCastingSession = %SpellCastingSession
 @onready var effect_applier: Node = %SpellEffectApplier
 @onready var _body_mesh: MeshInstance3D = %Body
@@ -93,12 +93,12 @@ func _on_player_initialized() -> void:
 
 
 func configure_interaction(
-	spell_book_ref: SpellBook,
+	spell_loadout_ref: Node,
 	casting_session_ref: SpellCastingSession,
 	game_hud: CanvasLayer,
 	effect_applier_ref: Node
 ) -> void:
-	_spell_book = spell_book_ref
+	_spell_loadout = spell_loadout_ref
 	_casting_session = casting_session_ref
 	_game_hud = game_hud
 	_effect_applier = effect_applier_ref
@@ -113,8 +113,8 @@ func configure_interaction(
 			_casting_session.cast_failed.connect(_on_wand_cast_failed)
 
 
-func get_spell_book() -> SpellBook:
-	return spell_book
+func get_spell_loadout() -> Node:
+	return spell_loadout
 
 
 func get_casting_session() -> SpellCastingSession:
@@ -210,9 +210,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		_try_interact()
 
 	if event is InputEventMouseButton \
-			and event.pressed \
 			and event.button_index == MOUSE_BUTTON_LEFT:
-		_try_wand_arm()
+		if event.pressed:
+			_on_wand_button_pressed()
+		else:
+			_on_wand_button_released()
 
 
 func _on_cast_session_state_changed(state: String, _spell: SpellDefinition) -> void:
@@ -335,17 +337,23 @@ func _try_interact() -> void:
 	TomeDebug.log("Player", "no interactable in range")
 
 
-func _try_wand_arm() -> void:
+func _on_wand_button_pressed() -> void:
 	if not is_multiplayer_authority():
 		return
 	if _casting_session != null and _casting_session.is_tome_teaching():
 		return
 	if _casting_session != null and _casting_session.is_active():
-		_casting_session.cancel()
-		if _wand != null:
-			_wand.set_armed(false)
 		return
 	_try_free_cast()
+
+
+func _on_wand_button_released() -> void:
+	if not is_multiplayer_authority():
+		return
+	if _casting_session == null:
+		return
+	if _casting_session.is_free_cast() and _casting_session.is_active():
+		_casting_session.release_wand_hold()
 
 
 func _try_tome_teaching_interact() -> bool:
@@ -359,33 +367,13 @@ func _try_tome_teaching_interact() -> bool:
 
 
 func _try_free_cast() -> bool:
-	if _spell_book == null or _casting_session == null:
+	if _spell_loadout == null or _casting_session == null:
 		return false
-	if not _spell_book.has_known_spells():
-		return false
-	if _game_hud != null and _game_hud.has_method("is_spellbook_open") \
-			and _game_hud.is_spellbook_open():
-		return false
-	var candidates := _get_free_cast_candidates()
+	var candidates: Array[SpellDefinition] = _spell_loadout.get_known_spells()
 	if candidates.is_empty():
 		return false
 	_casting_session.start_free_cast(candidates)
 	return true
-
-
-func _get_free_cast_candidates() -> Array[SpellDefinition]:
-	var candidates: Array[SpellDefinition] = _spell_book.get_known_spells()
-	if candidates.is_empty():
-		return candidates
-
-	if _game_hud != null and _game_hud.has_method("get_selected_spell_id"):
-		var selected_id: String = _game_hud.get_selected_spell_id()
-		if not selected_id.is_empty() and _spell_book.knows(selected_id):
-			var selected: SpellDefinition = _spell_book.get_spell_definition(selected_id)
-			if selected != null:
-				return [selected]
-
-	return candidates
 
 
 func _find_nearest_interactable() -> Interactable:
@@ -436,8 +424,8 @@ func _update_interaction_prompt() -> void:
 
 
 func _default_cast_prompt() -> String:
-	if _spell_book != null and _spell_book.has_known_spells():
-		return "Arm wand [LMB] · Spellbook [B]"
+	if _spell_loadout != null and _spell_loadout.has_known_spells():
+		return "Hold [LMB] to cast · Spell codex [B]"
 	return ""
 
 

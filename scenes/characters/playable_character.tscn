@@ -1,7 +1,7 @@
 [gd_scene load_steps=11 format=3 uid="uid://bplayable001"]
 
 [ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="1_playable"]
-[ext_resource type="Script" path="res://scripts/spells/spell_book.gd" id="2_spellbook"]
+[ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="2_loadout"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="3_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="4_effects"]
 [ext_resource type="Script" path="res://scripts/voice/playable_voice_member.gd" id="5_voice"]
@@ -70,9 +70,9 @@ fov = 75.0
 script = ExtResource("5_voice")
 head_path = NodePath("../Head")
 
-[node name="SpellBook" type="Node" parent="."]
+[node name="CharacterSpellLoadout" type="Node" parent="."]
 unique_name_in_owner = true
-script = ExtResource("2_spellbook")
+script = ExtResource("2_loadout")
 
 [node name="SpellCastingSession" type="Node" parent="."]
 unique_name_in_owner = true

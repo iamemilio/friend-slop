@@ -34,6 +34,6 @@ func _apply_character_color(color: Color) -> void:
 
 
 func _default_cast_prompt() -> String:
-	if _spell_book != null and _spell_book.has_known_spells():
-		return "Channel power [LMB] · Spellbook [B]"
+	if _spell_loadout != null and _spell_loadout.has_known_spells():
+		return "Hold [LMB] to channel · Spell codex [B]"
 	return ""

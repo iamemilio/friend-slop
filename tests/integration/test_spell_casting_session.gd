@@ -70,7 +70,7 @@ func _test_stub_tome_teaching_completes(tree: SceneTree) -> int:
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = true
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var succeeded := false
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
@@ -100,7 +100,7 @@ func _test_validation_runs_async_without_blocking_first_poll(tree: SceneTree) ->
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = true
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var succeeded := false
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
@@ -152,7 +152,7 @@ func _test_cast_fireball_stub_succeeds(tree: SceneTree) -> int:
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = true
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var cast_spell: SpellDefinition = null
 	var cast_mode := ""
@@ -190,7 +190,7 @@ func _test_cast_fireball_heard_transcript_succeeds(tree: SceneTree) -> int:
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = false
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var cast_spell: SpellDefinition = null
 	var validation: CastValidationResult = null
@@ -226,7 +226,7 @@ func _test_cast_fireball_wrong_words_fails(tree: SceneTree) -> int:
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = false
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var failed := false
 	var fail_reason := ""
@@ -252,7 +252,7 @@ func _test_offline_session_runs_process(tree: SceneTree) -> int:
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = true
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var prev_peer: MultiplayerPeer = tree.multiplayer.multiplayer_peer
 	tree.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -285,7 +285,7 @@ func _test_non_stub_fails_before_validation_when_stt_unavailable(tree: SceneTree
 	var session := _make_session(tree)
 	var validator := VoiceSpellValidator.new()
 	validator.use_stub = false
-	session.configure(validator, null)
+	session.configure(validator)
 
 	var fail_reason := ""
 	session.cast_failed.connect(func(_spell, reason, _partial) -> void:

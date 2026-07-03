@@ -80,23 +80,23 @@ func _configure_local_player(player: CharacterBody3D) -> void:
 
 
 func _wire_spell_system(player: CharacterBody3D) -> void:
-	var spell_book: SpellBook = player.get_spell_book()
+	var loadout: Node = player.get_spell_loadout()
 	var casting_session: SpellCastingSession = player.get_casting_session()
 	var effect_applier: Node = player.get_effect_applier()
 
-	spell_book.configure(spell_registry.get_all_spells())
-	_apply_role_starting_spells(spell_book)
-	game_hud.configure(spell_book, casting_session)
-	casting_session.configure(voice_validator, spell_book)
+	loadout.configure(spell_registry.get_all_spells())
+	_apply_role_starting_spells(loadout)
+	game_hud.configure(loadout, casting_session)
+	casting_session.configure(voice_validator)
 	casting_session.add_to_group("casting_session")
 	casting_session.state_changed.connect(_on_cast_state_changed)
 	casting_session.cast_succeeded.connect(_on_cast_succeeded)
 	casting_session.cast_failed.connect(_on_cast_failed)
 	casting_session.tome_teaching_changed.connect(_on_tome_teaching_changed)
-	player.configure_interaction(spell_book, casting_session, game_hud, effect_applier)
+	player.configure_interaction(loadout, casting_session, game_hud, effect_applier)
 
 
-func _apply_role_starting_spells(spell_book: SpellBook) -> void:
+func _apply_role_starting_spells(loadout: Node) -> void:
 	var peer_id := 1
 	if GameState.is_multiplayer:
 		peer_id = multiplayer.get_unique_id()
@@ -104,7 +104,7 @@ func _apply_role_starting_spells(spell_book: SpellBook) -> void:
 	if GameState.is_multiplayer and config.role != GameState.PlayerRole.WARDEN:
 		return
 	for spell_id in config.get_starting_spell_ids():
-		spell_book.learn(spell_id)
+		loadout.learn_spell(spell_id, "starting")
 
 
 func _on_peer_connected(peer_id: int) -> void:
@@ -197,10 +197,10 @@ func _get_casting_session() -> SpellCastingSession:
 	return _local_player.get_casting_session()
 
 
-func _get_spell_book() -> SpellBook:
+func _get_spell_loadout() -> Node:
 	if _local_player == null:
 		return null
-	return _local_player.get_spell_book()
+	return _local_player.get_spell_loadout()
 
 
 func _get_effect_applier() -> Node:
@@ -265,10 +265,10 @@ func _on_cast_succeeded(
 	mode: String,
 	validation: CastValidationResult = null
 ) -> void:
-	var spell_book := _get_spell_book()
+	var loadout := _get_spell_loadout()
 	var casting_session := _get_casting_session()
 	var effect_applier := _get_effect_applier()
-	if spell_book == null or casting_session == null or effect_applier == null:
+	if loadout == null or casting_session == null or effect_applier == null:
 		return
 
 	TomeDebug.log(
@@ -282,7 +282,7 @@ func _on_cast_succeeded(
 		TomeDebug.log("Main", validation.get_speech_match_line())
 	if mode == "learn":
 		_learn_confirm_pending = true
-		spell_book.learn(spell.id)
+		loadout.learn_spell(spell.id, "tome")
 		_consume_tome_for_spell(spell.id)
 		game_hud.show_spell_learned(spell, validation)
 		await get_tree().create_timer(3.5).timeout
@@ -292,7 +292,6 @@ func _on_cast_succeeded(
 		var params := SpellEffectSyncScript.build_params(spell, _local_player)
 		var effect_duration := SpellEffectSyncScript.get_effect_duration_sec(spell, params)
 		effect_applier.cast_spell(_local_player, spell)
-		spell_book.begin_active_effect(spell.id, effect_duration)
 		if effect_duration > 0.0:
 			game_hud.show_spell_active(spell.id, effect_duration)
 		if casting_session.is_free_cast():
@@ -307,9 +306,8 @@ func _on_cast_failed(
 	reason: String,
 	partial: CastValidationResult
 ) -> void:
-	var spell_book := _get_spell_book()
 	var casting_session := _get_casting_session()
-	if spell_book == null or casting_session == null:
+	if casting_session == null:
 		return
 
 	TomeDebug.log(
@@ -328,12 +326,6 @@ func _on_cast_failed(
 			game_hud.show_cast_feedback(partial, from_tome)
 		else:
 			game_hud.show_cast_feedback(CastValidationResult.fail(reason), from_tome)
-	if not from_tome and _spell != null:
-		var active_left: float = spell_book.effect_active_remaining(_spell.id)
-		if active_left > 0.0:
-			game_hud.show_cooldown_blocked(_spell, active_left, true)
-		elif spell_book.cooldown_remaining(_spell.id) > 0.0:
-			game_hud.show_cooldown_blocked(_spell, spell_book.cooldown_remaining(_spell.id))
 	if from_tome:
 		return
 	if free_cast:

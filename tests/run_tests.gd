@@ -11,7 +11,7 @@ const TestDiscoverableSpawnPlan := preload("res://tests/unit/test_discoverable_s
 const TestVoiceSpellValidator := preload("res://tests/unit/test_voice_spell_validator.gd")
 const TestIncantationMatcher := preload("res://tests/unit/test_incantation_matcher.gd")
 const TestSpellCastValidator := preload("res://tests/unit/test_spell_cast_validator.gd")
-const TestSpellBook := preload("res://tests/unit/test_spell_book.gd")
+const TestCharacterSpellLoadout := preload("res://tests/unit/test_character_spell_loadout.gd")
 const TestGdvoskAdapter := preload("res://tests/unit/test_gdvosk_adapter.gd")
 const TestSpellValidationCodec := preload("res://tests/unit/test_spell_validation_codec.gd")
 const TestGameState := preload("res://tests/unit/test_game_state.gd")
@@ -61,8 +61,8 @@ func _run_tests() -> void:
 	var cast_validator_suite := TestSpellCastValidator.new()
 	failures += cast_validator_suite.run()
 
-	var spell_book_suite := TestSpellBook.new()
-	failures += spell_book_suite.run()
+	var loadout_suite := TestCharacterSpellLoadout.new()
+	failures += loadout_suite.run()
 
 	var gdvosk_suite := TestGdvoskAdapter.new()
 	failures += gdvosk_suite.run()

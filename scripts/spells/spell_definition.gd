@@ -108,7 +108,7 @@ func get_learned_confirmation_text() -> String:
 	return (
 		'"%s" is yours now.\n'
 		% display_name
-		+ "Press [F] anywhere to cast by voice. [B] opens your spellbook to review."
+		+ "Hold [LMB], say the incantation, then release. [B] opens your spell codex."
 	)
 
 

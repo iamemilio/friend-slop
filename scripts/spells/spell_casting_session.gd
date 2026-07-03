@@ -35,7 +35,6 @@ var _tome_teaching := false
 var _tome_spell: SpellDefinition
 var _coaching_retry_left: float = 0.0
 var _validator: VoiceSpellValidator
-var _spell_book: SpellBook
 var _mic_player: AudioStreamPlayer
 var _capture_effect: AudioEffectCapture
 var _arming_left: float = 0.0
@@ -70,9 +69,8 @@ func _ensure_validation_runner() -> void:
 		_validation_runner.validation_finished.connect(_on_validation_runner_finished)
 
 
-func configure(validator: VoiceSpellValidator, spell_book: SpellBook = null) -> void:
+func configure(validator: VoiceSpellValidator) -> void:
 	_validator = validator
-	_spell_book = spell_book
 
 
 func is_free_cast() -> bool:
@@ -225,6 +223,22 @@ func cancel() -> void:
 	_stop_mic()
 	_spell = null
 	_set_state(STATE_IDLE)
+
+
+## End a hold-to-cast wand session (free cast only). Release during listen validates if ready.
+func release_wand_hold() -> void:
+	if not _free_cast:
+		return
+	match _state:
+		STATE_ARMING:
+			cancel()
+		STATE_LISTENING:
+			if _listen_elapsed >= MIN_LISTEN_BEFORE_END_SEC or _speech_detected:
+				_begin_validation()
+			else:
+				cancel()
+		_:
+			pass
 
 
 func _setup_microphone() -> void:
@@ -481,30 +495,6 @@ func _apply_validation_payload(payload: Dictionary) -> bool:
 	_log_free_cast_debug()
 	_log_validation_speech(result)
 	if result.passed:
-		if _free_cast and _spell != null and _spell_book != null \
-				and not _spell_book.can_cast(_spell.id):
-			var active_left: float = _spell_book.effect_active_remaining(_spell.id)
-			var cd_reason: String
-			if active_left > 0.0:
-				cd_reason = "%s is still active (%.1fs left)" % [
-					_spell.display_name,
-					active_left,
-				]
-			else:
-				var cd_left: float = _spell_book.cooldown_remaining(_spell.id)
-				cd_reason = "%s is on cooldown (%.1fs left)" % [
-					_spell.display_name,
-					cd_left,
-				]
-			TomeDebug.log("CastSession", "validation FAILED: %s" % cd_reason)
-			var cd_fail := CastValidationResult.fail(cd_reason)
-			cd_fail.incantation_text = _spell.get_incantation_text()
-			cd_fail.heard_text = result.heard_text
-			cd_fail.audio_rms = result.audio_rms
-			cd_fail.audio_duration_sec = result.audio_duration_sec
-			cd_fail.expected_duration_sec = _spell.get_target_duration_sec()
-			_finish_fail(cd_reason, cd_fail)
-			return false
 		TomeDebug.log("CastSession", "validation PASSED")
 		_finish_success(result)
 	else:
