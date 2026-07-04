@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="2_loadout"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="3_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="4_effects"]
-[ext_resource type="Script" path="res://scripts/voice/playable_voice_member.gd" id="5_voice"]
+[ext_resource type="Script" path="res://scripts/voice/steam_proximity_voice.gd" id="5_voice"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.28
@@ -57,9 +57,9 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 fov = 75.0
 
-[node name="VoiceMember" type="Node" parent="."]
+[node name="SteamProximityVoice" type="Node" parent="Head"]
 script = ExtResource("5_voice")
-head_path = NodePath("../Head")
+head_path = NodePath("..")
 
 [node name="CharacterSpellLoadout" type="Node" parent="."]
 unique_name_in_owner = true

@@ -71,9 +71,8 @@ func open_host() -> void:
 	var err := await NetworkManager.host_session({})
 	_set_busy(false)
 	if err != OK:
-		_status_label.text = (
-			"Hosting failed. Launch Steam, install GodotSteam, and try again."
-		)
+		if _status_label.text == "Starting host session…":
+			_status_label.text = _host_failure_message()
 		_primary_button.disabled = true
 		return
 	_enter_lobby_ui()
@@ -323,6 +322,17 @@ func _host_ready_message() -> String:
 		"Invite friends with Steam or share the lobby ID. "
 		+ "Need 3 players (1 Warden, 2 Apprentices) to start."
 	)
+
+
+func _host_failure_message() -> String:
+	if not SteamService.is_api_available() or not ClassDB.class_exists("SteamMultiplayerPeer"):
+		return (
+			"GodotSteam is not loaded. Open the project with the GodotSteam editor "
+			+ "(see tools/versions.env) or run make setup-steam for stock Godot."
+		)
+	if not SteamService.is_ready():
+		return "Steam is not running. Launch the Steam client and try again."
+	return "Hosting failed. Check the Output log for details."
 
 
 func _join_prompt_message() -> String:

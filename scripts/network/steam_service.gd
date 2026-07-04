@@ -15,6 +15,10 @@ const LOBBY_ENTER_OK := 1
 const LOBBY_TYPE_FRIENDS_ONLY := 1
 const DEFAULT_APP_ID := 480
 
+const SteamMultiplayerPeerAdapterScript := preload(
+	"res://addons/godot-steam-voice/adapters/steam_multiplayer_peer_adapter.gd"
+)
+
 var initialized: bool = false
 var current_lobby_id: int = 0
 
@@ -240,6 +244,13 @@ func _is_known_session_steam_id(steam_id: int) -> bool:
 		for index in range(get_lobby_member_count()):
 			if get_lobby_member_by_index(index) == steam_id:
 				return true
+	var tree := get_tree()
+	if tree != null:
+		var mp := tree.get_multiplayer()
+		if mp != null:
+			for session_id in SteamMultiplayerPeerAdapterScript.collect_session_steam_ids(mp):
+				if int(session_id) == steam_id:
+					return true
 	return false
 
 

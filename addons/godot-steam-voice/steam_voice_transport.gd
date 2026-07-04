@@ -30,13 +30,32 @@ func stop_recording() -> void:
 func get_voice() -> PackedByteArray:
 	if not available:
 		return PackedByteArray()
-	var result: Variant = _steam.call("getVoice")
-	if result is Dictionary:
-		var data: Dictionary = result
-		var buffer: PackedByteArray = data.get("buffer", PackedByteArray()) as PackedByteArray
-		if not buffer.is_empty():
-			return buffer
-	return PackedByteArray()
+	var buffer_size := 8192
+	if _steam.has_method("getAvailableVoice"):
+		var available_voice: Variant = _steam.call("getAvailableVoice")
+		if available_voice is Dictionary:
+			var available_data: Dictionary = available_voice
+			if int(available_data.get("result", -1)) != _voice_result_ok():
+				return PackedByteArray()
+			var available_bytes := int(
+				available_data.get("buffer", available_data.get("size", 0))
+			)
+			if available_bytes <= 0:
+				return PackedByteArray()
+			buffer_size = maxi(available_bytes, 1024)
+	var result: Variant = _steam.call("getVoice", buffer_size)
+	if not result is Dictionary:
+		return PackedByteArray()
+	var data: Dictionary = result
+	if int(data.get("result", -1)) != _voice_result_ok():
+		return PackedByteArray()
+	var buffer: PackedByteArray = data.get("buffer", PackedByteArray()) as PackedByteArray
+	var written := int(data.get("written", data.get("size", buffer.size())))
+	if written <= 0 or buffer.is_empty():
+		return PackedByteArray()
+	if written < buffer.size():
+		return buffer.slice(0, written)
+	return buffer
 
 
 func decompress_voice(compressed: PackedByteArray) -> Dictionary:

@@ -52,6 +52,8 @@ func _ready() -> void:
 		_configure_local_player
 	)
 	_players_spawned = true
+	if GameState.is_multiplayer:
+		call_deferred("_start_proximity_voice")
 	_finish_match_layout()
 
 
@@ -75,6 +77,10 @@ func _ensure_speech_stt_ready() -> void:
 
 func _apply_voice_settings() -> void:
 	voice_validator.use_stub = SettingsManager.voice_use_stub
+
+
+func _start_proximity_voice() -> void:
+	SteamProximityVoiceHub.start_session()
 
 
 func _configure_local_player(player: CharacterBody3D) -> void:
@@ -114,11 +120,13 @@ func _on_peer_connected(peer_id: int) -> void:
 		players_root,
 		_configure_local_player
 	)
+	if GameState.is_multiplayer:
+		call_deferred("_start_proximity_voice")
 
 
 func _on_quit_to_menu() -> void:
 	SettingsManager.stop_mic_test()
-	FriendSlopVoiceAdapter.end_voice()
+	SteamProximityVoiceHub.stop_session()
 	NetworkManager.disconnect_session()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
@@ -176,7 +184,6 @@ func _finish_match_layout() -> void:
 		player.velocity = Vector3.ZERO
 
 	if GameState.is_multiplayer:
-		FriendSlopVoiceAdapter.on_maze_ready(maze)
 		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
 
 	delivery_objective.setup(

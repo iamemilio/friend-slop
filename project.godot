@@ -29,15 +29,12 @@ TrailRegistry="*res://scripts/trails/trail_registry.gd"
 SteamService="*res://scripts/network/steam_service.gd"
 NetworkManager="*res://scripts/network/network_manager.gd"
 MatchStateManager="*res://scripts/match/match_state_manager.gd"
-FriendSlopVoiceAdapter="*res://scripts/voice/friend_slop_voice_adapter.gd"
+SteamProximityVoiceHub="*res://scripts/voice/steam_proximity_voice_hub.gd"
 
 [display]
 
 window/size/viewport_width=1920
 window/size/viewport_height=1080
-window/size/resizable=true
-window/size/borderless=false
-window/size/mode=0
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
@@ -113,10 +110,3 @@ rendering_device/driver.windows="d3d12"
 lights_and_shadows/directional_shadow/size=8192
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
 lights_and_shadows/directional_shadow/16_bits=false
-
-[steam]
-
-initialization/app_id=0
-initialization/initialize_on_startup=false
-initialization/embed_callbacks=false
-multiplayer_peer/max_channels=4
