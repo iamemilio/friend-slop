@@ -67,24 +67,19 @@ func remove_peer(peer_id: int) -> bool:
 
 
 func can_start(peer_ids: Array[int]) -> bool:
+	if SettingsManager.dev_allow_any_lobby_size:
+		return RoleAssignment.validate_relaxed_roster(peer_ids, roles) == OK
 	return RoleAssignment.validate_horror_roster(peer_ids, roles) == OK
 
 
 func get_start_block_reason(peer_ids: Array[int]) -> String:
 	if can_start(peer_ids):
 		return ""
-	var peer_count := peer_ids.size()
-	if peer_count < RoleAssignment.MIN_HORROR_PLAYERS:
-		return "Need at least %d players (%d connected)." % [
-			RoleAssignment.MIN_HORROR_PLAYERS,
-			peer_count,
-		]
-	var counts := RoleAssignment.count_roles(roles)
-	if counts.wardens != 1:
-		return "Pick exactly one Warden before starting."
-	if counts.apprentices < 2:
-		return "Need at least two Apprentices before starting."
-	return "Roster is not valid yet."
+	if SettingsManager.dev_allow_any_lobby_size:
+		if peer_ids.is_empty():
+			return "Need at least one connected player."
+		return "Waiting for player roles to sync."
+	return RoleAssignment.get_horror_start_block_reason(peer_ids, roles)
 
 
 static func pack_roles_for_peers(roles_map: Dictionary, peer_ids: Array[int]) -> Dictionary:

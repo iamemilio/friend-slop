@@ -3,6 +3,8 @@ extends Control
 
 signal closed
 
+const DisplayResolutionPresetsScript := preload("res://scripts/ui/display_resolution_presets.gd")
+
 var _mic_test_active := false
 var _mic_peak: float = 0.0
 var _output_device_option: OptionButton
@@ -13,10 +15,12 @@ var _mic_test_button: Button
 var _mic_level_bar: ProgressBar
 var _mic_status_label: Label
 var _start_third_person_checkbox: CheckBox
+var _resolution_option: OptionButton
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
 var _voice_stub_checkbox: CheckBox
 var _dev_spawn_relic_near_spawn_checkbox: CheckBox
+var _dev_allow_any_lobby_size_checkbox: CheckBox
 var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 
 @onready var _general_vbox: VBoxContainer = (
@@ -46,6 +50,7 @@ func _ready() -> void:
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
 	_dev_warden_button.pressed.connect(_on_dev_warden_pressed)
+	_resolution_option.item_selected.connect(_on_resolution_selected)
 	_populate_from_settings()
 
 
@@ -95,6 +100,7 @@ func _process(_delta: float) -> void:
 
 func _cache_node_refs() -> void:
 	_start_third_person_checkbox = _general_vbox.get_node("StartThirdPersonCheckBox")
+	_resolution_option = _general_vbox.get_node("ResolutionOption")
 	_output_device_option = _audio_vbox.get_node("OutputDeviceOption")
 	_input_device_option = _audio_vbox.get_node("InputDeviceOption")
 	_master_volume_slider = _audio_vbox.get_node("MasterVolumeRow/MasterVolumeSlider")
@@ -106,10 +112,13 @@ func _cache_node_refs() -> void:
 	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
 	_dev_spawn_relic_near_spawn_checkbox = _dev_vbox.get_node("DevSpawnRelicNearSpawnCheckBox")
+	_dev_allow_any_lobby_size_checkbox = _dev_vbox.get_node("DevAllowAnyLobbySizeCheckBox")
 
 
 func _populate_from_settings() -> void:
 	_start_third_person_checkbox.button_pressed = SettingsManager.start_third_person
+	_populate_resolution_options()
+	_select_resolution(SettingsManager.get_window_resolution_preset_index())
 	_fill_device_option(
 		_output_device_option,
 		SettingsManager.get_output_devices(),
@@ -130,6 +139,23 @@ func _populate_from_settings() -> void:
 	_dev_spawn_relic_near_spawn_checkbox.button_pressed = (
 		SettingsManager.dev_spawn_relic_near_spawn
 	)
+	_dev_allow_any_lobby_size_checkbox.button_pressed = (
+		SettingsManager.dev_allow_any_lobby_size
+	)
+
+
+func _populate_resolution_options() -> void:
+	_resolution_option.clear()
+	for size in SettingsManager.get_resolution_presets():
+		_resolution_option.add_item(DisplayResolutionPresetsScript.format_label(size))
+
+
+func _select_resolution(index: int) -> void:
+	if _resolution_option.item_count == 0:
+		return
+	_resolution_option.set_block_signals(true)
+	_resolution_option.select(clampi(index, 0, _resolution_option.item_count - 1))
+	_resolution_option.set_block_signals(false)
 
 
 func _refresh_dev_solo_ui() -> void:
@@ -162,6 +188,7 @@ func _select_device(option: OptionButton, saved_device: String) -> void:
 
 func _apply_to_manager() -> void:
 	SettingsManager.start_third_person = _start_third_person_checkbox.button_pressed
+	SettingsManager.set_window_resolution_preset_index(_resolution_option.selected)
 	SettingsManager.master_volume = _master_volume_slider.value
 	SettingsManager.output_device = _read_device_selection(_output_device_option)
 	SettingsManager.input_device = _read_device_selection(_input_device_option)
@@ -170,7 +197,11 @@ func _apply_to_manager() -> void:
 	SettingsManager.dev_spawn_relic_near_spawn = (
 		_dev_spawn_relic_near_spawn_checkbox.button_pressed
 	)
+	SettingsManager.dev_allow_any_lobby_size = (
+		_dev_allow_any_lobby_size_checkbox.button_pressed
+	)
 	SettingsManager.apply_audio_settings()
+	SettingsManager.apply_display_settings()
 	SettingsManager.save_settings()
 
 
@@ -178,6 +209,11 @@ func _read_device_selection(option: OptionButton) -> String:
 	if option.selected <= 0:
 		return ""
 	return option.get_item_text(option.selected)
+
+
+func _on_resolution_selected(index: int) -> void:
+	SettingsManager.set_window_resolution_preset_index(index)
+	SettingsManager.apply_display_settings()
 
 
 func _on_dev_apprentice_pressed() -> void:

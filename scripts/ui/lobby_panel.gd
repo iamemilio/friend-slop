@@ -276,9 +276,13 @@ func _on_role_button_pressed(role: int) -> void:
 func _update_start_button_state() -> void:
 	if not _host_mode or not _in_lobby:
 		return
-	_primary_button.disabled = not NetworkManager.lobby.can_start(
-		NetworkManager.get_lobby_peer_ids()
-	)
+	var peer_ids := NetworkManager.get_lobby_peer_ids()
+	var can_start := NetworkManager.lobby.can_start(peer_ids)
+	_primary_button.disabled = not can_start
+	if can_start:
+		_status_label.text = _host_ready_message()
+	else:
+		_status_label.text = NetworkManager.lobby.get_start_block_reason(peer_ids)
 
 
 func _leave_to_menu() -> void:
@@ -310,7 +314,15 @@ func _set_busy(busy: bool) -> void:
 
 
 func _host_ready_message() -> String:
-	return "Invite friends with Steam or share the lobby ID, then start when ready."
+	if SettingsManager.dev_allow_any_lobby_size:
+		return (
+			"Dev mode: start with any player count. "
+			+ "Invite friends with Steam or share the lobby ID."
+		)
+	return (
+		"Invite friends with Steam or share the lobby ID. "
+		+ "Need 3 players (1 Warden, 2 Apprentices) to start."
+	)
 
 
 func _join_prompt_message() -> String:

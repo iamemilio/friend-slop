@@ -26,6 +26,15 @@ static func count_roles(roles: Dictionary) -> Dictionary:
 	return {"apprentices": apprentices, "wardens": wardens}
 
 
+static func validate_relaxed_roster(peer_ids: Array, roles: Dictionary) -> Error:
+	if peer_ids.is_empty():
+		return ERR_INVALID_PARAMETER
+	for peer_id in peer_ids:
+		if not roles.has(peer_id):
+			return ERR_INVALID_PARAMETER
+	return OK
+
+
 static func validate_horror_roster(peer_ids: Array, roles: Dictionary) -> Error:
 	if peer_ids.is_empty():
 		return ERR_INVALID_PARAMETER
@@ -40,6 +49,20 @@ static func validate_horror_roster(peer_ids: Array, roles: Dictionary) -> Error:
 	if counts.apprentices < 2:
 		return ERR_INVALID_PARAMETER
 	return OK
+
+
+static func get_horror_start_block_reason(peer_ids: Array, roles: Dictionary) -> String:
+	if validate_horror_roster(peer_ids, roles) == OK:
+		return ""
+	var peer_count := peer_ids.size()
+	if peer_count < MIN_HORROR_PLAYERS:
+		return "Need at least %d players (%d connected)." % [MIN_HORROR_PLAYERS, peer_count]
+	var counts := count_roles(roles)
+	if counts.wardens != 1:
+		return "Pick exactly one Warden before starting."
+	if counts.apprentices < 2:
+		return "Need at least two Apprentices before starting."
+	return "Roster is not valid yet."
 
 
 static func default_roles_for_peers(peer_ids: Array) -> Dictionary:

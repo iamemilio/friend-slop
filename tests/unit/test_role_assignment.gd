@@ -12,6 +12,7 @@ func run() -> int:
 	failures += _test_rejects_two_wardens()
 	failures += _test_rejects_too_few_players()
 	failures += _test_rejects_missing_role()
+	failures += _test_relaxed_two_player_roster()
 	return failures
 
 
@@ -77,5 +78,20 @@ func _test_rejects_missing_role() -> int:
 	}
 	if RoleAssignmentScript.validate_horror_roster(peers, roles) == OK:
 		push_error("Expected roster missing a peer role to fail validation")
+		return 1
+	return 0
+
+
+func _test_relaxed_two_player_roster() -> int:
+	var peers: Array = [1, 2]
+	var roles := {
+		1: GameStateScript.PlayerRole.WARDEN,
+		2: GameStateScript.PlayerRole.APPRENTICE,
+	}
+	if RoleAssignmentScript.validate_relaxed_roster(peers, roles) != OK:
+		push_error("Expected relaxed roster to allow two players")
+		return 1
+	if RoleAssignmentScript.validate_horror_roster(peers, roles) == OK:
+		push_error("Expected horror roster to still reject two players")
 		return 1
 	return 0
