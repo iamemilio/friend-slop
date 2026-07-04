@@ -253,7 +253,7 @@ func _receive_voice() -> void:
 
 func _process_incoming_packet(packet_data: Dictionary) -> void:
 	var raw: PackedByteArray = packet_data.get("data", PackedByteArray()) as PackedByteArray
-	var sender_steam_id := int(packet_data.get("steam_id", 0))
+	var sender_steam_id := SteamVoiceTransport.parse_sender_steam_id(packet_data)
 	if raw.is_empty() or sender_steam_id == 0:
 		return
 	var parsed := VoicePacket.parse(raw)

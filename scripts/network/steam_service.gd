@@ -183,6 +183,8 @@ func _bind_steam_signals() -> void:
 	steam.lobby_chat_update.connect(_on_lobby_chat_update)
 	if steam.has_signal("game_lobby_join_requested"):
 		steam.game_lobby_join_requested.connect(_on_game_lobby_join_requested)
+	if steam.has_signal("p2p_session_request"):
+		steam.p2p_session_request.connect(_on_p2p_session_request)
 	_signals_bound = true
 
 
@@ -221,6 +223,24 @@ func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response:
 
 func _on_game_lobby_join_requested(lobby_id: int, _friend_id: int) -> void:
 	lobby_invite_received.emit(lobby_id)
+
+
+func _on_p2p_session_request(remote_steam_id: int) -> void:
+	if not is_ready() or remote_steam_id == 0:
+		return
+	if not _is_known_session_steam_id(remote_steam_id):
+		return
+	_steam_call("acceptP2PSessionWithUser", [remote_steam_id])
+
+
+func _is_known_session_steam_id(steam_id: int) -> bool:
+	if steam_id == get_steam_id():
+		return true
+	if current_lobby_id != 0:
+		for index in range(get_lobby_member_count()):
+			if get_lobby_member_by_index(index) == steam_id:
+				return true
+	return false
 
 
 func _on_lobby_chat_update(
