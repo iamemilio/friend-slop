@@ -8,7 +8,7 @@
 [node name="PlayableCharacter" instance=ExtResource("1_base")]
 script = ExtResource("2_apprentice")
 
-[node name="Wand" type="Node3D" parent="Head/CameraPivot/FirstPersonCamera" index="0"]
+[node name="Wand" type="Node3D" parent="Head/CameraPivot" index="1"]
 transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0.34, -0.26, -0.52)
 script = ExtResource("4_wand")
 

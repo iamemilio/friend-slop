@@ -9,7 +9,6 @@ const DisplayResolutionPresetsScript := preload("res://scripts/ui/display_resolu
 const SETTINGS_PATH := "user://settings.cfg"
 const MIC_BUS_NAME := "MicCapture"
 
-var start_third_person: bool = false
 var window_width: int = DisplayResolutionPresetsScript.DEFAULT_SIZE.x
 var window_height: int = DisplayResolutionPresetsScript.DEFAULT_SIZE.y
 var master_volume: float = 1.0
@@ -76,7 +75,6 @@ func load_settings() -> void:
 	if config.load(SETTINGS_PATH) != OK:
 		return
 
-	start_third_person = config.get_value("general", "start_third_person", start_third_person)
 	window_width = int(config.get_value("display", "window_width", window_width))
 	window_height = int(config.get_value("display", "window_height", window_height))
 	var normalized := DisplayResolutionPresetsScript.normalize_size(
@@ -103,7 +101,6 @@ func apply_solo_dev_loadout_to_game_state() -> void:
 
 func save_settings() -> void:
 	var config := ConfigFile.new()
-	config.set_value("general", "start_third_person", start_third_person)
 	config.set_value("display", "window_width", window_width)
 	config.set_value("display", "window_height", window_height)
 	config.set_value("audio", "master_volume", master_volume)

@@ -14,7 +14,6 @@ var _master_volume_label: Label
 var _mic_test_button: Button
 var _mic_level_bar: ProgressBar
 var _mic_status_label: Label
-var _start_third_person_checkbox: CheckBox
 var _resolution_option: OptionButton
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
@@ -99,7 +98,6 @@ func _process(_delta: float) -> void:
 
 
 func _cache_node_refs() -> void:
-	_start_third_person_checkbox = _general_vbox.get_node("StartThirdPersonCheckBox")
 	_resolution_option = _general_vbox.get_node("ResolutionOption")
 	_output_device_option = _audio_vbox.get_node("OutputDeviceOption")
 	_input_device_option = _audio_vbox.get_node("InputDeviceOption")
@@ -116,7 +114,6 @@ func _cache_node_refs() -> void:
 
 
 func _populate_from_settings() -> void:
-	_start_third_person_checkbox.button_pressed = SettingsManager.start_third_person
 	_populate_resolution_options()
 	_select_resolution(SettingsManager.get_window_resolution_preset_index())
 	_fill_device_option(
@@ -187,7 +184,6 @@ func _select_device(option: OptionButton, saved_device: String) -> void:
 
 
 func _apply_to_manager() -> void:
-	SettingsManager.start_third_person = _start_third_person_checkbox.button_pressed
 	SettingsManager.set_window_resolution_preset_index(_resolution_option.selected)
 	SettingsManager.master_volume = _master_volume_slider.value
 	SettingsManager.output_device = _read_device_selection(_output_device_option)

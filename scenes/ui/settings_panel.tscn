@@ -108,23 +108,6 @@ theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
 text = "Resize the game window. Fullscreen is exited automatically when applying a preset."
 
-[node name="CameraHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
-text = "Camera"
-
-[node name="StartThirdPersonCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
-text = "Start in third person"
-
-[node name="CameraHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
-theme_override_font_sizes/font_size = 13
-autowrap_mode = 2
-text = "Choose the camera view when a game starts. You can still switch during play."
-
 [node name="Audio" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
 layout_mode = 2
 metadata/_tab_index = 1
