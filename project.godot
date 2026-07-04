@@ -31,6 +31,11 @@ NetworkManager="*res://scripts/network/network_manager.gd"
 MatchStateManager="*res://scripts/match/match_state_manager.gd"
 FriendSlopVoiceAdapter="*res://scripts/voice/friend_slop_voice_adapter.gd"
 
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+
 [editor_plugins]
 
 enabled=PackedStringArray()
@@ -106,8 +111,8 @@ radio_push={
 
 rendering_device/driver.windows="d3d12"
 lights_and_shadows/directional_shadow/size=8192
-lights_and_shadows/directional_shadow/16_bits=false
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
+lights_and_shadows/directional_shadow/16_bits=false
 
 [steam]
 

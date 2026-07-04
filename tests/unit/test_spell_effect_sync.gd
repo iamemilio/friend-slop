@@ -8,6 +8,7 @@ const HasteSpell := preload("res://resources/spells/haste.tres")
 const ShowMeSpell := preload("res://resources/spells/show_me.tres")
 const LightOnSpell := preload("res://resources/spells/light_on.tres")
 const LightOffSpell := preload("res://resources/spells/light_off.tres")
+const FlameOnSpell := preload("res://resources/spells/flame_on.tres")
 
 
 func run() -> int:
@@ -23,6 +24,7 @@ func run() -> int:
 	failures += _test_fireball_network_round_trip()
 	failures += _test_fireball_wire_params_spawn_projectile()
 	failures += _test_apply_flashlight_toggle()
+	failures += _test_apply_flame_glow()
 	return failures
 
 
@@ -83,7 +85,7 @@ func _make_player_stub() -> CharacterBody3D:
 
 
 func _test_all_spells_are_supported() -> int:
-	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightOnSpell, LightOffSpell]:
+	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightOnSpell, LightOffSpell, FlameOnSpell]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
 			return 1
@@ -234,9 +236,25 @@ func _test_apply_flashlight_toggle() -> int:
 	return 0
 
 
+func _test_apply_flame_glow() -> int:
+	var player := _make_tracking_player()
+	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLAME_ON})
+	if player.flame_glow_calls.size() != 1 or not player.flame_glow_calls[0]:
+		player.queue_free()
+		push_error("Expected flame_on to enable wand tip glow")
+		return 1
+	var params := SyncScript.build_params(FlameOnSpell, player)
+	player.queue_free()
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLAME_ON:
+		push_error("Expected flame_on to build flame_on params")
+		return 1
+	return 0
+
+
 class _EffectTrackingPlayer extends CharacterBody3D:
 	var speed_boost_calls: Array[Dictionary] = []
 	var flashlight_calls: Array[bool] = []
+	var flame_glow_calls: Array[bool] = []
 
 
 	func apply_speed_boost(duration: float, multiplier: float) -> void:
@@ -248,3 +266,7 @@ class _EffectTrackingPlayer extends CharacterBody3D:
 
 	func set_flashlight_enabled(active: bool) -> void:
 		flashlight_calls.append(active)
+
+
+	func set_flame_glow_enabled(active: bool) -> void:
+		flame_glow_calls.append(active)
