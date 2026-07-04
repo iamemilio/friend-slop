@@ -47,14 +47,25 @@ def _emit(payload: dict) -> None:
 
 
 def _run_checks() -> tuple[int, str]:
+    python = _project_python()
     proc = subprocess.run(
-        [sys.executable, str(RUN_CHECKS)],
+        [str(python), str(RUN_CHECKS)],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
     )
     output = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode, output
+
+
+def _project_python() -> Path:
+    if sys.platform == "win32":
+        candidate = ROOT / ".venv" / "Scripts" / "python.exe"
+    else:
+        candidate = ROOT / ".venv" / "bin" / "python"
+    if candidate.is_file():
+        return candidate
+    return Path(sys.executable)
 
 
 def main() -> int:

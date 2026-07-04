@@ -258,8 +258,6 @@ func _on_wand_cast_failed(
 
 func _sync_view_camera() -> void:
 	var mine := _is_view_owner()
-	first_person_camera.enabled = mine
-	third_person_camera.enabled = mine
 	if not mine:
 		first_person_camera.current = false
 		third_person_camera.current = false
