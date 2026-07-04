@@ -242,6 +242,11 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
 text = "Stub voice validation (always succeed)"
 
+[node name="DevSpawnRelicNearSpawnCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Spawn relic near player start (testing)"
+
 [node name="DevHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)

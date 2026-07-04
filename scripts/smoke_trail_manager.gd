@@ -15,6 +15,7 @@ func _ready() -> void:
 
 
 func _sync_from_registry() -> void:
+	_purge_invalid_puffs()
 	var live_keys: Dictionary = {}
 	var trails := TrailRegistry.get_trails()
 	for peer_id_variant in trails.keys():
@@ -27,8 +28,10 @@ func _sync_from_registry() -> void:
 				continue
 			var key := _footprint_key(peer_id, TrailSample.seq(sample))
 			live_keys[key] = true
-			if _puffs.has(key):
+			if _puffs.has(key) and is_instance_valid(_puffs[key]):
 				continue
+			if _puffs.has(key):
+				_puffs.erase(key)
 			var direction := _movement_direction(samples, sample_index)
 			var foot_side: int = TrailSample.seq(sample)
 			var footprint := MeshInstance3D.new()
@@ -36,15 +39,35 @@ func _sync_from_registry() -> void:
 			footprint.set_script(PuffScript)
 			add_child(footprint)
 			footprint.call("setup_from_sample", sample, color, direction, foot_side)
-			_puffs[key] = footprint
+			_track_puff(key, footprint)
 
 	for key in _puffs.keys():
 		if live_keys.has(key):
 			continue
-		var puff: Node = _puffs[key]
-		_puffs.erase(key)
-		if is_instance_valid(puff):
-			puff.queue_free()
+		_remove_puff(key)
+
+
+func _track_puff(key: String, footprint: Node) -> void:
+	_puffs[key] = footprint
+	if not footprint.tree_exiting.is_connected(_on_puff_tree_exiting):
+		footprint.tree_exiting.connect(_on_puff_tree_exiting.bind(key))
+
+
+func _on_puff_tree_exiting(key: String) -> void:
+	_puffs.erase(key)
+
+
+func _purge_invalid_puffs() -> void:
+	for key in _puffs.keys():
+		if not is_instance_valid(_puffs[key]):
+			_puffs.erase(key)
+
+
+func _remove_puff(key: String) -> void:
+	var puff = _puffs.get(key)
+	_puffs.erase(key)
+	if puff != null and is_instance_valid(puff):
+		puff.queue_free()
 
 
 func _footprint_key(peer_id: int, seq: int) -> String:

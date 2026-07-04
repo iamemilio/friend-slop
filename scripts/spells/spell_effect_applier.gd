@@ -19,6 +19,8 @@ func apply_effect(player: CharacterBody3D, spell: SpellDefinition) -> void:
 func cast_spell(player: CharacterBody3D, spell: SpellDefinition) -> void:
 	if spell == null or player == null:
 		return
+	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
+		return
 	var params := SyncScript.build_params(spell, player)
 	if params.is_empty():
 		push_warning("SpellEffectApplier: cannot cast unsupported spell '%s'" % spell.id)
@@ -41,6 +43,8 @@ func apply_synced_cast(
 	params: Dictionary
 ) -> void:
 	if player == null or spell == null:
+		return
+	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
 		return
 	var resolved := SyncScript.resolve_network_params(spell, player, params)
 	if resolved.is_empty():

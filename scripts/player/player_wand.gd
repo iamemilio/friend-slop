@@ -3,12 +3,14 @@ extends Node3D
 
 ## Slim hand-held wand with tip spotlight and cast / fizzle feedback.
 
-const WORLD_LIGHT_CULL_MASK := 1
+const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 
-const TIP_SPOT_ARMED_ENERGY := 0.8
+const WORLD_LIGHT_CULL_MASK := WorldVisualLayersScript.WORLD_LIGHT_MASK
+
+const TIP_SPOT_ARMED_ENERGY := 1.35
 const TIP_SPOT_LISTEN_MAX_BOOST := 11.0
-const TIP_SPOT_RANGE := 8.0
-const TIP_SPOT_ANGLE_DEG := 42.0
+const TIP_SPOT_RANGE := 10.0
+const TIP_SPOT_ANGLE_DEG := 46.0
 const TIP_SPOT_LISTEN_ANGLE_BOOST_DEG := 14.0
 const TIP_IDLE_ENERGY := 0.0
 const TIP_EMISSION_ARMED := 0.4
@@ -111,6 +113,7 @@ func _build_wand_meshes() -> void:
 	shaft_mat.roughness = 0.55
 	shaft_mat.metallic = 0.35
 	_shaft_mesh.material_override = shaft_mat
+	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	add_child(_shaft_mesh)
 
 	_tip_mesh = MeshInstance3D.new()
@@ -128,6 +131,7 @@ func _build_wand_meshes() -> void:
 	tip_mat.roughness = 0.15
 	tip_mat.metallic = 0.2
 	_tip_mesh.material_override = tip_mat
+	_tip_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	add_child(_tip_mesh)
 
 	_cast_origin = Marker3D.new()
@@ -240,6 +244,8 @@ func _finish_spell_light() -> void:
 
 func _configure_world_light(light: Light3D) -> void:
 	light.light_cull_mask = WORLD_LIGHT_CULL_MASK
+	light.shadow_caster_mask = WORLD_LIGHT_CULL_MASK
+	light.light_specular = 0.55
 	light.shadow_enabled = true
 	light.shadow_bias = 0.04
 	light.shadow_normal_bias = 1.0

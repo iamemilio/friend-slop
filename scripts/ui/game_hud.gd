@@ -4,6 +4,7 @@ extends CanvasLayer
 ## In-game HUD: spell codex, casting overlay, Tab guide menu.
 
 const SpellDefinitionScript := preload("res://scripts/spells/spell_definition.gd")
+const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 
 var _loadout: Node
 var _selected_spell_id: String = ""
@@ -105,8 +106,13 @@ func configure(loadout: Node, casting_session: Node = null) -> void:
 		casting_session.tome_retry_tick.connect(update_tome_coaching_countdown)
 
 
-func set_interaction_prompt(_text: String) -> void:
-	pass
+func set_interaction_prompt(text: String) -> void:
+	if prompt_label == null:
+		return
+	prompt_label.text = text
+	var margin := prompt_label.get_parent()
+	if margin is Control:
+		(margin as Control).visible = not text.is_empty()
 
 
 func toggle_spellbook() -> void:

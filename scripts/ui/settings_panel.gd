@@ -16,6 +16,7 @@ var _start_third_person_checkbox: CheckBox
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
 var _voice_stub_checkbox: CheckBox
+var _dev_spawn_relic_near_spawn_checkbox: CheckBox
 var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 
 @onready var _general_vbox: VBoxContainer = (
@@ -104,6 +105,7 @@ func _cache_node_refs() -> void:
 	_dev_apprentice_button = _dev_vbox.get_node("DevRoleSection/DevApprenticeButton")
 	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
+	_dev_spawn_relic_near_spawn_checkbox = _dev_vbox.get_node("DevSpawnRelicNearSpawnCheckBox")
 
 
 func _populate_from_settings() -> void:
@@ -125,6 +127,9 @@ func _populate_from_settings() -> void:
 	_dev_solo_role = SettingsManager.dev_solo_role
 	_refresh_dev_solo_ui()
 	_voice_stub_checkbox.button_pressed = SettingsManager.voice_use_stub
+	_dev_spawn_relic_near_spawn_checkbox.button_pressed = (
+		SettingsManager.dev_spawn_relic_near_spawn
+	)
 
 
 func _refresh_dev_solo_ui() -> void:
@@ -162,6 +167,9 @@ func _apply_to_manager() -> void:
 	SettingsManager.input_device = _read_device_selection(_input_device_option)
 	SettingsManager.dev_solo_role = _dev_solo_role
 	SettingsManager.voice_use_stub = _voice_stub_checkbox.button_pressed
+	SettingsManager.dev_spawn_relic_near_spawn = (
+		_dev_spawn_relic_near_spawn_checkbox.button_pressed
+	)
 	SettingsManager.apply_audio_settings()
 	SettingsManager.save_settings()
 

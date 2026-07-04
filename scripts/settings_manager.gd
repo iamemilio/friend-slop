@@ -13,6 +13,7 @@ var input_device: String = ""
 var output_device: String = ""
 var dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 var voice_use_stub: bool = false
+var dev_spawn_relic_near_spawn: bool = false
 
 var _capture_effect: AudioEffectCapture
 var _mic_test_player: AudioStreamPlayer
@@ -36,6 +37,9 @@ func load_settings() -> void:
 	output_device = config.get_value("audio", "output_device", output_device)
 	dev_solo_role = int(config.get_value("dev", "dev_solo_role", dev_solo_role))
 	voice_use_stub = config.get_value("dev", "voice_use_stub", voice_use_stub)
+	dev_spawn_relic_near_spawn = config.get_value(
+		"dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn
+	)
 
 
 func apply_solo_dev_loadout_to_game_state() -> void:
@@ -50,6 +54,7 @@ func save_settings() -> void:
 	config.set_value("audio", "output_device", output_device)
 	config.set_value("dev", "dev_solo_role", dev_solo_role)
 	config.set_value("dev", "voice_use_stub", voice_use_stub)
+	config.set_value("dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn)
 	config.save(SETTINGS_PATH)
 	settings_applied.emit()
 

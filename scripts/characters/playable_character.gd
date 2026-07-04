@@ -3,8 +3,8 @@ extends CharacterBody3D
 
 ## Base playable character: movement, camera, spells, and optional wand/trail in derived scenes.
 
-## Player body/head render layer — wand omni lights use a world-only mask and skip this layer.
-const PLAYER_SELF_VISUAL_LAYER := 2
+## Player body/head render layer — wand lights use a world-only mask and skip this layer.
+const PLAYER_SELF_VISUAL_LAYER := WorldVisualLayers.PLAYER_SELF
 
 const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
@@ -24,6 +24,8 @@ const COLLISION_WALL_PADDING := 0.08
 const BODY_COLLISION_RADIUS := BODY_RADIUS + COLLISION_WALL_PADDING
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
+const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
+const WorldVisualLayers := preload("res://scripts/world_visual_layers.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -318,11 +320,13 @@ func _apply_character_color(color: Color) -> void:
 	material.emission_energy_multiplier = 0.8
 	_body_mesh.material_override = material
 	_body_mesh.layers = PLAYER_SELF_VISUAL_LAYER
+	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var head_material := material.duplicate()
 	head_material.albedo_color = color.lightened(0.08)
 	head_material.emission = head_material.albedo_color * 0.25
 	_head_mesh.material_override = head_material
 	_head_mesh.layers = PLAYER_SELF_VISUAL_LAYER
+	_head_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 
 func _try_interact() -> void:
@@ -345,8 +349,28 @@ func _try_interact() -> void:
 	TomeDebug.log("Player", "no interactable in range")
 
 
+func is_carrying_relic() -> bool:
+	var objective := _find_delivery_objective()
+	return objective != null and objective.is_carrier(self)
+
+
+func stop_casting_for_relic_carry() -> void:
+	if _casting_session == null:
+		return
+	if _casting_session.is_tome_teaching():
+		_casting_session.end_tome_teaching()
+	elif _casting_session.is_active():
+		_casting_session.cancel()
+	_casting_lmb_held = false
+	if _game_hud != null and _game_hud.has_method("hide_casting"):
+		_game_hud.hide_casting()
+
+
 func _on_wand_button_pressed() -> void:
 	if not is_multiplayer_authority():
+		return
+	if is_carrying_relic():
+		stop_casting_for_relic_carry()
 		return
 	if _casting_session != null and _casting_session.is_tome_teaching():
 		return
@@ -359,6 +383,8 @@ func _on_wand_button_pressed() -> void:
 
 func _on_wand_button_released() -> void:
 	if not is_multiplayer_authority():
+		return
+	if is_carrying_relic():
 		return
 	if not _casting_lmb_held:
 		return
@@ -381,6 +407,8 @@ func _try_tome_teaching_interact() -> bool:
 
 
 func _try_free_cast() -> bool:
+	if is_carrying_relic():
+		return false
 	if _spell_loadout == null or _casting_session == null:
 		return false
 	var candidates: Array[SpellDefinition] = _spell_loadout.get_known_spells()
@@ -433,9 +461,12 @@ func _update_interaction_prompt() -> void:
 	if _game_hud == null or not _game_hud.has_method("set_interaction_prompt"):
 		return
 	if _casting_session != null and _casting_session.is_tome_teaching():
-		_game_hud.set_interaction_prompt("Leave tome [F]")
+		_game_hud.set_interaction_prompt(
+			InputPromptScript.with_action("interact", "Leave tome")
+		)
 		return
 	if _casting_session != null and _casting_session.is_active():
+		_game_hud.set_interaction_prompt("")
 		return
 	var objective := _find_delivery_objective()
 	if objective != null:

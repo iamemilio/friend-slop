@@ -41,6 +41,7 @@ const TestFireballSkyFlareScript := preload("res://tests/unit/test_fireball_sky_
 const TestFireballFlightScript := preload("res://tests/unit/test_fireball_flight.gd")
 const TestSpellEffectSyncScript := preload("res://tests/unit/test_spell_effect_sync.gd")
 const TestGuideContentScript := preload("res://tests/unit/test_guide_content.gd")
+const TestInputPromptScript := preload("res://tests/unit/test_input_prompt.gd")
 const TestSpellCodexScript := preload("res://tests/unit/test_spell_codex.gd")
 const TestSpellCastingSessionScript := preload(
 	"res://tests/integration/test_spell_casting_session.gd"
@@ -125,6 +126,9 @@ func _run_tests() -> void:
 
 	var delivery_objective_sync_suite := TestDeliveryObjectiveSyncScript.new()
 	failures += delivery_objective_sync_suite.run()
+
+	var input_prompt_suite := TestInputPromptScript.new()
+	failures += input_prompt_suite.run()
 
 	var trail_registry_suite := TestTrailRegistryScript.new()
 	failures += trail_registry_suite.run()

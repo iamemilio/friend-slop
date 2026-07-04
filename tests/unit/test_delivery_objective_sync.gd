@@ -91,6 +91,9 @@ func _test_host_drop_restores_seek() -> int:
 	if not is_equal_approx(restored.y, 1.1):
 		push_error("Expected dropped relic to snap to float height")
 		return 1
+	if not is_equal_approx(restored.x, 3.0) or not is_equal_approx(restored.z, 1.0):
+		push_error("Expected dropped relic to stay at player drop location")
+		return 1
 	return 0
 
 

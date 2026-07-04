@@ -11,6 +11,8 @@ signal maze_ready(
 )
 signal exit_reached(player: Node3D)
 
+const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+
 @export var maze_width: int = 15
 @export var maze_height: int = 15
 @export var cell_size: float = 3.0
@@ -114,6 +116,7 @@ func _build_floor() -> void:
 	material.albedo_color = Color(0.12, 0.1, 0.16)
 	material.roughness = 0.85
 	mesh_instance.material_override = material
+	mesh_instance.layers = WorldVisualLayersScript.WORLD
 
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -149,6 +152,7 @@ func _build_walls() -> void:
 	material.albedo_color = Color(0.35, 0.28, 0.42)
 	material.roughness = 0.7
 	mesh_instance.material_override = material
+	mesh_instance.layers = WorldVisualLayersScript.WORLD
 
 	var collision := CollisionShape3D.new()
 	collision.shape = mesh.create_trimesh_shape()
@@ -184,6 +188,7 @@ func _build_exit_marker(exit_position: Vector3) -> void:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.albedo_color.a = 0.9
 	marker.material_override = material
+	marker.layers = WorldVisualLayersScript.WORLD
 	gate_root.add_child(marker)
 
 	var light := OmniLight3D.new()
