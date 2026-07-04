@@ -116,11 +116,15 @@ func get_learned_confirmation_text() -> String:
 func get_cast_success_text() -> String:
 	match effect_id:
 		"light":
-			return "A warm golden light glows around you for several seconds."
+			return "Smoke trails glow in the maze for several seconds."
 		"haste":
 			return "You surge forward — movement speed increased!"
 		"fireball":
 			return "A blazing fireball launches from your wand!"
+		"flashlight_on":
+			return "A steady beam of light shines from your wand."
+		"flashlight_off":
+			return "The wand light clicks off."
 		_:
 			return "The spell takes effect."
 
@@ -129,9 +133,8 @@ func get_codex_effect_detail() -> String:
 	match effect_id:
 		"light":
 			return (
-				"Surrounds you with golden light for %.0f seconds. "
+				"Reveals recent player smoke trails in the maze for %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_LIGHT_DURATION
-				+ "Reveals snail smoke trails in the maze so you can track movement."
 			)
 		"haste":
 			return (
@@ -146,6 +149,13 @@ func get_codex_effect_detail() -> String:
 				"Launches a blazing fireball from your wand. "
 				+ "Shots explode on impact with sparks and smoke."
 			)
+		"flashlight_on":
+			return (
+				"Projects a focused beam from your wand until you cast Light Off. "
+				+ "Illuminates the maze ahead of you."
+			)
+		"flashlight_off":
+			return "Extinguishes your wand flashlight beam."
 		_:
 			return get_cast_success_text()
 

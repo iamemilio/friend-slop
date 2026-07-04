@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3 uid="uid://cmoon001"]
+
+[ext_resource type="Script" path="res://scripts/environment/moon.gd" id="1_moon"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_moon"]
+radius = 9.0
+height = 18.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_moon"]
+albedo_color = Color(0.9, 0.92, 0.84, 1)
+emission_enabled = true
+emission = Color(0.78, 0.8, 0.68, 1)
+emission_energy_multiplier = 1.1
+roughness = 0.95
+
+[node name="Moon" type="Node3D"]
+script = ExtResource("1_moon")
+
+[node name="MoonVisual" type="MeshInstance3D" parent="."]
+layers = 1
+cast_shadow = 0
+mesh = SubResource("SphereMesh_moon")
+surface_material_override/0 = SubResource("StandardMaterial3D_moon")
+
+[node name="MoonLight" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 0, 0)
+light_color = Color(0.82, 0.88, 0.98, 1)
+light_energy = 0.6
+light_specular = 0.12
+shadow_enabled = true
+directional_shadow_mode = 1
+directional_shadow_blend_splits = false
+directional_shadow_max_distance = 320.0
+shadow_bias = 0.18
+shadow_normal_bias = 4.0
+shadow_blur = 0.0
+sky_mode = 1
+light_cull_mask = 3
+shadow_caster_mask = 3

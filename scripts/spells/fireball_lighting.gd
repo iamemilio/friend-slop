@@ -3,6 +3,8 @@ extends RefCounted
 
 ## Shadow-casting lights for fireball VFX.
 
+const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+
 
 static func configure_cast_light(
 	light: OmniLight3D,
@@ -16,6 +18,8 @@ static func configure_cast_light(
 	light.omni_range = range
 	light.omni_attenuation = 1.35
 	light.light_specular = 0.4
+	light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	light.shadow_caster_mask = WorldVisualLayersScript.WORLD_LIGHT_MASK
 	light.shadow_enabled = enable_shadows
 	if enable_shadows:
 		light.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID

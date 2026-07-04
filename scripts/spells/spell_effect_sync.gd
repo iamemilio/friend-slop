@@ -14,6 +14,8 @@ const KEY_MULTIPLIER := "multiplier"
 const EFFECT_HASTE := "haste"
 const EFFECT_LIGHT := "light"
 const EFFECT_FIREBALL := "fireball"
+const EFFECT_FLASHLIGHT_ON := "flashlight_on"
+const EFFECT_FLASHLIGHT_OFF := "flashlight_off"
 
 const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
@@ -31,6 +33,8 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 			return float(params.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 		EFFECT_FIREBALL:
 			return DEFAULT_FIREBALL_CAST_DURATION
+		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF:
+			return 0.0
 		_:
 			return 0.0
 
@@ -48,6 +52,8 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 		EFFECT_HASTE:
 			params[KEY_DURATION] = DEFAULT_HASTE_DURATION
 			params[KEY_MULTIPLIER] = DEFAULT_HASTE_MULTIPLIER
+		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF:
+			pass
 		_:
 			return {}
 	return params
@@ -73,6 +79,8 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
+		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF:
+			pass
 		_:
 			return {}
 	return wire
@@ -100,6 +108,8 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
+		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF:
+			pass
 		_:
 			return {}
 	return params
@@ -169,10 +179,13 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 				float(params.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 			)
 		EFFECT_LIGHT:
-			player.apply_light_pulse(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 			TrailRegistry.reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 		EFFECT_FIREBALL:
 			_apply_fireball(player, params)
+		EFFECT_FLASHLIGHT_ON:
+			player.set_flashlight_enabled(true)
+		EFFECT_FLASHLIGHT_OFF:
+			player.set_flashlight_enabled(false)
 		_:
 			push_warning(
 				"SpellEffectSync: unknown effect '%s'" % str(params.get(KEY_EFFECT_ID, ""))
@@ -180,7 +193,13 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 
 
 static func is_supported_effect(effect_id: String) -> bool:
-	return effect_id in [EFFECT_HASTE, EFFECT_LIGHT, EFFECT_FIREBALL]
+	return effect_id in [
+		EFFECT_HASTE,
+		EFFECT_LIGHT,
+		EFFECT_FIREBALL,
+		EFFECT_FLASHLIGHT_ON,
+		EFFECT_FLASHLIGHT_OFF,
+	]
 
 
 static func _fireball_direction(player: CharacterBody3D) -> Vector3:

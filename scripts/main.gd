@@ -13,6 +13,8 @@ var _players_spawned: bool = false
 var _discoverables_spawned: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
+@onready var moon: Moon = $Moon
+@onready var cloud_system: CloudSystem = $CloudSystem
 @onready var players_root: Node3D = $Players
 @onready var smoke_trails: SmokeTrailManager = $SmokeTrails
 @onready var discoverable_spawner = $DiscoverableSpawner
@@ -131,6 +133,17 @@ func _on_maze_ready(
 	_maze_spawn_cell = spawn_cell
 	_maze_exit_cell = exit_cell
 	_maze_layout_ready = true
+	if moon != null:
+		moon.configure_for_maze(maze.maze_width, maze.maze_height, maze.cell_size)
+	if cloud_system != null:
+		cloud_system.configure_for_maze(
+			maze.maze_width,
+			maze.maze_height,
+			maze.cell_size,
+			moon.position.y,
+			GameState.run_seed,
+			GameState.match_start_time_msec
+		)
 	_finish_match_layout()
 
 

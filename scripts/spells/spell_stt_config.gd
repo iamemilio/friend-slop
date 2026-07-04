@@ -3,7 +3,13 @@ extends RefCounted
 
 ## File-based STT setup checks (safe on the main game thread without loading gdvosk).
 
+const TestEnvScript := preload("res://scripts/test/test_env.gd")
+
 const GDEXTENSION_PATH := "res://addons/gdvosk/gdvosk.gdextension"
+const GDEXTENSION_DISABLED_PATH := "res://addons/gdvosk/gdvosk.gdextension.disabled"
+const RESTORE_VOICE_HINT := (
+	"Run make restore-voice from the repo root, then fully quit and reopen Godot."
+)
 const SETUP_SCRIPT_HINT := (
 	"Run make setup from the repo root (voice deps + dev tooling)."
 )
@@ -14,11 +20,24 @@ const MODEL_SEARCH_PATHS: Array[String] = [
 ]
 
 
+static func is_gdextension_disabled() -> bool:
+	return (
+		FileAccess.file_exists(GDEXTENSION_DISABLED_PATH)
+		and not FileAccess.file_exists(GDEXTENSION_PATH)
+	)
+
+
 static func is_configured() -> bool:
 	return FileAccess.file_exists(GDEXTENSION_PATH) and not find_model_path().is_empty()
 
 
 static func get_setup_issue() -> String:
+	if is_gdextension_disabled():
+		return (
+			"Speech recognition was disabled (gdvosk.gdextension renamed during tests). "
+			+ RESTORE_VOICE_HINT
+			+ " Enable Voice Stub in Settings (ESC) to test without voice."
+		)
 	if not FileAccess.file_exists(GDEXTENSION_PATH):
 		return (
 			"Speech recognition not installed (gdvosk). "
@@ -51,6 +70,8 @@ static func get_runtime_issue() -> String:
 	var setup_issue := get_setup_issue()
 	if not setup_issue.is_empty():
 		return setup_issue
+	if TestEnvScript.is_active():
+		return ""
 	if not GdvoskAdapter.is_available():
 		return get_extension_load_issue(OS.has_feature("editor"))
 	if not GdvoskAdapter.is_model_loaded():

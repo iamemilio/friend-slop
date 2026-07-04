@@ -8,9 +8,12 @@ const GdvoskAdapterScript := preload("res://scripts/spells/gdvosk_adapter.gd")
 const SpellCastValidatorScript := preload("res://scripts/spells/spell_cast_validator.gd")
 const SpellGrammarBuilderScript := preload("res://scripts/spells/spell_grammar_builder.gd")
 const SpellLogScript := preload("res://scripts/spells/spell_log.gd")
+const TestEnvScript := preload("res://scripts/test/test_env.gd")
 
 ## Test hook: artificial delay inside the worker thread.
 static var test_delay_sec: float = 0.0
+## When FRIEND_SLOP_TEST=1, skip live STT unless a test sets this true.
+static var force_stt_in_tests: bool = false
 static var last_ran_on_main_thread: bool = true
 
 
@@ -31,34 +34,42 @@ static func run(work: Dictionary) -> Dictionary:
 	var sample_rate: int = int(work.get("sample_rate", 0))
 
 	if transcript_words.is_empty() and not use_stub:
-		var grammar_json := _grammar_json_for_work(work)
-		var stt := _transcribe_for_validation(
-			raw_samples, samples, sample_rate, grammar_json
-		)
-		var words: Variant = stt.get("words")
-		var starts: Variant = stt.get("starts")
-		if words is PackedStringArray:
-			transcript_words = words
-		if starts is PackedFloat32Array:
-			word_starts_sec = starts
-		if transcript_words.is_empty():
+		var should_transcribe := not TestEnvScript.is_active() or force_stt_in_tests
+		if not should_transcribe:
 			SpellLogScript.debug(
 				"CastSession",
-				"stt returned no words (samples=%d trimmed=%d rate=%d model_loaded=%s grammar=%s)"
-				% [
-					raw_samples.size(),
-					samples.size(),
-					sample_rate,
-					str(GdvoskAdapterScript.is_model_loaded()),
-					not grammar_json.is_empty(),
-				]
+				"skipping live STT in unit tests (samples=%d trimmed=%d rate=%d)"
+				% [raw_samples.size(), samples.size(), sample_rate]
 			)
-		else:
-			SpellLogScript.debug(
-				"CastSession",
-				'stt transcript="%s" grammar=%s'
-				% [" ".join(transcript_words), not grammar_json.is_empty()]
+		if should_transcribe:
+			var grammar_json := _grammar_json_for_work(work)
+			var stt := _transcribe_for_validation(
+				raw_samples, samples, sample_rate, grammar_json
 			)
+			var words: Variant = stt.get("words")
+			var starts: Variant = stt.get("starts")
+			if words is PackedStringArray:
+				transcript_words = words
+			if starts is PackedFloat32Array:
+				word_starts_sec = starts
+			if transcript_words.is_empty():
+				SpellLogScript.debug(
+					"CastSession",
+					"stt returned no words (samples=%d trimmed=%d rate=%d model_loaded=%s grammar=%s)"
+					% [
+						raw_samples.size(),
+						samples.size(),
+						sample_rate,
+						str(GdvoskAdapterScript.is_model_loaded()),
+						not grammar_json.is_empty(),
+					]
+				)
+			else:
+				SpellLogScript.debug(
+					"CastSession",
+					'stt transcript="%s" grammar=%s'
+					% [" ".join(transcript_words), not grammar_json.is_empty()]
+				)
 
 	if str(work.get("mode", "")) == "free_cast":
 		return _build_free_cast_response(

@@ -30,6 +30,17 @@ func run(tree: SceneTree) -> int:
 	return failures
 
 
+func _scene_root() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		return (loop as SceneTree).root
+	return null
+
+
+func _signal_latch() -> Dictionary:
+	return {"hit": false}
+
+
 func _pump_session_frame(session: SpellCastingSession) -> void:
 	session._process(0.016)
 	var runner := session.get_node_or_null("SpellValidationRunner") as SpellValidationRunner
@@ -47,10 +58,10 @@ func _drive_listen_and_validate(
 	if not transcript_words.is_empty():
 		session._transcript_words = transcript_words
 	session._begin_validation()
-	for _attempt in 300:
-		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
-			break
+	for _attempt in 3000:
 		_pump_session_frame(session)
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
 
 
 func _loud_samples(duration_sec: float, sample_rate: int = 48000) -> PackedFloat32Array:
@@ -81,9 +92,9 @@ func _test_stub_tome_teaching_completes(tree: SceneTree) -> int:
 	validator.use_stub = true
 	session.configure(validator)
 
-	var succeeded := false
+	var succeeded := _signal_latch()
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
-		succeeded = true
+		succeeded["hit"] = true
 	)
 
 	session.begin_tome_teaching(FireballSpell)
@@ -91,14 +102,14 @@ func _test_stub_tome_teaching_completes(tree: SceneTree) -> int:
 	session._recorded_samples = _loud_samples(0.5)
 	session._sample_rate = 48000
 	session._begin_validation()
-	for _attempt in 300:
-		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
-			break
+	for _attempt in 3000:
 		_pump_session_frame(session)
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
 
 	_free_session(session)
 
-	if not succeeded:
+	if not bool(succeeded["hit"]):
 		push_error("Expected stub tome teaching cast to emit cast_succeeded")
 		return 1
 	return 0
@@ -111,9 +122,9 @@ func _test_validation_runs_async_without_blocking_first_poll(tree: SceneTree) ->
 	validator.use_stub = true
 	session.configure(validator)
 
-	var succeeded := false
+	var succeeded := _signal_latch()
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
-		succeeded = true
+		succeeded["hit"] = true
 	)
 
 	session.begin_tome_teaching(FireballSpell)
@@ -132,7 +143,7 @@ func _test_validation_runs_async_without_blocking_first_poll(tree: SceneTree) ->
 	var runner := session.get_node_or_null("SpellValidationRunner") as SpellValidationRunner
 	if runner != null:
 		runner._process(0.0)
-	if succeeded:
+	if bool(succeeded["hit"]):
 		WorkerScript.test_delay_sec = 0.0
 		_free_session(session)
 		push_error("Expected first poll not to finish validation while worker is delayed")
@@ -143,15 +154,15 @@ func _test_validation_runs_async_without_blocking_first_poll(tree: SceneTree) ->
 		push_error("Expected session to remain validating on first poll")
 		return 1
 
-	for _attempt in 300:
-		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
-			break
+	for _attempt in 3000:
 		_pump_session_frame(session)
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
 
 	WorkerScript.test_delay_sec = 0.0
 	_free_session(session)
 
-	if not succeeded:
+	if not bool(succeeded["hit"]):
 		push_error("Expected async validation to eventually emit cast_succeeded")
 		return 1
 	return 0
@@ -163,20 +174,25 @@ func _test_cast_fireball_stub_succeeds(tree: SceneTree) -> int:
 	validator.use_stub = true
 	session.configure(validator)
 
-	var cast_spell: SpellDefinition = null
-	var cast_mode := ""
-	var validation: CastValidationResult = null
+	var outcome := {
+		"spell": null,
+		"mode": "",
+		"validation": null,
+	}
 	session.cast_succeeded.connect(
 		func(spell: SpellDefinition, mode: String, result: CastValidationResult) -> void:
-			cast_spell = spell
-			cast_mode = mode
-			validation = result
+			outcome["spell"] = spell
+			outcome["mode"] = mode
+			outcome["validation"] = result
 	)
 
 	session.start(FireballSpell, SpellCastingSession.Mode.CAST)
 	_drive_listen_and_validate(session)
 	_free_session(session)
 
+	var cast_spell: SpellDefinition = outcome["spell"]
+	var cast_mode: String = str(outcome["mode"])
+	var validation: CastValidationResult = outcome["validation"]
 	if cast_spell == null or cast_spell.id != "fireball":
 		push_error("Expected stub cast to succeed with fireball spell")
 		return 1
@@ -201,18 +217,19 @@ func _test_cast_fireball_heard_transcript_succeeds(tree: SceneTree) -> int:
 	validator.use_stub = false
 	session.configure(validator)
 
-	var cast_spell: SpellDefinition = null
-	var validation: CastValidationResult = null
+	var outcome := {"spell": null, "validation": null}
 	session.cast_succeeded.connect(
 		func(spell: SpellDefinition, _mode: String, result: CastValidationResult) -> void:
-			cast_spell = spell
-			validation = result
+			outcome["spell"] = spell
+			outcome["validation"] = result
 	)
 
 	session.start(FireballSpell, SpellCastingSession.Mode.CAST)
 	_drive_listen_and_validate(session, PackedStringArray(["fireball"]))
 	_free_session(session)
 
+	var cast_spell: SpellDefinition = outcome["spell"]
+	var validation: CastValidationResult = outcome["validation"]
 	if cast_spell == null or cast_spell.id != "fireball":
 		push_error("Expected non-stub cast with 'fireball' transcript to succeed")
 		return 1
@@ -237,20 +254,20 @@ func _test_cast_fireball_wrong_words_fails(tree: SceneTree) -> int:
 	validator.use_stub = false
 	session.configure(validator)
 
-	var failed := false
-	var fail_reason := ""
+	var failure := {"hit": false, "reason": ""}
 	session.cast_failed.connect(func(_spell, reason, _partial) -> void:
-		failed = true
-		fail_reason = reason
+		failure["hit"] = true
+		failure["reason"] = reason
 	)
 
 	session.start(FireballSpell, SpellCastingSession.Mode.CAST)
 	_drive_listen_and_validate(session, PackedStringArray(["show", "me"]))
 	_free_session(session)
 
-	if not failed:
+	if not bool(failure["hit"]):
 		push_error("Expected fireball cast to fail when incantation was 'show me'")
 		return 1
+	var fail_reason: String = str(failure["reason"])
 	if fail_reason.is_empty():
 		push_error("Expected a failure reason for wrong incantation")
 		return 1
@@ -263,15 +280,16 @@ func _test_offline_session_runs_process(tree: SceneTree) -> int:
 	validator.use_stub = true
 	session.configure(validator)
 
-	var prev_peer: MultiplayerPeer = tree.multiplayer.multiplayer_peer
-	tree.multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	var multiplayer_api := tree.root.get_multiplayer()
+	var prev_peer: MultiplayerPeer = multiplayer_api.multiplayer_peer
+	multiplayer_api.multiplayer_peer = OfflineMultiplayerPeer.new()
 
 	session.begin_tome_teaching(FireballSpell)
 	var state_before := session.get_state()
 	session._process(0.51)
 	var state_after := session.get_state()
 
-	tree.multiplayer.multiplayer_peer = prev_peer
+	multiplayer_api.multiplayer_peer = prev_peer
 	_free_session(session)
 
 	if state_before != "arming":
@@ -322,9 +340,9 @@ func _test_free_cast_release_commits(tree: SceneTree) -> int:
 	validator.use_stub = true
 	session.configure(validator)
 
-	var succeeded := false
+	var succeeded := _signal_latch()
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
-		succeeded = true
+		succeeded["hit"] = true
 	)
 
 	session.start_free_cast([FireballSpell])
@@ -333,14 +351,14 @@ func _test_free_cast_release_commits(tree: SceneTree) -> int:
 	session._sample_rate = 48000
 	session.release_wand_hold()
 
-	for _attempt in 300:
-		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
-			break
+	for _attempt in 3000:
 		_pump_session_frame(session)
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
 
 	_free_session(session)
 
-	if not succeeded:
+	if not bool(succeeded["hit"]):
 		push_error("Expected free cast to commit on wand release")
 		return 1
 	return 0
@@ -395,7 +413,7 @@ func _test_free_cast_returns_idle_after_success(tree: SceneTree) -> int:
 	session._recorded_samples = _loud_samples(0.5)
 	session._sample_rate = 48000
 	session.release_wand_hold()
-	for _attempt in 300:
+	for _attempt in 3000:
 		if session.get_state() == SpellCastingSession.STATE_IDLE:
 			break
 		_pump_session_frame(session)
@@ -418,9 +436,9 @@ func _test_non_stub_fails_before_validation_when_stt_unavailable(tree: SceneTree
 	validator.use_stub = false
 	session.configure(validator)
 
-	var fail_reason := ""
+	var failure := {"reason": ""}
 	session.cast_failed.connect(func(_spell, reason, _partial) -> void:
-		fail_reason = reason
+		failure["reason"] = reason
 	)
 
 	session.begin_tome_teaching(FireballSpell)
@@ -432,6 +450,7 @@ func _test_non_stub_fails_before_validation_when_stt_unavailable(tree: SceneTree
 	var state := session.get_state()
 	_free_session(session)
 
+	var fail_reason: String = str(failure["reason"])
 	if fail_reason != runtime_issue:
 		push_error(
 			"Expected cast to fail at STT preflight with runtime issue, got: %s"

@@ -260,6 +260,8 @@ func _rpc_start_game(
 	)
 	MatchStateManager.reset()
 	GameState.prepare_match(run_seed, roles, character_configs)
+	## Synchronize the deterministic clock used by clouds and other time-driven effects.
+	GameState.match_start_time_msec = Time.get_ticks_msec()
 	if not match_snapshot.is_empty():
 		MatchStateManager.apply_snapshot(match_snapshot)
 	MatchStateManager.log_summary()

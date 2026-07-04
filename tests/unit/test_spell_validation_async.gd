@@ -147,6 +147,7 @@ func _test_worker_stt_logging_avoids_scene_tree(tree: SceneTree) -> int:
 	## Non-stub validation with no transcript runs STT + SpellLog on the worker thread.
 	SpellLogScript.last_used_scene_tree = false
 	WorkerScript.test_delay_sec = 0.0
+	WorkerScript.force_stt_in_tests = true
 	var runner := _make_runner(tree)
 	if not runner.start(
 		"targeted",
@@ -158,10 +159,12 @@ func _test_worker_stt_logging_avoids_scene_tree(tree: SceneTree) -> int:
 		PackedStringArray(),
 		PackedFloat32Array()
 	):
+		WorkerScript.force_stt_in_tests = false
 		runner.queue_free()
 		push_error("Expected STT logging runner to start")
 		return 1
-	_wait_for_runner(runner)
+	_wait_for_runner(runner, 5000)
+	WorkerScript.force_stt_in_tests = false
 	runner.queue_free()
 	if WorkerScript.last_ran_on_main_thread:
 		push_error("Expected STT logging worker to run off the main thread")

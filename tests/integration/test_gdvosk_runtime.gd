@@ -2,7 +2,7 @@ class_name TestGdvoskRuntime
 extends RefCounted
 
 ## Optional runtime STT checks when the gdvosk extension is loaded.
-## Skipped in CI (run_checks.py disables the extension to avoid native crashes).
+## Skipped in headless CI when gdvosk is unavailable; optional when loaded locally.
 
 const GdvoskAdapterScript := preload("res://scripts/spells/gdvosk_adapter.gd")
 const SpellSttConfigScript := preload("res://scripts/spells/spell_stt_config.gd")

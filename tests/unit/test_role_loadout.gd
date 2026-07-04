@@ -34,6 +34,9 @@ func _test_apprentice_starter_kit() -> int:
 	if not spell_ids.has("show_me"):
 		push_error("Expected apprentice loadout to include show_me")
 		return 1
+	if not spell_ids.has("light_off"):
+		push_error("Expected apprentice loadout to include light_off")
+		return 1
 	return 0
 
 

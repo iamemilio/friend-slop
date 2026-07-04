@@ -21,7 +21,8 @@ $RequiredEditorKeys = @(
 
 if (Test-Path $GdExtensionDisabled) {
     if (-not (Test-Path $GdExtension)) {
-        Write-Error "gdvosk.gdextension is disabled (.disabled). Restore it before verifying."
+        Write-Host "Restoring disabled gdvosk.gdextension ..."
+        Move-Item -Path $GdExtensionDisabled -Destination $GdExtension
     }
 }
 

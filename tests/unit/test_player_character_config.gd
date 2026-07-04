@@ -3,6 +3,7 @@ extends RefCounted
 
 const GameStateScript := preload("res://scripts/game_state.gd")
 const PlayerCharacterConfigScript := preload("res://scripts/match/player_character_config.gd")
+const RoleLoadoutScript := preload("res://scripts/progression/role_loadout.gd")
 
 
 func run() -> int:
@@ -58,10 +59,10 @@ func _test_warden_starting_spells() -> int:
 func _test_apprentice_starting_spells() -> int:
 	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.APPRENTICE)
 	var spell_ids := config.get_starting_spell_ids()
-	if spell_ids.size() != 3:
-		push_error("Expected apprentice config to expose three starting spells")
+	if spell_ids.size() != RoleLoadoutScript.APPRENTICE_SPELLS.size():
+		push_error("Expected apprentice config to expose all apprentice starting spells")
 		return 1
-	if not spell_ids.has("fireball"):
-		push_error("Expected apprentice loadout to include fireball")
+	if not spell_ids.has("fireball") or not spell_ids.has("light_on"):
+		push_error("Expected apprentice loadout to include fireball and light_on")
 		return 1
 	return 0

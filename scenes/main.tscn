@@ -1,7 +1,9 @@
 [gd_scene format=3 uid="uid://cmain001"]
 
 [ext_resource type="Script" uid="uid://divchbbi8rx6x" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://cmoon001" path="res://scenes/environment/moon.tscn" id="1_moon"]
 [ext_resource type="Script" uid="uid://dciapcbn1y4t4" path="res://scripts/smoke_trail_manager.gd" id="1_smoke_trails"]
+[ext_resource type="Script" uid="uid://cyuldhmjq2gxm" path="res://scripts/environment/cloud_system.gd" id="2_clouds"]
 [ext_resource type="Script" uid="uid://dvm6473ovmcmk" path="res://scripts/maze_generator.gd" id="2_maze"]
 [ext_resource type="Script" uid="uid://dgeo1cql2kx4k" path="res://scripts/discoverables/discoverable_spawner.gd" id="4_spawner"]
 [ext_resource type="Resource" uid="uid://cyg7o8wvlijw5" path="res://resources/discoverables/default_run_config.tres" id="5_run_cfg"]
@@ -9,8 +11,8 @@
 [ext_resource type="Script" uid="uid://bkvka4fuy7rl2" path="res://scripts/spells/spell_registry.gd" id="6_registry"]
 [ext_resource type="Resource" path="res://resources/spells/show_me.tres" id="7_show_me"]
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
-[ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
 [ext_resource type="PackedScene" uid="uid://bfqs6msunremi" path="res://scenes/ui/guide_panel.tscn" id="9_guide"]
+[ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
 [ext_resource type="PackedScene" uid="uid://cpausemenu001" path="res://scenes/ui/pause_menu.tscn" id="14_pause"]
@@ -24,29 +26,16 @@
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_shift.tres" id="22_shift"]
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_seal.tres" id="23_seal"]
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_forge.tres" id="24_forge"]
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-sky_top_color = Color(0.08, 0.06, 0.14, 1)
-sky_horizon_color = Color(0.15, 0.1, 0.22, 1)
-ground_bottom_color = Color(0.05, 0.04, 0.08, 1)
-ground_horizon_color = Color(0.12, 0.08, 0.18, 1)
-
-[sub_resource type="Sky" id="Sky_env"]
-sky_material = SubResource("ProceduralSkyMaterial_sky")
+[ext_resource type="Resource" path="res://resources/spells/light_on.tres" id="25_light_on"]
+[ext_resource type="Resource" path="res://resources/spells/light_off.tres" id="26_light_off"]
 
 [sub_resource type="Environment" id="Environment_main"]
-background_mode = 2
-sky = SubResource("Sky_env")
-ambient_light_source = 2
-ambient_light_color = Color(0.35, 0.28, 0.5, 1)
-ambient_light_energy = 0.4
+background_mode = 1
+background_color = Color(0.015, 0.018, 0.035, 1)
+ambient_light_color = Color(0.14, 0.16, 0.26, 1)
+ambient_light_energy = 0.32
 tonemap_mode = 2
-ssao_enabled = true
-glow_enabled = true
-glow_intensity = 0.6
-fog_enabled = true
-fog_light_color = Color(0.25, 0.18, 0.35, 1)
-fog_density = 0.006
+tonemap_exposure = 1.12
 
 [node name="Main" type="Node3D" unique_id=94019496]
 script = ExtResource("1_main")
@@ -54,11 +43,11 @@ script = ExtResource("1_main")
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=478717332]
 environment = SubResource("Environment_main")
 
-[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1233745143]
-transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 12, 0)
-light_color = Color(0.75, 0.7, 0.95, 1)
-light_energy = 0.6
-shadow_enabled = true
+[node name="Moon" parent="." unique_id=2089265695 instance=ExtResource("1_moon")]
+
+[node name="CloudSystem" type="Node3D" parent="." unique_id=1526258183]
+script = ExtResource("2_clouds")
+cloud_count_max = 45
 
 [node name="SmokeTrails" type="Node3D" parent="." unique_id=1526258182]
 script = ExtResource("1_smoke_trails")
@@ -74,7 +63,7 @@ run_config = ExtResource("5_run_cfg")
 
 [node name="SpellRegistry" type="Node" parent="." unique_id=1904759634]
 script = ExtResource("6_registry")
-spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
+spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("25_light_on"), ExtResource("26_light_off"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
 
 [node name="VoiceSpellValidator" type="Node" parent="." unique_id=1384260685]
 script = ExtResource("10_validator")
@@ -87,7 +76,7 @@ script = ExtResource("10_objective")
 [node name="GameHUD" type="CanvasLayer" parent="." unique_id=1905588477]
 script = ExtResource("9_hud")
 
-[node name="GuidePanel" parent="GameHUD" instance=ExtResource("9_guide")]
+[node name="GuidePanel" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
 
 [node name="MarginContainer" type="MarginContainer" parent="GameHUD" unique_id=271343968]
 anchors_preset = 10

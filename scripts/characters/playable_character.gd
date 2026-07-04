@@ -136,9 +136,9 @@ func apply_speed_boost(duration: float, multiplier: float) -> void:
 	_speed_boost_timer = duration
 
 
-func apply_light_pulse(duration: float) -> void:
+func set_flashlight_enabled(active: bool) -> void:
 	if _wand != null:
-		_wand.play_spell_light(duration)
+		_wand.set_flashlight_enabled(active)
 
 
 func launch_fireball() -> void:
@@ -320,13 +320,13 @@ func _apply_character_color(color: Color) -> void:
 	material.emission_energy_multiplier = 0.8
 	_body_mesh.material_override = material
 	_body_mesh.layers = PLAYER_SELF_VISUAL_LAYER
-	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	var head_material := material.duplicate()
 	head_material.albedo_color = color.lightened(0.08)
 	head_material.emission = head_material.albedo_color * 0.25
 	_head_mesh.material_override = head_material
 	_head_mesh.layers = PLAYER_SELF_VISUAL_LAYER
-	_head_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_head_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 
 func _try_interact() -> void:

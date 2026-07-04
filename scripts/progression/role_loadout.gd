@@ -3,7 +3,13 @@ extends RefCounted
 
 ## Fixed starting spells per role — no skill-tree progression.
 
-const APPRENTICE_SPELLS: Array[String] = ["show_me", "fireball", "haste"]
+const APPRENTICE_SPELLS: Array[String] = [
+	"show_me",
+	"fireball",
+	"haste",
+	"light_on",
+	"light_off",
+]
 
 const WARDEN_SPELLS: Array[String] = [
 	"warden_stalk",

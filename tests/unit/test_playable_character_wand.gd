@@ -1,6 +1,6 @@
 extends RefCounted
 
-const PlayableCharacterScript := preload("res://scripts/characters/playable_character.gd")
+const PlayableCharacterScene := preload("res://scenes/characters/playable_character.tscn")
 const PlayerWandScript := preload("res://scripts/player/player_wand.gd")
 const SpellCastingSessionScript := preload("res://scripts/spells/spell_casting_session.gd")
 const DeliveryObjectiveScript := preload("res://scripts/objectives/delivery_objective.gd")
@@ -13,19 +13,20 @@ func run(tree: SceneTree) -> int:
 	failures += _test_release_ignored_without_press(tree)
 	failures += _test_release_commits_while_holding(tree)
 	failures += _test_free_cast_blocked_while_carrying_relic(tree)
-	failures += _test_wand_glow_uses_tip_spotlight_and_world_light_mask(tree)
+	failures += _test_wand_cast_feedback_is_emission_only(tree)
 	failures += _test_wand_tip_brightness_tracks_listen_level(tree)
 	return failures
 
 
 func _make_character(tree: SceneTree) -> PlayableCharacter:
-	var player := PlayableCharacterScript.new()
-	var session: SpellCastingSession = SpellCastingSessionScript.new()
-	session.name = "SpellCastingSession"
-	player.add_child(session)
+	var player: PlayableCharacter = PlayableCharacterScene.instantiate()
 	tree.root.add_child(player)
-	player.configure_interaction(null, session, null, null)
+	player.configure_interaction(null, player.casting_session, null, null)
 	return player
+
+
+func _signal_latch() -> Dictionary:
+	return {"hit": false}
 
 
 func _free_character(player: PlayableCharacter) -> void:
@@ -62,9 +63,9 @@ func _test_release_commits_while_holding(tree: SceneTree) -> int:
 	validator.use_stub = true
 	session.configure(validator)
 
-	var succeeded := false
+	var succeeded := _signal_latch()
 	session.cast_succeeded.connect(func(_spell, _mode, _validation) -> void:
-		succeeded = true
+		succeeded["hit"] = true
 	)
 
 	player._on_wand_button_pressed()
@@ -78,17 +79,17 @@ func _test_release_commits_while_holding(tree: SceneTree) -> int:
 	session._sample_rate = 48000
 	player._on_wand_button_released()
 
-	for _attempt in 300:
-		if session.get_state() != SpellCastingSession.STATE_VALIDATING:
-			break
+	for _attempt in 3000:
 		session._process(0.016)
 		var runner := session.get_node_or_null("SpellValidationRunner") as SpellValidationRunner
 		if runner != null:
 			runner._process(0.0)
+		if session.get_state() == SpellCastingSession.STATE_IDLE:
+			break
 
 	_free_character(player)
 
-	if not succeeded:
+	if not bool(succeeded["hit"]):
 		push_error("Expected press-hold-release to commit a free cast")
 		return 1
 	return 0
@@ -115,7 +116,7 @@ func _test_free_cast_blocked_while_carrying_relic(tree: SceneTree) -> int:
 	return 0
 
 
-func _test_wand_glow_uses_tip_spotlight_and_world_light_mask(tree: SceneTree) -> int:
+func _test_wand_cast_feedback_is_emission_only(tree: SceneTree) -> int:
 	var failures := 0
 	var wand := PlayerWandScript.new()
 	tree.root.add_child(wand)
@@ -125,25 +126,36 @@ func _test_wand_glow_uses_tip_spotlight_and_world_light_mask(tree: SceneTree) ->
 		failures += 1
 		push_error("Expected wand cast origin marker at the tip")
 	else:
-		var tip_spot := cast_origin.get_node_or_null("TipSpotLight") as SpotLight3D
-		if tip_spot == null or tip_spot.light_cull_mask != PlayerWandScript.WORLD_LIGHT_CULL_MASK:
+		if cast_origin.get_node_or_null("TipSpotLight") != null:
 			failures += 1
-			push_error("Expected wand tip spotlight to illuminate world geometry only")
-		elif tip_spot.shadow_caster_mask != PlayerWandScript.WORLD_LIGHT_CULL_MASK:
+			push_error("Expected casting feedback to avoid a world tip spotlight")
+		var flashlight := cast_origin.get_node_or_null("FlashlightBeam") as SpotLight3D
+		if flashlight == null or flashlight.light_cull_mask != PlayerWandScript.WORLD_LIGHT_CULL_MASK:
 			failures += 1
-			push_error("Expected wand tip spotlight to ignore player-layer shadow casters")
-		elif not tip_spot.shadow_enabled:
+			push_error("Expected wand flashlight to illuminate world geometry only")
+		elif flashlight.shadow_caster_mask != PlayerWandScript.WORLD_LIGHT_CULL_MASK:
 			failures += 1
-			push_error("Expected wand tip spotlight to cast shadows")
+			push_error("Expected wand flashlight to ignore player-layer shadow casters")
+		elif flashlight.shadow_enabled:
+			failures += 1
+			push_error("Expected wand flashlight to skip shadows for a soft cone beam")
+		elif flashlight.spot_range < 10.0:
+			failures += 1
+			push_error("Expected wand flashlight cone to reach nearby maze surfaces")
+		elif flashlight.spot_angle < deg_to_rad(70.0):
+			failures += 1
+			push_error("Expected wand flashlight to use a wide cone")
+		elif flashlight.light_size <= 0.0:
+			failures += 1
+			push_error("Expected wand flashlight to use light_size for a soft beam")
+		elif cast_origin.get_node_or_null("FlashlightSpill") != null:
+			failures += 1
+			push_error("Expected wand flashlight to use a single cone, not omni spill")
 		else:
-			wand.set_armed(true)
-			if tip_spot.spot_range < 6.0:
-				failures += 1
-				push_error("Expected wand tip spotlight to reach nearby maze surfaces")
 			var tip := wand.get_node_or_null("Tip") as MeshInstance3D
 			if tip == null or tip.global_position.distance_to(cast_origin.global_position) > 0.08:
 				failures += 1
-				push_error("Expected wand light origin to stay at the tip orb")
+				push_error("Expected wand cast origin to stay at the tip orb")
 
 	wand.queue_free()
 	return failures

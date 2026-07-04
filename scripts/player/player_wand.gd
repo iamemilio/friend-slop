@@ -1,18 +1,12 @@
 class_name PlayerWand
 extends Node3D
 
-## Slim hand-held wand with tip spotlight and cast / fizzle feedback.
+## Slim hand-held wand with tip glow for casting and optional flashlight beam.
 
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 
 const WORLD_LIGHT_CULL_MASK := WorldVisualLayersScript.WORLD_LIGHT_MASK
 
-const TIP_SPOT_ARMED_ENERGY := 1.35
-const TIP_SPOT_LISTEN_MAX_BOOST := 11.0
-const TIP_SPOT_RANGE := 10.0
-const TIP_SPOT_ANGLE_DEG := 46.0
-const TIP_SPOT_LISTEN_ANGLE_BOOST_DEG := 14.0
-const TIP_IDLE_ENERGY := 0.0
 const TIP_EMISSION_ARMED := 0.4
 const TIP_EMISSION_LISTEN_MAX := 10.0
 const TIP_SCALE_LISTEN_BOOST := 0.38
@@ -23,19 +17,23 @@ const SHAFT_LENGTH := 0.28
 const SHAFT_TOP_RADIUS := 0.007
 const SHAFT_BOTTOM_RADIUS := 0.010
 const TIP_RADIUS := 0.012
-const SPELL_LIGHT_ENERGY := 3.2
-const SPELL_LIGHT_RANGE := 9.0
-const SPELL_LIGHT_ANGLE_DEG := 55.0
+## Spill-tuned cone: same warmth/brightness as the old omni spill, shaped forward from the tip.
+const FLASHLIGHT_ENERGY := 3.0
+const FLASHLIGHT_RANGE := 12.0
+const FLASHLIGHT_HALF_ANGLE_DEG := 82.0
+const FLASHLIGHT_ATTENUATION := 1.2
+const FLASHLIGHT_LIGHT_SIZE := 0.65
+const FLASHLIGHT_COLOR := Color(1.0, 0.86, 0.56)
+const FLASHLIGHT_TIP_EMISSION := 1.0
 
 var _shaft_mesh: MeshInstance3D
 var _tip_mesh: MeshInstance3D
-var _tip_spot: SpotLight3D
-var _spell_cast_light: SpotLight3D
-var _spell_light_tween: Tween
+var _flashlight_light: SpotLight3D
 var _cast_origin: Marker3D
 var _fizzle_particles: CPUParticles3D
 var _success_particles: CPUParticles3D
 var _armed := false
+var _flashlight_active := false
 var _listen_level: float = 0.0
 var _listen_peak: float = 0.0
 
@@ -83,17 +81,20 @@ func play_fizzle(keep_armed: bool = false) -> void:
 	_pulse_tip(Color(0.65, 0.55, 0.75), 0.2)
 
 
-func play_spell_light(duration: float) -> void:
-	if _spell_cast_light == null:
+func set_flashlight_enabled(active: bool) -> void:
+	_flashlight_active = active
+	if _flashlight_light == null:
 		return
-	if _spell_light_tween != null and _spell_light_tween.is_valid():
-		_spell_light_tween.kill()
-	_spell_cast_light.visible = true
-	_spell_cast_light.light_energy = SPELL_LIGHT_ENERGY
-	_set_tip_emission(Color(0.95, 0.85, 0.45), 2.6)
-	_spell_light_tween = create_tween()
-	_spell_light_tween.tween_property(_spell_cast_light, "light_energy", 0.0, duration)
-	_spell_light_tween.tween_callback(_finish_spell_light)
+	_flashlight_light.visible = active
+	_flashlight_light.light_energy = FLASHLIGHT_ENERGY if active else 0.0
+	if active:
+		_set_tip_emission(FLASHLIGHT_COLOR, FLASHLIGHT_TIP_EMISSION)
+	elif not _armed:
+		_set_tip_emission(Color.WHITE, 0.0)
+
+
+func is_flashlight_active() -> bool:
+	return _flashlight_active
 
 
 func _build_wand_meshes() -> void:
@@ -139,26 +140,18 @@ func _build_wand_meshes() -> void:
 	_cast_origin.position = tip_offset + Vector3(0.0, 0.0, -0.025)
 	add_child(_cast_origin)
 
-	_tip_spot = SpotLight3D.new()
-	_tip_spot.name = "TipSpotLight"
-	_tip_spot.position = Vector3.ZERO
-	_tip_spot.spot_range = TIP_SPOT_RANGE
-	_tip_spot.spot_angle = deg_to_rad(TIP_SPOT_ANGLE_DEG)
-	_tip_spot.spot_attenuation = 1.15
-	_tip_spot.light_color = Color(0.95, 0.92, 1.0)
-	_configure_world_light(_tip_spot)
-	_cast_origin.add_child(_tip_spot)
-
-	_spell_cast_light = SpotLight3D.new()
-	_spell_cast_light.name = "SpellCastLight"
-	_spell_cast_light.position = Vector3.ZERO
-	_spell_cast_light.spot_range = SPELL_LIGHT_RANGE
-	_spell_cast_light.spot_angle = deg_to_rad(SPELL_LIGHT_ANGLE_DEG)
-	_spell_cast_light.light_color = Color(0.95, 0.85, 0.45)
-	_spell_cast_light.light_energy = 0.0
-	_spell_cast_light.visible = false
-	_configure_world_light(_spell_cast_light)
-	_cast_origin.add_child(_spell_cast_light)
+	_flashlight_light = SpotLight3D.new()
+	_flashlight_light.name = "FlashlightBeam"
+	_flashlight_light.position = Vector3.ZERO
+	_flashlight_light.spot_range = FLASHLIGHT_RANGE
+	_flashlight_light.spot_angle = deg_to_rad(FLASHLIGHT_HALF_ANGLE_DEG)
+	_flashlight_light.spot_attenuation = FLASHLIGHT_ATTENUATION
+	_flashlight_light.light_size = FLASHLIGHT_LIGHT_SIZE
+	_flashlight_light.light_color = FLASHLIGHT_COLOR
+	_flashlight_light.light_energy = 0.0
+	_flashlight_light.visible = false
+	_configure_flashlight_light(_flashlight_light)
+	_cast_origin.add_child(_flashlight_light)
 
 
 func _build_particles() -> void:
@@ -190,18 +183,11 @@ func _make_burst_particles(node_name: String, color: Color) -> CPUParticles3D:
 
 
 func _refresh_tip_light() -> void:
-	var energy := TIP_IDLE_ENERGY
 	var emission := 0.0
-	var spot_angle := TIP_SPOT_ANGLE_DEG
 	var visual := 0.0
 	if _armed:
 		visual = _listen_visual_strength(_listen_level)
-		energy = TIP_SPOT_ARMED_ENERGY + visual * TIP_SPOT_LISTEN_MAX_BOOST
 		emission = TIP_EMISSION_ARMED + visual * TIP_EMISSION_LISTEN_MAX
-		spot_angle = TIP_SPOT_ANGLE_DEG + visual * TIP_SPOT_LISTEN_ANGLE_BOOST_DEG
-	_tip_spot.light_energy = energy
-	_tip_spot.spot_angle = deg_to_rad(spot_angle)
-	_tip_spot.light_color = Color(0.92, 0.94, 1.0).lerp(Color(1.0, 0.96, 0.82), visual)
 	_apply_tip_visual(visual, emission)
 
 
@@ -224,7 +210,14 @@ func _apply_tip_visual(visual: float, emission: float) -> void:
 func _pulse_tip(color: Color, duration: float) -> void:
 	_set_tip_emission(color, 2.0)
 	var tween := create_tween()
-	tween.tween_property(_tip_spot, "light_energy", 0.0, duration)
+	tween.tween_method(
+		func(energy: float) -> void:
+			_set_tip_emission(color, energy),
+		2.0,
+		0.0,
+		duration
+	)
+	tween.tween_callback(_refresh_tip_light)
 
 
 func _emit_burst(particles: CPUParticles3D, color: Color) -> void:
@@ -236,12 +229,6 @@ func _emit_burst(particles: CPUParticles3D, color: Color) -> void:
 	particles.emitting = true
 
 
-func _finish_spell_light() -> void:
-	if _spell_cast_light != null:
-		_spell_cast_light.visible = false
-	_refresh_tip_light()
-
-
 func _configure_world_light(light: Light3D) -> void:
 	light.light_cull_mask = WORLD_LIGHT_CULL_MASK
 	light.shadow_caster_mask = WORLD_LIGHT_CULL_MASK
@@ -249,6 +236,13 @@ func _configure_world_light(light: Light3D) -> void:
 	light.shadow_enabled = true
 	light.shadow_bias = 0.04
 	light.shadow_normal_bias = 1.0
+
+
+func _configure_flashlight_light(light: Light3D) -> void:
+	light.light_cull_mask = WORLD_LIGHT_CULL_MASK
+	light.shadow_caster_mask = WORLD_LIGHT_CULL_MASK
+	light.light_specular = 0.22
+	light.shadow_enabled = false
 
 
 func _set_tip_emission(color: Color, energy: float) -> void:
@@ -272,5 +266,7 @@ func _success_color_for_spell(spell: SpellDefinition) -> Color:
 			return Color(1.0, 0.92, 0.55)
 		"haste":
 			return Color(0.55, 0.82, 1.0)
+		"flashlight_on", "flashlight_off":
+			return FLASHLIGHT_COLOR
 		_:
 			return Color(1.0, 0.95, 0.85)

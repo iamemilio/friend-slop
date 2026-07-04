@@ -107,6 +107,10 @@ func shutdown() -> void:
 	_thread = null
 
 
+func _exit_tree() -> void:
+	shutdown()
+
+
 func _process(_delta: float) -> void:
 	_collect_thread_result()
 

@@ -15,6 +15,13 @@ func run() -> int:
 	return failures
 
 
+func _scene_root() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		return (loop as SceneTree).root
+	return null
+
+
 func _test_interact_action_label_uses_input_map() -> int:
 	if InputMap.has_action("interact"):
 		var label := InputPromptScript.action_label("interact")
@@ -41,12 +48,17 @@ func _test_with_action_formats_prompt() -> int:
 
 
 func _test_relic_pickup_prompt_in_range() -> int:
+	var scene_root := _scene_root()
 	var objective := DeliveryObjectiveScript.new()
-	objective.state = StateScript.new()
-	objective.state.phase = StateScript.Phase.SEEK_ITEM
+	if scene_root != null:
+		scene_root.add_child(objective)
 	var player := Node3D.new()
+	if scene_root != null:
+		scene_root.add_child(player)
 	player.add_to_group("player")
 	player.global_position = Vector3.ZERO
+	objective.state = StateScript.new()
+	objective.state.phase = StateScript.Phase.SEEK_ITEM
 	objective.set("_item_world_pos", Vector3(1.0, 0.0, 0.0))
 
 	var prompt := objective.get_interaction_prompt(player)
@@ -79,14 +91,20 @@ func _test_relic_pickup_prompt_in_range() -> int:
 
 
 func _test_drop_preserves_world_position() -> int:
+	var scene_root := _scene_root()
 	var objective := DeliveryObjectiveScript.new()
+	if scene_root != null:
+		scene_root.add_child(objective)
 	objective.state = StateScript.new()
 	objective.state.phase = StateScript.Phase.CARRIED
 	var player := Node3D.new()
+	if scene_root != null:
+		objective.add_child(player)
 	player.global_position = Vector3(8.0, 0.5, -2.0)
 	objective.state.carrier = player
 	objective.set("_item_world_pos", Vector3(0.0, 1.1, 0.0))
 	var item_root := Node3D.new()
+	objective.add_child(item_root)
 	item_root.global_position = Vector3(8.5, 1.4, -1.5)
 	objective.set("_item_root", item_root)
 

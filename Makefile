@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help setup setup-dev setup-voice setup-steam sync-voice-addon lint test test-voice test-ci release-ci check import verify-pinned-versions verify-voice verify-steam ci-container-bootstrap
+.PHONY: help setup setup-dev setup-voice setup-steam sync-voice-addon lint test test-voice test-ci release-ci check import verify-pinned-versions verify-voice verify-steam restore-voice ci-container-bootstrap
 
 ifeq ($(OS),Windows_NT)
 PYTHON ?= python
@@ -40,6 +40,7 @@ help:
 	@echo "  make import                godot --headless --import"
 	@echo "  make verify-pinned-versions  CI guard: workflows match tools/versions.env"
 	@echo "  make verify-voice          quick file check for gdvosk install"
+	@echo "  make restore-voice         recover if an older test run left gdvosk disabled"
 	@echo "  make verify-steam          quick file check for GodotSteam install"
 	@echo ""
 	@echo "Override Godot binary: make test GODOT=/path/to/godot"
@@ -119,6 +120,9 @@ else
 		(echo "gdvosk.gdextension needs editor entries. Run: make setup-voice" >&2; exit 1)
 	@echo "Voice dependencies OK ($(GDVOSK_ZIP), $(VOSK_MODEL_ZIP))"
 endif
+
+restore-voice:
+	$(RUN_PYTHON) tools/restore_extensions.py
 
 verify-steam:
 ifeq ($(OS),Windows_NT)

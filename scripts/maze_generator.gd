@@ -12,6 +12,7 @@ signal maze_ready(
 signal exit_reached(player: Node3D)
 
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+const MazeWallMeshScript := preload("res://scripts/maze_wall_mesh.gd")
 
 @export var maze_width: int = 15
 @export var maze_height: int = 15
@@ -113,10 +114,12 @@ func _build_floor() -> void:
 	mesh_instance.position.y = -0.1
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.12, 0.1, 0.16)
+	material.albedo_color = Color(0.18, 0.15, 0.22)
 	material.roughness = 0.85
 	mesh_instance.material_override = material
 	mesh_instance.layers = WorldVisualLayersScript.WORLD
+	# Floor only receives shadows; casting causes moiré streaks on the top surface.
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
@@ -130,17 +133,10 @@ func _build_floor() -> void:
 
 
 func _build_walls() -> void:
-	var surface_tool := SurfaceTool.new()
-	surface_tool.begin(Mesh.PRIMITIVE_TRIANGLES)
-
-	for gx in _wall_grid.size():
-		for gy in _wall_grid[gx].size():
-			if _wall_grid[gx][gy] == 1:
-				var center := _grid_to_world(gx, gy)
-				center.y = wall_height * 0.5
-				_add_box(surface_tool, center, Vector3(cell_size, wall_height, cell_size))
-
-	var mesh := surface_tool.commit()
+	var wall_size := Vector3(cell_size, wall_height, cell_size)
+	var grid_to_world := func(gx: int, gy: int) -> Vector3:
+		return _grid_to_world(gx, gy)
+	var mesh := MazeWallMeshScript.build(_wall_grid, wall_size, grid_to_world)
 
 	var body := StaticBody3D.new()
 	body.name = "Walls"
@@ -149,13 +145,18 @@ func _build_walls() -> void:
 	mesh_instance.mesh = mesh
 
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.35, 0.28, 0.42)
+	material.albedo_color = Color(0.52, 0.46, 0.58)
 	material.roughness = 0.7
 	mesh_instance.material_override = material
 	mesh_instance.layers = WorldVisualLayersScript.WORLD
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 	var collision := CollisionShape3D.new()
-	collision.shape = mesh.create_trimesh_shape()
+	var collision_shape := mesh.create_trimesh_shape()
+	if collision_shape == null:
+		push_error("MazeGenerator: failed to build wall collision shape")
+	else:
+		collision.shape = collision_shape
 
 	body.add_child(mesh_instance)
 	body.add_child(collision)
@@ -223,42 +224,3 @@ func _on_exit_body_entered(body: Node3D) -> void:
 		return
 	_exit_triggered = true
 	exit_reached.emit(body)
-
-
-func _add_box(surface_tool: SurfaceTool, center: Vector3, size: Vector3) -> void:
-	var half := size * 0.5
-	var corners := [
-		center + Vector3(-half.x, -half.y, -half.z),
-		center + Vector3(half.x, -half.y, -half.z),
-		center + Vector3(half.x, -half.y, half.z),
-		center + Vector3(-half.x, -half.y, half.z),
-		center + Vector3(-half.x, half.y, -half.z),
-		center + Vector3(half.x, half.y, -half.z),
-		center + Vector3(half.x, half.y, half.z),
-		center + Vector3(-half.x, half.y, half.z),
-	]
-
-	_add_quad(surface_tool, corners[4], corners[5], corners[6], corners[7]) # top
-	_add_quad(surface_tool, corners[0], corners[2], corners[1], corners[3]) # bottom
-	_add_quad(surface_tool, corners[0], corners[1], corners[5], corners[4]) # front
-	_add_quad(surface_tool, corners[2], corners[3], corners[7], corners[6]) # back
-	_add_quad(surface_tool, corners[1], corners[2], corners[6], corners[5]) # right
-	_add_quad(surface_tool, corners[3], corners[0], corners[4], corners[7]) # left
-
-
-func _add_quad(
-	surface_tool: SurfaceTool,
-	a: Vector3,
-	b: Vector3,
-	c: Vector3,
-	d: Vector3
-) -> void:
-	var normal := (b - a).cross(c - a).normalized()
-	surface_tool.set_normal(normal)
-	surface_tool.add_vertex(a)
-	surface_tool.add_vertex(b)
-	surface_tool.add_vertex(c)
-	surface_tool.set_normal(normal)
-	surface_tool.add_vertex(a)
-	surface_tool.add_vertex(c)
-	surface_tool.add_vertex(d)
