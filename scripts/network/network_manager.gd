@@ -20,12 +20,15 @@ const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_con
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const STEAM_ADD_PEER_MAX_ATTEMPTS := 8
+const STEAM_ADD_PEER_RETRY_SEC := 0.25
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
 var lobby: LobbyMatchState = LobbyMatchState.new()
 
 var _transport_ready: bool = false
+var _steam_peer_add_attempts: Dictionary = {}
 
 
 func _ready() -> void:
@@ -203,6 +206,7 @@ func start_game() -> void:
 
 func disconnect_session() -> void:
 	is_session_active = false
+	_steam_peer_add_attempts.clear()
 	lobby.reset()
 	MatchStateManager.reset()
 	TrailRegistry.reset()
@@ -387,7 +391,7 @@ func _on_steam_lobby_member_joined(steam_id: int) -> void:
 		return
 	if steam_id == SteamService.get_steam_id():
 		return
-	_try_add_steam_peer(steam_id)
+	call_deferred("_try_add_steam_peer", steam_id)
 
 
 func _sync_steam_lobby_peers() -> void:
@@ -405,13 +409,37 @@ func _sync_steam_lobby_peers() -> void:
 
 
 func _try_add_steam_peer(steam_id: int) -> void:
+	if not is_host() or not is_session_active:
+		_steam_peer_add_attempts.erase(steam_id)
+		return
 	var mp_peer := multiplayer.multiplayer_peer
 	if mp_peer == null or not mp_peer.has_method("add_peer"):
 		TomeDebug.log("NetworkManager", "Cannot add Steam peer %s — multiplayer peer missing" % steam_id)
 		return
 	if _steam_peer_already_connected(mp_peer, steam_id):
+		_steam_peer_add_attempts.erase(steam_id)
 		return
 	var err: Error = mp_peer.call("add_peer", steam_id, 0)
+	if err == OK:
+		_steam_peer_add_attempts.erase(steam_id)
+		TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
+		return
+	if err == ERR_CANT_CREATE:
+		var attempts: int = int(_steam_peer_add_attempts.get(steam_id, 0)) + 1
+		_steam_peer_add_attempts[steam_id] = attempts
+		if attempts <= STEAM_ADD_PEER_MAX_ATTEMPTS:
+			get_tree().create_timer(STEAM_ADD_PEER_RETRY_SEC).timeout.connect(
+				func() -> void:
+					_try_add_steam_peer(steam_id),
+				CONNECT_ONE_SHOT
+			)
+		else:
+			_steam_peer_add_attempts.erase(steam_id)
+			TomeDebug.log(
+				"NetworkManager",
+				"add_peer steam_id=%s failed after %s attempts" % [steam_id, attempts]
+			)
+		return
 	TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
 
 
