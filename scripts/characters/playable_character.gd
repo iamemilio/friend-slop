@@ -3,6 +3,9 @@ extends CharacterBody3D
 
 ## Base playable character: movement, camera, spells, and optional wand/trail in derived scenes.
 
+## Player body/head render layer — wand omni lights use a world-only mask and skip this layer.
+const PLAYER_SELF_VISUAL_LAYER := 2
+
 const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
 const JUMP_VELOCITY := 2.5
@@ -314,10 +317,12 @@ func _apply_character_color(color: Color) -> void:
 	material.emission = color * 0.25
 	material.emission_energy_multiplier = 0.8
 	_body_mesh.material_override = material
+	_body_mesh.layers = PLAYER_SELF_VISUAL_LAYER
 	var head_material := material.duplicate()
 	head_material.albedo_color = color.lightened(0.08)
 	head_material.emission = head_material.albedo_color * 0.25
 	_head_mesh.material_override = head_material
+	_head_mesh.layers = PLAYER_SELF_VISUAL_LAYER
 
 
 func _try_interact() -> void:
