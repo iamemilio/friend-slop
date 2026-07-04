@@ -35,6 +35,7 @@ const TestTrailRegistryScript := preload("res://tests/unit/test_trail_registry.g
 const TestPlayerSpawnLayoutScript := preload("res://tests/unit/test_player_spawn_layout.gd")
 const TestSpellValidationRunnerScript := preload("res://tests/unit/test_spell_validation_runner.gd")
 const TestSpellValidationAsyncScript := preload("res://tests/unit/test_spell_validation_async.gd")
+const TestSpellLogScript := preload("res://tests/unit/test_spell_log.gd")
 const TestSpellPipelineScript := preload("res://tests/unit/test_spell_pipeline.gd")
 const TestFireballSkyFlareScript := preload("res://tests/unit/test_fireball_sky_flare.gd")
 const TestFireballFlightScript := preload("res://tests/unit/test_fireball_flight.gd")
@@ -137,6 +138,9 @@ func _run_tests() -> void:
 	var spell_validation_async_suite := TestSpellValidationAsyncScript.new()
 	failures += spell_validation_async_suite.run(self)
 
+	var spell_log_suite := TestSpellLogScript.new()
+	failures += spell_log_suite.run()
+
 	var spell_pipeline_suite := TestSpellPipelineScript.new()
 	failures += spell_pipeline_suite.run(self)
 
@@ -144,10 +148,10 @@ func _run_tests() -> void:
 	failures += spell_effect_sync_suite.run()
 
 	var fireball_sky_flare_suite := TestFireballSkyFlareScript.new()
-	failures += fireball_sky_flare_suite.run()
+	failures += fireball_sky_flare_suite.run(self)
 
 	var fireball_flight_suite := TestFireballFlightScript.new()
-	failures += fireball_flight_suite.run()
+	failures += fireball_flight_suite.run(self)
 
 	var guide_content_suite := TestGuideContentScript.new()
 	failures += guide_content_suite.run()

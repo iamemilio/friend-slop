@@ -2,10 +2,13 @@ class_name TestFireballFlight
 extends RefCounted
 
 const FireballFlightScript := preload("res://scripts/spells/fireball_flight.gd")
+const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
+const FireballExplosionEffectScript := preload("res://scripts/spells/fireball_explosion_effect.gd")
 const FireballParticlesScript := preload("res://scripts/spells/fireball_particles.gd")
+const FireballLightingScript := preload("res://scripts/spells/fireball_lighting.gd")
 
 
-func run() -> int:
+func run(tree: SceneTree) -> int:
 	var failures := 0
 	failures += _test_sky_flare_direction_threshold()
 	failures += _test_normal_lifetime()
@@ -13,6 +16,10 @@ func run() -> int:
 	failures += _test_smoke_trail_fade_delay()
 	failures += _test_burst_particle_defaults()
 	failures += _test_hit_radius_matches_visual()
+	failures += _test_cast_lights_use_shadows()
+	failures += _test_spawn_sets_global_position(tree)
+	failures += _test_explosion_spawn_sets_global_position(tree)
+	failures += _test_max_lifetime_spawns_explosion_at_global_position(tree)
 	return failures
 
 
@@ -101,4 +108,117 @@ func _test_hit_radius_matches_visual() -> int:
 	if FireballFlightScript.HIT_RADIUS <= 0.0:
 		push_error("Expected fireball hit radius to stay positive")
 		return 1
+	return 0
+
+
+func _test_cast_lights_use_shadows() -> int:
+	var travel := FireballLightingScript.make_travel_cast_light()
+	if not travel.shadow_enabled:
+		push_error("Expected travel fireball light to cast shadows")
+		return 1
+
+	var flash := FireballLightingScript.make_explosion_flash_light()
+	if not flash.shadow_enabled:
+		push_error("Expected explosion flash light to cast shadows")
+		return 1
+
+	var beacon := FireballLightingScript.make_signal_beacon_light(12.0, 80.0)
+	if not beacon.shadow_enabled:
+		push_error("Expected sky flare beacon to cast shadows")
+		return 1
+
+	var halo := FireballLightingScript.make_travel_halo_mesh()
+	if halo.mesh == null:
+		push_error("Expected travel halo mesh to be assigned")
+		return 1
+	return 0
+
+
+func _test_spawn_sets_global_position(tree: SceneTree) -> int:
+	var world := Node3D.new()
+	world.position = Vector3(10.0, 0.0, 0.0)
+	tree.root.add_child(world)
+
+	var origin := Vector3(5.0, 2.0, 3.0)
+	var projectile := FireballProjectileScript.spawn(
+		world, origin, Vector3(0.0, 0.0, -1.0)
+	)
+	if not projectile.is_inside_tree():
+		push_error("Expected spawned fireball projectile to enter the scene tree")
+		world.queue_free()
+		return 1
+	if not projectile.global_position.is_equal_approx(origin):
+		push_error(
+			"Expected fireball projectile at global %s, got %s"
+			% [origin, projectile.global_position]
+		)
+		world.queue_free()
+		return 1
+
+	world.queue_free()
+	return 0
+
+
+func _test_explosion_spawn_sets_global_position(tree: SceneTree) -> int:
+	var world := Node3D.new()
+	world.position = Vector3(0.0, 5.0, 0.0)
+	tree.root.add_child(world)
+
+	var impact := Vector3(3.0, 1.0, -2.0)
+	var effect := FireballExplosionEffectScript.spawn(world, impact)
+	if not effect.is_inside_tree():
+		push_error("Expected spawned explosion effect to enter the scene tree")
+		world.queue_free()
+		return 1
+	if not effect.global_position.is_equal_approx(impact):
+		push_error(
+			"Expected explosion effect at global %s, got %s"
+			% [impact, effect.global_position]
+		)
+		world.queue_free()
+		return 1
+
+	world.queue_free()
+	return 0
+
+
+func _test_max_lifetime_spawns_explosion_at_global_position(tree: SceneTree) -> int:
+	var world := Node3D.new()
+	world.position = Vector3(8.0, 2.0, -3.0)
+	tree.root.add_child(world)
+
+	var origin := Vector3(1.0, 4.0, 2.0)
+	var projectile := FireballProjectileScript.spawn(
+		world, origin, Vector3(0.0, 0.0, -1.0)
+	)
+	if not projectile.is_inside_tree():
+		push_error("Expected projectile in tree before max-lifetime finish")
+		world.queue_free()
+		return 1
+
+	projectile._physics_process(FireballFlightScript.MAX_LIFETIME)
+
+	var explosion: FireballExplosionEffect = null
+	for child in world.get_children():
+		if child is FireballExplosionEffect:
+			explosion = child
+			break
+
+	if explosion == null:
+		push_error("Expected max-lifetime projectile to spawn explosion effect")
+		world.queue_free()
+		return 1
+	if not explosion.is_inside_tree():
+		push_error("Expected explosion effect to enter scene tree via _finish path")
+		world.queue_free()
+		return 1
+	if not explosion.global_position.is_equal_approx(origin):
+		push_error(
+			"Expected explosion at global %s after max lifetime, got %s"
+			% [origin, explosion.global_position]
+		)
+		world.queue_free()
+		return 1
+
+	world.queue_free()
 	return 0

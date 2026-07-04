@@ -9,6 +9,7 @@ const SkyFlareEffectScript := preload("res://scripts/spells/sky_flare_effect.gd"
 const FireballExplosionEffectScript := preload("res://scripts/spells/fireball_explosion_effect.gd")
 const FireballSmokeTrailScript := preload("res://scripts/spells/fireball_smoke_trail.gd")
 const FireballParticlesScript := preload("res://scripts/spells/fireball_particles.gd")
+const FireballLightingScript := preload("res://scripts/spells/fireball_lighting.gd")
 
 var _direction := Vector3.FORWARD
 var _elapsed := 0.0
@@ -17,14 +18,16 @@ var _travelled := 0.0
 var _smoke_trail: CPUParticles3D
 var _comet_sparks: CPUParticles3D
 var _hit_shape: SphereShape3D
+var _travel_light: OmniLight3D
+var _core_material: StandardMaterial3D
 
 
 static func spawn(parent: Node, origin: Vector3, direction: Vector3) -> FireballProjectile:
 	var projectile := FireballProjectile.new()
 	projectile._direction = direction.normalized()
 	projectile._sky_flare_mode = FireballFlight.is_sky_flare_direction(projectile._direction)
-	projectile.global_position = origin
 	parent.add_child(projectile)
+	projectile.global_position = origin
 	return projectile
 
 
@@ -54,16 +57,26 @@ func _ready() -> void:
 	material.albedo_color = Color(1.0, 0.45, 0.1)
 	material.emission_enabled = true
 	material.emission = Color(1.0, 0.35, 0.05)
-	material.emission_energy_multiplier = 3.0 if not _sky_flare_mode else 4.5
+	material.emission_energy_multiplier = 2.4 if not _sky_flare_mode else 3.2
 	material.roughness = 0.2
+	_core_material = material
 	mesh_instance.material_override = material
 	add_child(mesh_instance)
 
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.5, 0.15)
-	light.light_energy = 2.0 if not _sky_flare_mode else 3.5
-	light.omni_range = 5.0 if not _sky_flare_mode else 8.0
-	add_child(light)
+	_travel_light = FireballLightingScript.make_travel_cast_light(_sky_flare_mode)
+	add_child(_travel_light)
+
+	var travel_halo: MeshInstance3D = null
+	if not _sky_flare_mode:
+		travel_halo = FireballLightingScript.make_travel_halo_mesh()
+		add_child(travel_halo)
+	FireballLightingScript.start_travel_glow_pulse(
+		self,
+		_travel_light,
+		_core_material,
+		travel_halo,
+		_sky_flare_mode
+	)
 
 	_smoke_trail = FireballSmokeTrailScript.create_emitter()
 	_smoke_trail.position = -_direction * 0.28

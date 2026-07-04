@@ -26,6 +26,8 @@ GODOTSTEAM_GDEXTENSION_DISABLED = (
 GODOTSTEAM_LINUX_LIB = (
     ROOT / "addons" / "godotsteam" / "linux64" / "libgodotsteam.linux.template_debug.x86_64.so"
 )
+# Windows STATUS_ACCESS_VIOLATION when gdvosk unloads after headless test runs.
+GDVOSK_CRASH_EXIT = 3221225477
 # Godot editor/analyzer warnings gdlint does not cover — fail CI when seen in test output.
 GDSCRIPT_ANALYZER_ERRORS = (
     "SHADOWED_GLOBAL_IDENTIFIER",

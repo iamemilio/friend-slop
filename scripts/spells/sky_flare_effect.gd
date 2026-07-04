@@ -8,6 +8,7 @@ const LIGHT_RANGE := 110.0
 const LIGHT_PEAK_ENERGY := 14.0
 
 const FireballParticlesScript := preload("res://scripts/spells/fireball_particles.gd")
+const FireballLightingScript := preload("res://scripts/spells/fireball_lighting.gd")
 
 const _SHELL_COLORS: Array[Color] = [
 	Color(1.0, 0.82, 0.28),
@@ -25,8 +26,8 @@ static func spawn(
 	duration_sec: float = DEFAULT_DURATION_SEC
 ) -> SkyFlareEffect:
 	var flare := SkyFlareEffect.new()
-	flare.global_position = world_position
 	parent.add_child(flare)
+	flare.global_position = world_position
 	flare._begin(duration_sec)
 	return flare
 
@@ -42,11 +43,7 @@ func _begin(duration_sec: float) -> void:
 
 
 func _play_launch_flash() -> void:
-	var flash := OmniLight3D.new()
-	flash.light_color = Color(1.0, 0.92, 0.78)
-	flash.light_energy = 24.0
-	flash.omni_range = 28.0
-	flash.shadow_enabled = false
+	var flash := FireballLightingScript.make_launch_flash_light()
 	add_child(flash)
 
 	var burst := FireballParticlesScript.make_burst(
@@ -153,11 +150,10 @@ func _spawn_crackle_ring() -> void:
 
 
 func _play_signal_beacon(duration_sec: float) -> void:
-	var beacon := OmniLight3D.new()
-	beacon.light_color = Color(1.0, 0.58, 0.18)
-	beacon.light_energy = LIGHT_PEAK_ENERGY
-	beacon.omni_range = LIGHT_RANGE
-	beacon.shadow_enabled = false
+	var beacon := FireballLightingScript.make_signal_beacon_light(
+		LIGHT_PEAK_ENERGY,
+		LIGHT_RANGE
+	)
 	add_child(beacon)
 
 	var smoke := FireballParticlesScript.make_signal_smoke_column()
@@ -171,10 +167,10 @@ func _play_signal_beacon(duration_sec: float) -> void:
 	mesh.height = 14.0
 	pillar.mesh = mesh
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.62, 0.18, 0.18)
+	mat.albedo_color = Color(1.0, 0.62, 0.18, 0.12)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.45, 0.08)
-	mat.emission_energy_multiplier = 1.2
+	mat.emission_energy_multiplier = 0.65
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	pillar.material_override = mat
