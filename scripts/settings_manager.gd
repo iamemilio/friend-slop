@@ -12,8 +12,8 @@ var master_volume: float = 1.0
 var input_device: String = ""
 var output_device: String = ""
 var dev_solo_role: int = GameState.PlayerRole.APPRENTICE
-var dev_solo_starting_node_id: String = ""
 var voice_use_stub: bool = false
+var dev_spawn_relic_near_spawn: bool = false
 
 var _capture_effect: AudioEffectCapture
 var _mic_test_player: AudioStreamPlayer
@@ -36,26 +36,14 @@ func load_settings() -> void:
 	input_device = config.get_value("audio", "input_device", input_device)
 	output_device = config.get_value("audio", "output_device", output_device)
 	dev_solo_role = int(config.get_value("dev", "dev_solo_role", dev_solo_role))
-	dev_solo_starting_node_id = String(
-		config.get_value("dev", "dev_solo_starting_node_id", dev_solo_starting_node_id)
-	)
 	voice_use_stub = config.get_value("dev", "voice_use_stub", voice_use_stub)
-	dev_solo_starting_node_id = _normalize_dev_starting_node_id(
-		dev_solo_role,
-		dev_solo_starting_node_id
+	dev_spawn_relic_near_spawn = config.get_value(
+		"dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn
 	)
-
-
-func get_dev_solo_binding() -> Binding:
-	var binding := Binding.create_for_role(dev_solo_role)
-	var tree := binding.get_tree_definition()
-	if tree.is_valid_starting_node(dev_solo_starting_node_id):
-		binding.starting_node_id = dev_solo_starting_node_id
-	return binding
 
 
 func apply_solo_dev_loadout_to_game_state() -> void:
-	GameState.apply_solo_dev_loadout(dev_solo_role, get_dev_solo_binding())
+	GameState.apply_solo_dev_loadout(dev_solo_role)
 
 
 func save_settings() -> void:
@@ -64,13 +52,9 @@ func save_settings() -> void:
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("audio", "input_device", input_device)
 	config.set_value("audio", "output_device", output_device)
-	dev_solo_starting_node_id = _normalize_dev_starting_node_id(
-		dev_solo_role,
-		dev_solo_starting_node_id
-	)
 	config.set_value("dev", "dev_solo_role", dev_solo_role)
-	config.set_value("dev", "dev_solo_starting_node_id", dev_solo_starting_node_id)
 	config.set_value("dev", "voice_use_stub", voice_use_stub)
+	config.set_value("dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn)
 	config.save(SETTINGS_PATH)
 	settings_applied.emit()
 
@@ -144,14 +128,6 @@ func poll_mic_level() -> float:
 	if count == 0:
 		return 0.0
 	return sqrt(sum_sq / float(count))
-
-
-func _normalize_dev_starting_node_id(role: int, node_id: String) -> String:
-	var binding := Binding.create_for_role(role)
-	var tree := binding.get_tree_definition()
-	if tree.is_valid_starting_node(node_id):
-		return node_id
-	return tree.get_default_starting_node_id()
 
 
 func _ensure_mic_bus() -> void:

@@ -1,9 +1,11 @@
 class_name Interactable
 extends Area3D
 
-## Base class for F-key interactables in the maze.
+## Base class for interactables in the maze.
 
-@export var prompt_text: String = "Interact [F]"
+const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
+
+@export var prompt_text: String = "Interact"
 
 var _player_inside: bool = false
 
@@ -27,7 +29,7 @@ func _on_body_exited(body: Node3D) -> void:
 
 
 func get_prompt() -> String:
-	return prompt_text
+	return InputPromptScript.with_action("interact", prompt_text)
 
 
 func is_player_in_range() -> bool:

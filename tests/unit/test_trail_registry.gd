@@ -28,13 +28,15 @@ func _test_sample_round_trip() -> int:
 func _test_host_stores_and_prunes() -> int:
 	var registry: Node = TrailRegistryScript.new()
 	registry._host_accept_sample(1, 0, 0.0, 0.0)
-	registry._host_accept_sample(1, 1, 1.0, 0.0)
+	OS.delay_msec(50)
+	registry._host_accept_sample(1, 1, 0.3, 0.0)
 	var samples: Array = registry.get_samples_for_peer(1)
 	if samples.size() != 2:
 		push_error("Expected two stored trail samples")
 		registry.free()
 		return 1
-	registry._host_accept_sample(1, 1, 2.0, 0.0)
+	OS.delay_msec(50)
+	registry._host_accept_sample(1, 1, 0.6, 0.0)
 	samples = registry.get_samples_for_peer(1)
 	if samples.size() != 2:
 		push_error("Expected duplicate seq to be ignored")

@@ -2,9 +2,9 @@ extends Node
 
 ## Preloads gdvosk + the Vosk model at app startup so spell casts do not hitch.
 
-signal loading_finished(ready: bool)
+signal loading_finished(stt_ready: bool)
 
-const TestEnv := preload("res://scripts/test/test_env.gd")
+const TestEnvScript := preload("res://scripts/test/test_env.gd")
 
 var _is_ready := false
 var _loading := false
@@ -12,7 +12,7 @@ var _status := ""
 
 
 func _ready() -> void:
-	if TestEnv.is_active():
+	if TestEnvScript.is_active():
 		_set_state(false, "disabled in tests")
 		return
 	SettingsManager.settings_applied.connect(_on_settings_applied)
@@ -73,7 +73,7 @@ func _start_prewarm() -> void:
 	_status = "Loading speech model..."
 	TomeDebug.log("SpeechStt", _status)
 
-	var sample_rate: int = AudioServer.get_mix_rate()
+	var sample_rate: int = int(AudioServer.get_mix_rate())
 	var ok: bool = GdvoskAdapter.prewarm_full(sample_rate)
 	if ok:
 		_set_state(true, "")
@@ -83,8 +83,8 @@ func _start_prewarm() -> void:
 		TomeDebug.log("SpeechStt", "speech model load FAILED at %s" % SpellSttConfig.find_model_path())
 
 
-func _set_state(ready: bool, status: String) -> void:
-	_is_ready = ready
+func _set_state(stt_ready: bool, status: String) -> void:
+	_is_ready = stt_ready
 	_loading = false
 	_status = status
 	loading_finished.emit(_is_ready)

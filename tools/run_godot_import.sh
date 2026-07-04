@@ -25,22 +25,15 @@ cd "$ROOT"
 
 GDEXT="$ROOT/addons/gdvosk/gdvosk.gdextension"
 GDEXT_DISABLED="$ROOT/addons/gdvosk/gdvosk.gdextension.disabled"
-GDVOSK_DISABLED=false
 
-restore_gdvosk() {
-	if [[ "$GDVOSK_DISABLED" == "true" && -f "$GDEXT_DISABLED" && ! -f "$GDEXT" ]]; then
+ensure_extensions_restored() {
+	if [[ -f "$GDEXT_DISABLED" && ! -f "$GDEXT" ]]; then
 		mv "$GDEXT_DISABLED" "$GDEXT"
-		ci_log "Restored gdvosk.gdextension after import"
+		ci_log "Restored gdvosk.gdextension left disabled by an older test run"
 	fi
 }
 
-if [[ -f "$GDEXT" ]]; then
-	rm -f "$GDEXT_DISABLED"
-	mv "$GDEXT" "$GDEXT_DISABLED"
-	GDVOSK_DISABLED=true
-	ci_log "Disabled gdvosk.gdextension during import (avoids headless unload crash)"
-fi
-trap restore_gdvosk EXIT
+ensure_extensions_restored
 
 ci_step_start "godot_import"
 ci_log "Godot binary: $GODOT_BIN"

@@ -135,5 +135,4 @@ func _ensure_default_configs(peer_ids: Array[int]) -> bool:
 func _update_config_role(peer_id: int, role: int) -> void:
 	var config := PlayerCharacterConfig.from_dict(get_character_config(peer_id))
 	config.role = role
-	config.binding = Binding.create_for_role(role)
 	character_configs[peer_id] = config.to_dict()

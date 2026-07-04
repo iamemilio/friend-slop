@@ -2,6 +2,7 @@ class_name SpellDefinition
 extends Resource
 
 const DEFAULT_ONE_WORD_DURATION_MS := 700
+const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 
 @export var id: String = ""
 @export var display_name: String = ""
@@ -108,17 +109,70 @@ func get_learned_confirmation_text() -> String:
 	return (
 		'"%s" is yours now.\n'
 		% display_name
-		+ "Press [F] anywhere to cast by voice. [B] opens your spellbook to review."
+		+ "Hold [LMB], say the incantation, then release. [B] opens your spell codex."
 	)
 
 
 func get_cast_success_text() -> String:
 	match effect_id:
 		"light":
-			return "A warm golden light glows around you for several seconds."
+			return "Smoke trails glow in the maze for several seconds."
 		"haste":
 			return "You surge forward — movement speed increased!"
 		"fireball":
 			return "A blazing fireball launches from your wand!"
+		"flashlight_on":
+			return "A steady beam of light shines from your wand."
+		"flashlight_off":
+			return "The wand light clicks off."
 		_:
 			return "The spell takes effect."
+
+
+func get_codex_effect_detail() -> String:
+	match effect_id:
+		"light":
+			return (
+				"Reveals recent player smoke trails in the maze for %.0f seconds."
+				% SpellEffectSyncScript.DEFAULT_LIGHT_DURATION
+			)
+		"haste":
+			return (
+				"Increases movement speed by %.0f%% for %.0f seconds."
+				% [
+					(SpellEffectSyncScript.DEFAULT_HASTE_MULTIPLIER - 1.0) * 100.0,
+					SpellEffectSyncScript.DEFAULT_HASTE_DURATION,
+				]
+			)
+		"fireball":
+			return (
+				"Launches a blazing fireball from your wand. "
+				+ "Shots explode on impact with sparks and smoke."
+			)
+		"flashlight_on":
+			return (
+				"Projects a focused beam from your wand until you cast Light Off. "
+				+ "Illuminates the maze ahead of you."
+			)
+		"flashlight_off":
+			return "Extinguishes your wand flashlight beam."
+		_:
+			return get_cast_success_text()
+
+
+func get_codex_detail_lines() -> PackedStringArray:
+	var lines := PackedStringArray()
+	lines.append('Incantation: "%s"' % get_incantation_text())
+	lines.append("")
+	lines.append("How to cast")
+	lines.append(get_listen_coaching_text())
+	var timing := get_timing_guide_text()
+	if not timing.is_empty():
+		lines.append(timing)
+	var pitch := get_pitch_guide_text()
+	if not pitch.is_empty():
+		lines.append(pitch)
+	lines.append("")
+	lines.append("What it does")
+	lines.append(get_codex_effect_detail())
+	return lines

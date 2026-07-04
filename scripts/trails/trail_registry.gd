@@ -4,7 +4,7 @@ extends Node
 
 signal trails_changed
 
-const TrailSample := preload("res://scripts/trails/trail_sample.gd")
+const TrailSampleScript := preload("res://scripts/trails/trail_sample.gd")
 const NODE_LIFETIME_SEC := 150.0
 const MAX_SAMPLES_PER_PEER := 500
 const MIN_SAMPLE_DISTANCE_SQ := 0.3 * 0.3
@@ -96,7 +96,7 @@ func _validate_sample(peer_id: int, seq: int, x: float, z: float) -> bool:
 				return false
 	var samples: Array = _trails.get(peer_id, [])
 	for existing in samples:
-		if existing is Dictionary and TrailSample.seq(existing) == seq:
+		if existing is Dictionary and TrailSampleScript.seq(existing) == seq:
 			return false
 	return true
 
@@ -105,7 +105,7 @@ func _append_sample(peer_id: int, seq: int, x: float, z: float, time_msec: int) 
 	if not _trails.has(peer_id):
 		_trails[peer_id] = []
 	var samples: Array = _trails[peer_id]
-	samples.append(TrailSample.make(seq, x, z, time_msec))
+	samples.append(TrailSampleScript.make(seq, x, z, time_msec))
 	_last_sample_pos[peer_id] = Vector2(x, z)
 	_last_sample_time_msec[peer_id] = time_msec
 	_prune_peer(peer_id)
@@ -119,7 +119,7 @@ func _prune_peer(peer_id: int) -> void:
 	var samples: Array = _trails[peer_id]
 	var kept: Array = []
 	for sample in samples:
-		if sample is Dictionary and TrailSample.time_msec(sample) >= cutoff:
+		if sample is Dictionary and TrailSampleScript.time_msec(sample) >= cutoff:
 			kept.append(sample)
 	if kept.size() > MAX_SAMPLES_PER_PEER:
 		kept = kept.slice(kept.size() - MAX_SAMPLES_PER_PEER, kept.size())

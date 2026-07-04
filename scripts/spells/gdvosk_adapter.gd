@@ -61,14 +61,15 @@ static func unload_model() -> void:
 
 static func transcribe_samples(
 	samples: PackedFloat32Array,
-	sample_rate: int
+	sample_rate: int,
+	grammar_json: String = ""
 ) -> Dictionary:
 	var empty := {"words": PackedStringArray(), "starts": PackedFloat32Array()}
 	if samples.is_empty() or sample_rate <= 0 or not is_available():
 		return empty
 
 	_transcribe_mutex.lock()
-	var result := _transcribe_with_vosk_recognizer(samples, sample_rate)
+	var result := _transcribe_with_vosk_recognizer(samples, sample_rate, grammar_json)
 	_transcribe_mutex.unlock()
 	return result
 
@@ -112,7 +113,8 @@ static func extract_words_and_starts(result: Dictionary) -> Dictionary:
 
 static func _transcribe_with_vosk_recognizer(
 	samples: PackedFloat32Array,
-	sample_rate: int
+	sample_rate: int,
+	grammar_json: String = ""
 ) -> Dictionary:
 	var empty := {"words": PackedStringArray(), "starts": PackedFloat32Array()}
 	var model_path := find_model_path()
@@ -124,18 +126,20 @@ static func _transcribe_with_vosk_recognizer(
 		push_warning("GdvoskAdapter: failed to load Vosk model at %s" % model_path)
 		return empty
 
-	var result_dict := _transcribe_at_rate(model, samples, sample_rate)
+	var result_dict := _transcribe_at_rate(model, samples, sample_rate, grammar_json)
 	if not _result_has_words(result_dict) and sample_rate != VOSK_SAMPLE_RATE:
 		var vosk_samples: PackedFloat32Array = _resample_for_vosk(
 			samples, sample_rate, VOSK_SAMPLE_RATE
 		)
-		result_dict = _transcribe_at_rate(model, vosk_samples, VOSK_SAMPLE_RATE)
+		result_dict = _transcribe_at_rate(
+			model, vosk_samples, VOSK_SAMPLE_RATE, grammar_json
+		)
 
 	if not _result_has_words(result_dict):
 		SpellLogScript.debug(
 			"Gdvosk",
-			"no final result (samples=%d rate=%d)"
-			% [samples.size(), sample_rate]
+			"no final result (samples=%d rate=%d grammar=%s)"
+			% [samples.size(), sample_rate, not grammar_json.is_empty()]
 		)
 		return empty
 
@@ -149,7 +153,8 @@ static func _transcribe_with_vosk_recognizer(
 static func _transcribe_at_rate(
 	model: Object,
 	samples: PackedFloat32Array,
-	rate: int
+	rate: int,
+	grammar_json: String = ""
 ) -> Dictionary:
 	if samples.is_empty() or rate <= 0:
 		return {}
@@ -163,6 +168,8 @@ static func _transcribe_at_rate(
 		if setup_error != OK:
 			push_warning("GdvoskAdapter: VoskRecognizer.setup failed (%s)" % setup_error)
 			return {}
+	if not grammar_json.is_empty() and recognizer.has_method("setGrammar"):
+		recognizer.call("setGrammar", grammar_json)
 
 	_feed_samples(recognizer, samples)
 	_flush_recognizer(recognizer, rate)

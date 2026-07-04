@@ -8,7 +8,7 @@ signal lobby_join_finished(result: Dictionary)
 signal lobby_invite_received(lobby_id: int)
 signal lobby_member_joined(steam_id: int)
 
-const TestEnv := preload("res://scripts/test/test_env.gd")
+const TestEnvScript := preload("res://scripts/test/test_env.gd")
 const STEAM_INIT_OK := 0
 const LOBBY_CREATE_OK := 1
 const LOBBY_ENTER_OK := 1
@@ -22,7 +22,7 @@ var _signals_bound: bool = false
 
 
 func _ready() -> void:
-	if TestEnv.is_active():
+	if TestEnvScript.is_active():
 		set_process(false)
 		return
 	if not is_api_available():

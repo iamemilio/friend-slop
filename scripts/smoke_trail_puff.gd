@@ -1,6 +1,6 @@
 extends MeshInstance3D
 
-const TrailSample := preload("res://scripts/trails/trail_sample.gd")
+const TrailSampleScript := preload("res://scripts/trails/trail_sample.gd")
 
 ## One ground footprint in a player's path. Hidden until Show Me reveals trails.
 
@@ -26,8 +26,8 @@ func setup_from_sample(
 	foot_side: int
 ) -> void:
 	_trail_color = trail_color
-	_spawn_msec = TrailSample.time_msec(sample)
-	_footprint_pos = TrailSample.position(sample)
+	_spawn_msec = TrailSampleScript.time_msec(sample)
+	_footprint_pos = TrailSampleScript.position(sample)
 	_foot_side = foot_side
 	if move_direction.length_squared() > 0.0001:
 		_move_direction = move_direction.normalized()

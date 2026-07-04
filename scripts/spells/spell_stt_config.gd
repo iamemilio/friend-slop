@@ -3,7 +3,13 @@ extends RefCounted
 
 ## File-based STT setup checks (safe on the main game thread without loading gdvosk).
 
+const TestEnvScript := preload("res://scripts/test/test_env.gd")
+
 const GDEXTENSION_PATH := "res://addons/gdvosk/gdvosk.gdextension"
+const GDEXTENSION_DISABLED_PATH := "res://addons/gdvosk/gdvosk.gdextension.disabled"
+const RESTORE_VOICE_HINT := (
+	"Run make restore-voice from the repo root, then fully quit and reopen Godot."
+)
 const SETUP_SCRIPT_HINT := (
 	"Run make setup from the repo root (voice deps + dev tooling)."
 )
@@ -14,11 +20,24 @@ const MODEL_SEARCH_PATHS: Array[String] = [
 ]
 
 
+static func is_gdextension_disabled() -> bool:
+	return (
+		FileAccess.file_exists(GDEXTENSION_DISABLED_PATH)
+		and not FileAccess.file_exists(GDEXTENSION_PATH)
+	)
+
+
 static func is_configured() -> bool:
 	return FileAccess.file_exists(GDEXTENSION_PATH) and not find_model_path().is_empty()
 
 
 static func get_setup_issue() -> String:
+	if is_gdextension_disabled():
+		return (
+			"Speech recognition was disabled (gdvosk.gdextension renamed during tests). "
+			+ RESTORE_VOICE_HINT
+			+ " Enable Voice Stub in Settings (ESC) to test without voice."
+		)
 	if not FileAccess.file_exists(GDEXTENSION_PATH):
 		return (
 			"Speech recognition not installed (gdvosk). "
@@ -33,22 +52,28 @@ static func get_setup_issue() -> String:
 	return ""
 
 
+static func get_extension_load_issue(is_editor: bool) -> String:
+	if is_editor:
+		return (
+			"gdvosk is not loaded in the Godot editor. "
+			+ SETUP_SCRIPT_HINT
+			+ " Fully quit Godot, reopen the project, and check the Output panel for GDExtension errors."
+		)
+	return (
+		"gdvosk is not loaded. "
+		+ SETUP_SCRIPT_HINT
+		+ " Then restart the game."
+	)
+
+
 static func get_runtime_issue() -> String:
 	var setup_issue := get_setup_issue()
 	if not setup_issue.is_empty():
 		return setup_issue
+	if TestEnvScript.is_active():
+		return ""
 	if not GdvoskAdapter.is_available():
-		if OS.has_feature("editor"):
-			return (
-				"gdvosk is not loaded in the Godot editor. "
-				+ SETUP_SCRIPT_HINT
-				+ " Fully quit Godot, reopen the project, and check the Output panel for GDExtension errors."
-			)
-		return (
-			"gdvosk is not loaded. "
-			+ SETUP_SCRIPT_HINT
-			+ " Then restart the game."
-		)
+		return get_extension_load_issue(OS.has_feature("editor"))
 	if not GdvoskAdapter.is_model_loaded():
 		var loader_status: String = _speech_stt_loader_status()
 		if loader_status.is_empty():

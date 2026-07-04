@@ -17,7 +17,7 @@ var _learning_player: Node = null
 
 func _ready() -> void:
 	super._ready()
-	prompt_text = "Read tome [F]"
+	prompt_text = "Read tome"
 	_mesh = get_node_or_null("Mesh") as MeshInstance3D
 	_base_y = global_position.y
 
@@ -75,8 +75,8 @@ func initialize(placement: DiscoverablePlacement, definition: DiscoverableDefini
 
 func get_prompt() -> String:
 	if _learning_player != null:
-		return "Leave tome [F]"
-	return prompt_text
+		return InputPromptScript.with_action("interact", "Leave tome")
+	return super.get_prompt()
 
 
 func get_spell() -> SpellDefinition:
@@ -88,6 +88,8 @@ func is_teaching() -> bool:
 
 
 func can_interact(player: Node) -> bool:
+	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
+		return false
 	if _spell == null:
 		return false
 	if _learning_player != null and _learning_player != player:
@@ -156,9 +158,9 @@ func _update_prompt() -> void:
 	if _spell == null:
 		return
 	if _learning_player != null:
-		prompt_text = "Leave tome [F]"
+		prompt_text = "Leave tome"
 	else:
-		prompt_text = "Learn '%s' [F]" % _spell.display_name
+		prompt_text = "Learn '%s'" % _spell.display_name
 
 
 func _process(delta: float) -> void:

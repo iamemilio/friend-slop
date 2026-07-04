@@ -26,6 +26,8 @@ const SNAIL_COLORS: Array[Color] = [
 var local_player_form: PlayerForm = PlayerForm.SNAIL
 var is_multiplayer: bool = false
 var run_seed: int = -1
+## Shared epoch for deterministic time-driven effects (e.g. clouds). Set once per run.
+var match_start_time_msec: int = 0
 var peer_roles: Dictionary = {}
 var peer_character_configs: Dictionary = {}
 
@@ -34,18 +36,21 @@ func reset_for_new_game() -> void:
 	is_multiplayer = false
 	local_player_form = PlayerForm.SNAIL
 	run_seed = randi()
+	match_start_time_msec = Time.get_ticks_msec()
 	peer_roles = {}
 	peer_character_configs = {}
 
 
 func prepare_match(
-	seed: int,
+	match_seed: int,
 	roles: Dictionary,
 	character_configs: Dictionary = {}
 ) -> void:
 	is_multiplayer = true
 	local_player_form = PlayerForm.SNAIL
-	run_seed = seed
+	run_seed = match_seed
+	## NetworkManager sets the shared epoch immediately after this call.
+	match_start_time_msec = 0
 	peer_roles = _normalize_peer_roles(roles)
 	peer_character_configs = _normalize_peer_configs(character_configs)
 
@@ -65,23 +70,17 @@ func get_role_for_peer(peer_id: int) -> PlayerRole:
 	return PlayerRole.APPRENTICE
 
 
-func get_binding_for_peer(peer_id: int) -> Binding:
-	var config := get_character_config_for_peer(peer_id)
-	return config.binding
-
-
 func get_character_config_for_peer(peer_id: int) -> PlayerCharacterConfig:
 	if peer_character_configs.has(peer_id):
 		return PlayerCharacterConfig.from_dict(peer_character_configs[peer_id])
 	return PlayerCharacterConfig.create_default(get_role_for_peer(peer_id))
 
 
-func apply_solo_dev_loadout(role: int, binding: Binding) -> void:
+func apply_solo_dev_loadout(role: int) -> void:
 	is_multiplayer = false
 	peer_roles = {1: role}
 	var config := PlayerCharacterConfig.create_default(role)
 	config.role = role
-	config.binding = binding
 	peer_character_configs = {1: config.to_dict()}
 
 

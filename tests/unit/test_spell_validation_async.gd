@@ -5,6 +5,7 @@ extends RefCounted
 
 const RunnerScript := preload("res://scripts/spells/spell_validation_runner.gd")
 const WorkerScript := preload("res://scripts/spells/spell_validation_worker.gd")
+const SpellLogScript := preload("res://scripts/spells/spell_log.gd")
 const FireballSpell := preload("res://resources/spells/fireball.tres")
 
 
@@ -13,6 +14,7 @@ func run(tree: SceneTree) -> int:
 	failures += _test_worker_runs_off_main_thread(tree)
 	failures += _test_runner_start_is_non_blocking(tree)
 	failures += _test_fireball_validation_completes_on_worker(tree)
+	failures += _test_worker_stt_logging_avoids_scene_tree(tree)
 	return failures
 
 
@@ -137,5 +139,37 @@ func _test_fireball_validation_completes_on_worker(tree: SceneTree) -> int:
 	var result: CastValidationResult = parsed.get("result")
 	if result == null or not result.passed or result.heard_text != "fireball":
 		push_error("Expected async fireball cast validation to pass with heard text")
+		return 1
+	return 0
+
+
+func _test_worker_stt_logging_avoids_scene_tree(tree: SceneTree) -> int:
+	## Non-stub validation with no transcript runs STT + SpellLog on the worker thread.
+	SpellLogScript.last_used_scene_tree = false
+	WorkerScript.test_delay_sec = 0.0
+	WorkerScript.force_stt_in_tests = true
+	var runner := _make_runner(tree)
+	if not runner.start(
+		"targeted",
+		_loud_samples(0.5),
+		48000,
+		false,
+		FireballSpell,
+		[],
+		PackedStringArray(),
+		PackedFloat32Array()
+	):
+		WorkerScript.force_stt_in_tests = false
+		runner.queue_free()
+		push_error("Expected STT logging runner to start")
+		return 1
+	_wait_for_runner(runner, 5000)
+	WorkerScript.force_stt_in_tests = false
+	runner.queue_free()
+	if WorkerScript.last_ran_on_main_thread:
+		push_error("Expected STT logging worker to run off the main thread")
+		return 1
+	if SpellLogScript.last_used_scene_tree:
+		push_error("SpellLog must not access the scene tree during worker STT validation")
 		return 1
 	return 0

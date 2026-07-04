@@ -13,6 +13,7 @@ enum Mode { LEARN, CAST }
 
 const ValidationRunnerScript := preload("res://scripts/spells/spell_validation_runner.gd")
 const SpellSttConfigScript := preload("res://scripts/spells/spell_stt_config.gd")
+const VoiceCaptureWorkerScript := preload("res://scripts/spells/voice_capture_worker.gd")
 
 const STATE_IDLE := "idle"
 const STATE_ARMING := "arming"
@@ -20,11 +21,12 @@ const STATE_LISTENING := "listening"
 const STATE_VALIDATING := "validating"
 const STATE_COACHING := "coaching"
 
-const ARMING_SEC := 0.5
+const ARMING_SEC := 0.1
 const MAX_LISTEN_SEC := 5.0
-const TRAILING_SILENCE_SEC := 0.35
+const TRAILING_SILENCE_SEC := 0.15
 const MIN_LISTEN_BEFORE_END_SEC := 0.25
 const TOME_RETRY_SEC := 2.0
+const MAX_CAPTURE_CHUNKS_PER_FRAME := 8
 
 @export var mic_bus_name: String = "MicCapture"
 
@@ -35,7 +37,7 @@ var _tome_teaching := false
 var _tome_spell: SpellDefinition
 var _coaching_retry_left: float = 0.0
 var _validator: VoiceSpellValidator
-var _spell_book: SpellBook
+var _spell_loadout: Node
 var _mic_player: AudioStreamPlayer
 var _capture_effect: AudioEffectCapture
 var _arming_left: float = 0.0
@@ -51,9 +53,11 @@ var _validation_runner: SpellValidationRunner
 var _free_cast := false
 var _free_cast_candidates: Array[SpellDefinition] = []
 var _free_cast_debug_lines: PackedStringArray = PackedStringArray()
+var _capture_worker: VoiceCaptureWorker
 
 
 func _ready() -> void:
+	_capture_worker = VoiceCaptureWorkerScript.new()
 	_ensure_validation_runner()
 	if _is_local_simulation():
 		_setup_microphone()
@@ -70,9 +74,9 @@ func _ensure_validation_runner() -> void:
 		_validation_runner.validation_finished.connect(_on_validation_runner_finished)
 
 
-func configure(validator: VoiceSpellValidator, spell_book: SpellBook = null) -> void:
+func configure(validator: VoiceSpellValidator, spell_loadout: Node = null) -> void:
 	_validator = validator
-	_spell_book = spell_book
+	_spell_loadout = spell_loadout
 
 
 func is_free_cast() -> bool:
@@ -138,7 +142,10 @@ func start(spell: SpellDefinition, mode: Mode) -> void:
 
 
 func start_free_cast(candidates: Array[SpellDefinition]) -> void:
-	if candidates.is_empty():
+	var known_spells := _known_spells_for_player()
+	if known_spells.is_empty():
+		known_spells = candidates.duplicate()
+	if known_spells.is_empty():
 		TomeDebug.log("CastSession", "start_free_cast aborted: no candidates")
 		return
 	if _tome_teaching:
@@ -150,10 +157,13 @@ func start_free_cast(candidates: Array[SpellDefinition]) -> void:
 		)
 		return
 	_free_cast = true
-	_free_cast_candidates = candidates.duplicate()
+	_free_cast_candidates = known_spells
 	_mode = Mode.CAST
 	_spell = null
-	TomeDebug.log("CastSession", "start free cast (%d spells known)" % candidates.size())
+	TomeDebug.log(
+		"CastSession",
+		"start free cast (%d spells known)" % _free_cast_candidates.size()
+	)
 	_recorded_samples = PackedFloat32Array()
 	_transcript_words = PackedStringArray()
 	_word_starts_sec = PackedFloat32Array()
@@ -225,6 +235,19 @@ func cancel() -> void:
 	_stop_mic()
 	_spell = null
 	_set_state(STATE_IDLE)
+
+
+## End a hold-to-cast wand session (free cast only). Release commits immediately.
+func release_wand_hold() -> void:
+	if not _free_cast:
+		return
+	match _state:
+		STATE_ARMING:
+			cancel()
+		STATE_LISTENING:
+			_begin_validation()
+		_:
+			pass
 
 
 func _setup_microphone() -> void:
@@ -310,34 +333,37 @@ func _begin_listening() -> void:
 		listen_coaching_changed.emit(_free_cast_coaching_text())
 	elif _spell != null:
 		listen_coaching_changed.emit(_spell.get_listen_coaching_text())
+	if _capture_worker != null:
+		_capture_worker.reset()
+		_capture_worker.start()
 
 
 func _stop_mic() -> void:
 	if _mic_player and _mic_player.playing:
 		_mic_player.stop()
+	if _capture_worker != null:
+		_capture_worker.stop()
 
 
 func _drain_capture_buffer() -> void:
-	if _capture_effect == null:
+	if _capture_effect == null or _capture_worker == null:
 		return
-	while _capture_effect.can_get_buffer(512):
+	var chunks_processed := 0
+	while _capture_effect.can_get_buffer(512) \
+			and chunks_processed < MAX_CAPTURE_CHUNKS_PER_FRAME:
 		var chunk: PackedVector2Array = _capture_effect.get_buffer(512)
-		for frame in chunk:
-			_recorded_samples.append((frame.x + frame.y) * 0.5)
+		var mono := PackedFloat32Array()
+		mono.resize(chunk.size())
+		for i in chunk.size():
+			mono[i] = (chunk[i].x + chunk[i].y) * 0.5
+		_capture_worker.push_chunk(mono)
+		chunks_processed += 1
 
 
 func _compute_listen_level() -> float:
-	if _recorded_samples.is_empty():
+	if _capture_worker == null:
 		return 0.0
-	var tail_start := maxi(0, _recorded_samples.size() - 2048)
-	var sum_sq := 0.0
-	for i in range(tail_start, _recorded_samples.size()):
-		var sample := _recorded_samples[i]
-		sum_sq += sample * sample
-	var count := _recorded_samples.size() - tail_start
-	if count <= 0:
-		return 0.0
-	return sqrt(sum_sq / float(count))
+	return _capture_worker.get_listen_level()
 
 
 func _emit_arming_coaching() -> void:
@@ -358,10 +384,7 @@ func _update_listen_coaching(level: float, delta: float) -> void:
 			listen_coaching_changed.emit("Good volume — say your spell!")
 		elif _speech_detected:
 			_silence_after_speech += delta
-			listen_coaching_changed.emit("Got it — finishing up...")
-			if _listen_elapsed >= MIN_LISTEN_BEFORE_END_SEC \
-					and _silence_after_speech >= TRAILING_SILENCE_SEC:
-				_begin_validation()
+			listen_coaching_changed.emit("Got it — release to cast.")
 		elif level >= threshold * 0.35:
 			listen_coaching_changed.emit("Almost — speak a little louder.")
 		else:
@@ -393,7 +416,7 @@ func _update_listen_coaching(level: float, delta: float) -> void:
 
 func _free_cast_coaching_text() -> String:
 	var parts: PackedStringArray = PackedStringArray()
-	for spell in _free_cast_candidates:
+	for spell in _known_spells_for_player():
 		if spell != null:
 			parts.append('"%s"' % spell.get_incantation_text())
 	if parts.is_empty():
@@ -401,12 +424,47 @@ func _free_cast_coaching_text() -> String:
 	return "Say any learned incantation: " + ", ".join(parts)
 
 
+func _known_spells_for_player() -> Array[SpellDefinition]:
+	if _spell_loadout != null and _spell_loadout.has_method("get_known_spells"):
+		var known: Array = _spell_loadout.get_known_spells()
+		var spells: Array[SpellDefinition] = []
+		for spell in known:
+			if spell is SpellDefinition:
+				spells.append(spell)
+		return spells
+	return _free_cast_candidates.duplicate()
+
+
+func _grammar_spells_for_player(
+	known_spells: Array[SpellDefinition] = []
+) -> Array[SpellDefinition]:
+	var spells: Array[SpellDefinition] = []
+	var seen: Dictionary = {}
+	var source := known_spells
+	if source.is_empty():
+		source = _known_spells_for_player()
+	for spell in source:
+		if spell == null or seen.has(spell.id):
+			continue
+		seen[spell.id] = true
+		spells.append(spell)
+	# Tome / targeted casts may include a spell not yet in the loadout.
+	if _spell != null and not seen.has(_spell.id):
+		spells.append(_spell)
+	return spells
+
+
 func _begin_validation() -> void:
 	if _state != STATE_LISTENING:
 		return
 	_set_state(STATE_VALIDATING)
-	_stop_mic()
 	_drain_capture_buffer()
+	_stop_mic()
+	var worker_samples := PackedFloat32Array()
+	if _capture_worker != null:
+		worker_samples = _capture_worker.take_samples()
+	if worker_samples.size() > _recorded_samples.size():
+		_recorded_samples = worker_samples
 	TomeDebug.log(
 		"CastSession",
 		"validating samples=%d sample_rate=%d stub=%s"
@@ -434,6 +492,10 @@ func _begin_validation() -> void:
 
 	_ensure_validation_runner()
 	var mode := "free_cast" if _free_cast else "targeted"
+	var known_spells := _known_spells_for_player()
+	if _free_cast:
+		_free_cast_candidates = known_spells
+	var grammar_spells := _grammar_spells_for_player(known_spells)
 	if not _validation_runner.start(
 		mode,
 		_recorded_samples,
@@ -442,11 +504,16 @@ func _begin_validation() -> void:
 		_spell,
 		_free_cast_candidates,
 		_transcript_words,
-		_word_starts_sec
+		_word_starts_sec,
+		grammar_spells
 	):
 		_finish_fail("Could not start spell validation")
 		return
-	TomeDebug.log("CastSession", "validation started (mode=%s)" % mode)
+	TomeDebug.log(
+		"CastSession",
+		"validation started (mode=%s known=%d grammar=%d)"
+		% [mode, known_spells.size(), grammar_spells.size()]
+	)
 
 
 func _apply_validation_payload(payload: Dictionary) -> bool:
@@ -481,30 +548,6 @@ func _apply_validation_payload(payload: Dictionary) -> bool:
 	_log_free_cast_debug()
 	_log_validation_speech(result)
 	if result.passed:
-		if _free_cast and _spell != null and _spell_book != null \
-				and not _spell_book.can_cast(_spell.id):
-			var active_left: float = _spell_book.effect_active_remaining(_spell.id)
-			var cd_reason: String
-			if active_left > 0.0:
-				cd_reason = "%s is still active (%.1fs left)" % [
-					_spell.display_name,
-					active_left,
-				]
-			else:
-				var cd_left: float = _spell_book.cooldown_remaining(_spell.id)
-				cd_reason = "%s is on cooldown (%.1fs left)" % [
-					_spell.display_name,
-					cd_left,
-				]
-			TomeDebug.log("CastSession", "validation FAILED: %s" % cd_reason)
-			var cd_fail := CastValidationResult.fail(cd_reason)
-			cd_fail.incantation_text = _spell.get_incantation_text()
-			cd_fail.heard_text = result.heard_text
-			cd_fail.audio_rms = result.audio_rms
-			cd_fail.audio_duration_sec = result.audio_duration_sec
-			cd_fail.expected_duration_sec = _spell.get_target_duration_sec()
-			_finish_fail(cd_reason, cd_fail)
-			return false
 		TomeDebug.log("CastSession", "validation PASSED")
 		_finish_success(result)
 	else:
@@ -531,10 +574,10 @@ func _finish_success(validation: CastValidationResult = null) -> void:
 	if was_tome:
 		_tome_teaching = false
 		_tome_spell = null
-	_free_cast = false
-	_free_cast_candidates = []
 	cast_succeeded.emit(finished_spell, mode_name, validation)
 	_spell = null
+	_free_cast = false
+	_free_cast_candidates = []
 	_set_state(STATE_IDLE)
 	if was_tome:
 		tome_teaching_changed.emit(false, null)

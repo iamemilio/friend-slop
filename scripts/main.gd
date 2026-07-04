@@ -6,8 +6,15 @@ const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.g
 var _game_won: bool = false
 var _learn_confirm_pending: bool = false
 var _local_player: CharacterBody3D
+var _maze_spawn_cell: Vector2i = Vector2i(-1, -1)
+var _maze_exit_cell: Vector2i = Vector2i(-1, -1)
+var _maze_layout_ready: bool = false
+var _players_spawned: bool = false
+var _discoverables_spawned: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
+@onready var moon: Moon = $Moon
+@onready var cloud_system: CloudSystem = $CloudSystem
 @onready var players_root: Node3D = $Players
 @onready var smoke_trails: SmokeTrailManager = $SmokeTrails
 @onready var discoverable_spawner = $DiscoverableSpawner
@@ -15,6 +22,7 @@ var _local_player: CharacterBody3D
 @onready var game_hud: CanvasLayer = $GameHUD
 @onready var voice_validator = $VoiceSpellValidator
 @onready var pause_menu = $PauseMenu
+@onready var delivery_objective: DeliveryObjective = $DeliveryObjective
 
 
 func _ready() -> void:
@@ -43,6 +51,8 @@ func _ready() -> void:
 		players_root,
 		_configure_local_player
 	)
+	_players_spawned = true
+	_finish_match_layout()
 
 
 func _ensure_speech_stt_ready() -> void:
@@ -54,6 +64,9 @@ func _ensure_speech_stt_ready() -> void:
 		await SpeechSttLoader.loading_finished
 	elif not SpeechSttLoader.is_ready():
 		SpeechSttLoader.ensure_ready()
+		if SpeechSttLoader.is_loading():
+			TomeDebug.log("Main", "Waiting for speech model to load...")
+			await SpeechSttLoader.loading_finished
 	if SpeechSttLoader.is_ready():
 		TomeDebug.log("Main", "Speech STT ready")
 	else:
@@ -70,31 +83,29 @@ func _configure_local_player(player: CharacterBody3D) -> void:
 
 
 func _wire_spell_system(player: CharacterBody3D) -> void:
-	var spell_book: SpellBook = player.get_spell_book()
+	var loadout: Node = player.get_spell_loadout()
 	var casting_session: SpellCastingSession = player.get_casting_session()
 	var effect_applier: Node = player.get_effect_applier()
 
-	spell_book.configure(spell_registry.get_all_spells())
-	_apply_role_starting_spells(spell_book)
-	game_hud.configure(spell_book, casting_session)
-	casting_session.configure(voice_validator, spell_book)
+	loadout.configure(spell_registry.get_all_spells())
+	_apply_role_starting_spells(loadout)
+	game_hud.configure(loadout, casting_session)
+	casting_session.configure(voice_validator, loadout)
 	casting_session.add_to_group("casting_session")
 	casting_session.state_changed.connect(_on_cast_state_changed)
 	casting_session.cast_succeeded.connect(_on_cast_succeeded)
 	casting_session.cast_failed.connect(_on_cast_failed)
 	casting_session.tome_teaching_changed.connect(_on_tome_teaching_changed)
-	player.configure_interaction(spell_book, casting_session, game_hud, effect_applier)
+	player.configure_interaction(loadout, casting_session, game_hud, effect_applier)
 
 
-func _apply_role_starting_spells(spell_book: SpellBook) -> void:
+func _apply_role_starting_spells(loadout: Node) -> void:
 	var peer_id := 1
 	if GameState.is_multiplayer:
 		peer_id = multiplayer.get_unique_id()
 	var config := GameState.get_character_config_for_peer(peer_id)
-	if GameState.is_multiplayer and config.role != GameState.PlayerRole.WARDEN:
-		return
 	for spell_id in config.get_starting_spell_ids():
-		spell_book.learn(spell_id)
+		loadout.learn_spell(spell_id, "starting")
 
 
 func _on_peer_connected(peer_id: int) -> void:
@@ -107,6 +118,7 @@ func _on_peer_connected(peer_id: int) -> void:
 
 func _on_quit_to_menu() -> void:
 	SettingsManager.stop_mic_test()
+	FriendSlopVoiceAdapter.end_voice()
 	NetworkManager.disconnect_session()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
@@ -118,16 +130,40 @@ func _on_maze_ready(
 	spawn_cell: Vector2i,
 	exit_cell: Vector2i
 ) -> void:
+	_maze_spawn_cell = spawn_cell
+	_maze_exit_cell = exit_cell
+	_maze_layout_ready = true
+	if moon != null:
+		moon.configure_for_maze(maze.maze_width, maze.maze_height, maze.cell_size)
+	if cloud_system != null:
+		cloud_system.configure_for_maze(
+			maze.maze_width,
+			maze.maze_height,
+			maze.cell_size,
+			moon.position.y,
+			GameState.run_seed,
+			GameState.match_start_time_msec
+		)
+	_finish_match_layout()
+
+
+func _finish_match_layout() -> void:
+	if not _maze_layout_ready or not _players_spawned:
+		return
+
 	var players: Array[CharacterBody3D] = []
 	for child in players_root.get_children():
 		if child is CharacterBody3D:
 			players.append(child)
+	if players.is_empty():
+		return
+
 	players.sort_custom(func(a: CharacterBody3D, b: CharacterBody3D) -> bool:
 		return a.player_index < b.player_index
 	)
 
 	var spawn_positions: Array[Vector3] = PlayerSpawnLayoutScript.compute_positions(
-		spawn_cell,
+		_maze_spawn_cell,
 		maze.get_wall_grid(),
 		maze.maze_width,
 		maze.maze_height,
@@ -138,18 +174,32 @@ func _on_maze_ready(
 		var player := players[i]
 		player.global_position = spawn_positions[i]
 		player.velocity = Vector3.ZERO
+		if player is PlayableCharacter:
+			(player as PlayableCharacter).refresh_camera_after_spawn()
 
-	if discoverable_spawner.run_config == null:
+	if GameState.is_multiplayer:
+		FriendSlopVoiceAdapter.on_maze_ready(maze)
+		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
+
+	delivery_objective.setup(
+		maze,
+		_maze_spawn_cell,
+		Callable(maze, "cell_to_world")
+	)
+	game_hud.configure_objective(delivery_objective)
+
+	if _discoverables_spawned or discoverable_spawner.run_config == null:
 		return
 
+	_discoverables_spawned = true
 	var placement_seed: int = DiscoverableSpawnPlan.derive_seed(GameState.run_seed)
 	var wall_grid: Array = maze.get_wall_grid()
 	var placements: Array[DiscoverablePlacement] = DiscoverableSpawnPlan.compute(
 		wall_grid,
 		maze.maze_width,
 		maze.maze_height,
-		spawn_cell,
-		exit_cell,
+		_maze_spawn_cell,
+		_maze_exit_cell,
 		discoverable_spawner.run_config,
 		placement_seed
 	)
@@ -166,16 +216,31 @@ func _get_casting_session() -> SpellCastingSession:
 	return _local_player.get_casting_session()
 
 
-func _get_spell_book() -> SpellBook:
+func _get_spell_loadout() -> Node:
 	if _local_player == null:
 		return null
-	return _local_player.get_spell_book()
+	return _local_player.get_spell_loadout()
 
 
 func _get_effect_applier() -> Node:
 	if _local_player == null:
 		return null
 	return _local_player.get_effect_applier()
+
+
+func prepare_spell_cast_wire(
+	caster_peer_id: int,
+	spell_id: String,
+	params: Dictionary
+) -> Dictionary:
+	var player := players_root.get_node_or_null(str(caster_peer_id)) as CharacterBody3D
+	var spell := spell_registry.get_spell(spell_id)
+	if spell == null:
+		return {}
+	var resolved := SpellEffectSyncScript.resolve_network_params(spell, player, params)
+	if resolved.is_empty():
+		return {}
+	return SpellEffectSyncScript.pack_for_network(resolved)
 
 
 func apply_synced_spell_cast(
@@ -234,10 +299,10 @@ func _on_cast_succeeded(
 	mode: String,
 	validation: CastValidationResult = null
 ) -> void:
-	var spell_book := _get_spell_book()
+	var loadout := _get_spell_loadout()
 	var casting_session := _get_casting_session()
 	var effect_applier := _get_effect_applier()
-	if spell_book == null or casting_session == null or effect_applier == null:
+	if loadout == null or casting_session == null or effect_applier == null:
 		return
 
 	TomeDebug.log(
@@ -251,7 +316,7 @@ func _on_cast_succeeded(
 		TomeDebug.log("Main", validation.get_speech_match_line())
 	if mode == "learn":
 		_learn_confirm_pending = true
-		spell_book.learn(spell.id)
+		loadout.learn_spell(spell.id, "tome")
 		_consume_tome_for_spell(spell.id)
 		game_hud.show_spell_learned(spell, validation)
 		await get_tree().create_timer(3.5).timeout
@@ -261,7 +326,6 @@ func _on_cast_succeeded(
 		var params := SpellEffectSyncScript.build_params(spell, _local_player)
 		var effect_duration := SpellEffectSyncScript.get_effect_duration_sec(spell, params)
 		effect_applier.cast_spell(_local_player, spell)
-		spell_book.begin_active_effect(spell.id, effect_duration)
 		if effect_duration > 0.0:
 			game_hud.show_spell_active(spell.id, effect_duration)
 		if casting_session.is_free_cast():
@@ -276,9 +340,8 @@ func _on_cast_failed(
 	reason: String,
 	partial: CastValidationResult
 ) -> void:
-	var spell_book := _get_spell_book()
 	var casting_session := _get_casting_session()
-	if spell_book == null or casting_session == null:
+	if casting_session == null:
 		return
 
 	TomeDebug.log(
@@ -297,12 +360,6 @@ func _on_cast_failed(
 			game_hud.show_cast_feedback(partial, from_tome)
 		else:
 			game_hud.show_cast_feedback(CastValidationResult.fail(reason), from_tome)
-	if not from_tome and _spell != null:
-		var active_left: float = spell_book.effect_active_remaining(_spell.id)
-		if active_left > 0.0:
-			game_hud.show_cooldown_blocked(_spell, active_left, true)
-		elif spell_book.cooldown_remaining(_spell.id) > 0.0:
-			game_hud.show_cooldown_blocked(_spell, spell_book.cooldown_remaining(_spell.id))
 	if from_tome:
 		return
 	if free_cast:

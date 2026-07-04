@@ -14,10 +14,12 @@ signal lobby_character_configs_changed
 signal session_ended(reason: String)
 signal steam_lobby_invite_received(lobby_id: int)
 
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const APPRENTICE_SCENE := preload("res://scenes/characters/apprentice.tscn")
+const WARDEN_SCENE := preload("res://scenes/characters/warden.tscn")
 const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_config.tres")
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
+const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
@@ -216,7 +218,7 @@ func spawn_players(
 		child.queue_free()
 
 	if not GameState.is_multiplayer:
-		var solo_player: CharacterBody3D = PLAYER_SCENE.instantiate()
+		var solo_player := _instantiate_player_for_peer(1)
 		solo_player.name = "Player"
 		players_root.add_child(solo_player)
 		solo_player.initialize_player(0)
@@ -235,7 +237,7 @@ func spawn_player_for_peer(
 	if players_root.get_node_or_null(str(peer_id)) != null:
 		return
 
-	var player: CharacterBody3D = PLAYER_SCENE.instantiate()
+	var player := _instantiate_player_for_peer(peer_id)
 	player.name = str(peer_id)
 	player.set_multiplayer_authority(peer_id)
 	players_root.add_child(player)
@@ -258,10 +260,29 @@ func _rpc_start_game(
 	)
 	MatchStateManager.reset()
 	GameState.prepare_match(run_seed, roles, character_configs)
+	## Synchronize the deterministic clock used by clouds and other time-driven effects.
+	GameState.match_start_time_msec = Time.get_ticks_msec()
 	if not match_snapshot.is_empty():
 		MatchStateManager.apply_snapshot(match_snapshot)
 	MatchStateManager.log_summary()
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+
+func sync_match_phase(next: int) -> void:
+	if not is_host():
+		return
+	var snapshot := MatchStateManager.snapshot
+	if snapshot.is_empty():
+		return
+	var state := MatchState.from_snapshot(snapshot)
+	if state.transition_to(next as MatchState.Phase) != OK:
+		return
+	_rpc_sync_match_snapshot.rpc(MatchStateSnapshot.pack(state))
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_sync_match_snapshot(data: Dictionary) -> void:
+	MatchStateManager.apply_snapshot(data)
 
 
 @rpc("authority", "call_local", "reliable")
@@ -301,9 +322,23 @@ func broadcast_spell_cast(caster_peer_id: int, spell_id: String, params: Diction
 	if not GameState.is_multiplayer:
 		return
 	if multiplayer.is_server():
-		_execute_spell_cast.rpc(caster_peer_id, spell_id, params)
+		var wire_params := _prepare_spell_cast_wire(caster_peer_id, spell_id, params)
+		if wire_params.is_empty():
+			return
+		_execute_spell_cast.rpc(caster_peer_id, spell_id, wire_params)
 	else:
 		request_spell_cast.rpc_id(1, spell_id, params)
+
+
+func _prepare_spell_cast_wire(
+	caster_peer_id: int,
+	spell_id: String,
+	params: Dictionary
+) -> Dictionary:
+	var main := get_tree().current_scene
+	if main != null and main.has_method("prepare_spell_cast_wire"):
+		return main.prepare_spell_cast_wire(caster_peer_id, spell_id, params)
+	return SpellEffectSyncScript.pack_for_network(SpellEffectSyncScript.normalize_params(params))
 
 
 @rpc("authority", "call_local", "reliable")
@@ -455,3 +490,12 @@ func _pack_character_configs_for_current_peers() -> Dictionary:
 		lobby.character_configs,
 		get_lobby_peer_ids()
 	)
+
+
+func _instantiate_player_for_peer(peer_id: int) -> CharacterBody3D:
+	var scene := (
+		WARDEN_SCENE
+		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.WARDEN
+		else APPRENTICE_SCENE
+	)
+	return scene.instantiate() as CharacterBody3D

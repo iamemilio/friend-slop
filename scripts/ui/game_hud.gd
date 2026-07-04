@@ -1,28 +1,24 @@
 class_name GameHud
 extends CanvasLayer
 
-## In-game HUD: interaction prompt, spellbook, casting overlay.
+## In-game HUD: spell codex, casting overlay, Tab guide menu.
 
 const SpellDefinitionScript := preload("res://scripts/spells/spell_definition.gd")
+const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 
-const STRIP_PHASE_ACTIVE := "active"
-const STRIP_PHASE_COOLDOWN := "cooldown"
-
-var _spellbook: Node
+var _loadout: Node
 var _selected_spell_id: String = ""
-var _spellbook_open := false
 var _active_spell: Resource
 var _from_tome := false
 var _coaching_countdown := 0.0
-var _cooldown_strip: VBoxContainer
-var _cooldown_rows: Dictionary = {}
-var _cooldown_blocked_until: float = 0.0
-var _cooldown_blocked_spell_id: String = ""
+var _active_strip: VBoxContainer
+var _active_rows: Dictionary = {}
+var _guide_open := false
+var _objective_lines: PackedStringArray = PackedStringArray()
+
+@onready var guide_panel: GuidePanel = $GuidePanel
 
 @onready var prompt_label: Label = $MarginContainer/PromptLabel
-@onready var spellbook_panel: PanelContainer = $SpellbookPanel
-@onready var spell_list: ItemList = $SpellbookPanel/MarginContainer/VBox/SpellList
-@onready var spellbook_hint: Label = $SpellbookPanel/MarginContainer/VBox/HintLabel
 @onready var casting_panel: PanelContainer = $CastingPanel
 @onready var casting_title: Label = $CastingPanel/MarginContainer/VBox/TitleLabel
 @onready var casting_words: Label = $CastingPanel/MarginContainer/VBox/WordsLabel
@@ -34,23 +30,74 @@ var _cooldown_blocked_spell_id: String = ""
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("game_hud")
 	prompt_label.text = ""
-	spellbook_panel.visible = false
+	$MarginContainer.visible = false
 	casting_panel.visible = false
 	mic_level_bar.min_value = 0.0
 	mic_level_bar.max_value = 1.0
 	mic_level_bar.value = 0.0
-	spell_list.item_selected.connect(_on_spell_selected)
-	_setup_cooldown_strip()
+	guide_panel.spell_selected.connect(_on_codex_spell_selected)
+	_setup_active_strip()
 
 
-func configure(spellbook: Node, casting_session: Node = null) -> void:
-	_spellbook = spellbook
-	if _spellbook != null and _spellbook.has_signal("spell_learned"):
-		_spellbook.spell_learned.connect(_on_spell_learned)
-	if _spellbook != null and _spellbook.has_signal("spell_cooldown_started"):
-		_spellbook.spell_cooldown_started.connect(_on_spell_cooldown_started)
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("guide_menu"):
+		return
+	toggle_guide_menu()
+	get_viewport().set_input_as_handled()
+
+
+func toggle_guide_menu() -> void:
+	if _guide_open:
+		close_guide_menu()
+	else:
+		_open_guide(GuidePanel.Page.MAIN)
+
+
+func _open_guide(page: GuidePanel.Page = GuidePanel.Page.MAIN) -> void:
+	_guide_open = true
+	guide_panel.visible = true
+	guide_panel.configure_loadout(_loadout)
+	guide_panel.set_selected_spell_id(_selected_spell_id)
+	if page == GuidePanel.Page.CODEX:
+		guide_panel.open_codex()
+	else:
+		guide_panel.reset_to_main()
+	_refresh_guide_content()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func is_guide_open() -> bool:
+	return _guide_open
+
+
+func close_guide_menu() -> void:
+	if not _guide_open:
+		return
+	_guide_open = false
+	guide_panel.visible = false
+	guide_panel.reset_to_main()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func configure_objective(objective: DeliveryObjective) -> void:
+	if objective == null:
+		return
+	if not objective.phase_changed.is_connected(_on_objective_phase_changed):
+		objective.phase_changed.connect(_on_objective_phase_changed)
+	if not objective.completed.is_connected(_on_objective_completed):
+		objective.completed.connect(_on_objective_completed)
+	_refresh_objective_lines(objective)
+
+
+func configure(loadout: Node, casting_session: Node = null) -> void:
+	_loadout = loadout
+	if _loadout != null and _loadout.has_signal("spell_learned"):
+		_loadout.spell_learned.connect(_on_spell_learned)
+	if _loadout != null and _loadout.has_signal("loadout_changed"):
+		_loadout.loadout_changed.connect(_on_loadout_changed)
 	if casting_session != null and casting_session.has_signal("listen_level_changed"):
 		casting_session.listen_level_changed.connect(update_listen_level)
 	if casting_session != null and casting_session.has_signal("listen_coaching_changed"):
@@ -60,28 +107,32 @@ func configure(spellbook: Node, casting_session: Node = null) -> void:
 
 
 func set_interaction_prompt(text: String) -> void:
+	if prompt_label == null:
+		return
 	prompt_label.text = text
+	var margin := prompt_label.get_parent()
+	if margin is Control:
+		(margin as Control).visible = not text.is_empty()
 
 
 func toggle_spellbook() -> void:
-	_spellbook_open = not _spellbook_open
-	spellbook_panel.visible = _spellbook_open
-	if _spellbook_open:
-		_refresh_spell_list()
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if _guide_open and guide_panel.is_codex_view():
+		close_guide_menu()
+	elif _guide_open:
+		guide_panel.open_codex()
+		guide_panel.set_selected_spell_id(_selected_spell_id)
+		_refresh_guide_content()
 	else:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_open_guide(GuidePanel.Page.CODEX)
 
 
 func close_spellbook() -> void:
-	if not _spellbook_open:
-		return
-	_spellbook_open = false
-	spellbook_panel.visible = false
+	if _guide_open and guide_panel.is_codex_view():
+		close_guide_menu()
 
 
 func is_spellbook_open() -> bool:
-	return _spellbook_open
+	return _guide_open and guide_panel.is_codex_view()
 
 
 func get_selected_spell_id() -> String:
@@ -156,7 +207,7 @@ func _show_free_cast_state(state: String) -> void:
 	_from_tome = false
 	casting_panel.visible = true
 	casting_title.text = "Voice cast"
-	casting_words.text = "Say any spell you've learned"
+	casting_words.text = "Say any spell you know"
 	casting_guide.text = _format_known_incantations()
 	match state:
 		"arming":
@@ -180,14 +231,14 @@ func _show_free_cast_state(state: String) -> void:
 
 
 func _format_known_incantations() -> String:
-	if _spellbook == null:
+	if _loadout == null:
 		return ""
-	var known: Array[String] = _spellbook.get_known_spell_ids()
+	var known: Array[String] = _loadout.get_known_spell_ids()
 	if known.is_empty():
 		return ""
 	var parts: PackedStringArray = PackedStringArray()
 	for spell_id in known:
-		var spell: Resource = _spellbook.get_spell_definition(spell_id)
+		var spell: Resource = _loadout.get_spell_definition(spell_id)
 		var def := spell as SpellDefinitionScript
 		if def != null:
 			parts.append('"%s" (%s)' % [def.get_incantation_text(), def.display_name])
@@ -216,8 +267,6 @@ func hide_casting() -> void:
 	_active_spell = null
 	_from_tome = false
 	_coaching_countdown = 0.0
-	_cooldown_blocked_spell_id = ""
-	_cooldown_blocked_until = 0.0
 
 
 func show_cast_feedback(result: RefCounted, from_tome: bool = false) -> void:
@@ -281,56 +330,15 @@ func show_cast_success(spell: Resource, validation: RefCounted = null) -> void:
 
 
 func show_spell_active(spell_id: String, duration_sec: float) -> void:
-	if _spellbook == null or duration_sec <= 0.0:
+	if duration_sec <= 0.0:
 		return
-	_ensure_strip_row(spell_id)
-	var row: Dictionary = _cooldown_rows[spell_id]
+	_ensure_active_row(spell_id)
+	var row: Dictionary = _active_rows[spell_id]
 	var now := Time.get_ticks_msec() / 1000.0
-	row["phase"] = STRIP_PHASE_ACTIVE
 	row["total_sec"] = duration_sec
 	row["active_until"] = now + duration_sec
-	_refresh_strip_row(spell_id)
-	_cooldown_strip.visible = true
-
-
-func track_spell_cooldown(spell_id: String, total_sec: float) -> void:
-	if _spellbook == null or total_sec <= 0.0:
-		return
-	_ensure_strip_row(spell_id)
-	var row: Dictionary = _cooldown_rows[spell_id]
-	row["phase"] = STRIP_PHASE_COOLDOWN
-	row["total_sec"] = total_sec
-	_refresh_strip_row(spell_id)
-	_cooldown_strip.visible = true
-
-
-func show_cooldown_blocked(
-	spell: Resource,
-	remaining_sec: float,
-	still_active: bool = false
-) -> void:
-	var def := spell as SpellDefinitionScript
-	if def == null or remaining_sec <= 0.0:
-		return
-	_cooldown_blocked_spell_id = def.id
-	_cooldown_blocked_until = Time.get_ticks_msec() / 1000.0 + remaining_sec
-	if not still_active:
-		track_spell_cooldown(def.id, def.cooldown_sec)
-	casting_panel.visible = true
-	if still_active:
-		casting_title.text = "%s still active" % def.display_name
-		casting_status.text = "Wait for the effect to finish"
-		casting_feedback.text = "Active: %.1fs remaining" % remaining_sec
-	else:
-		casting_title.text = "%s on cooldown" % def.display_name
-		casting_status.text = "Wait before casting again"
-		casting_feedback.text = "Cooldown: %.1fs remaining" % remaining_sec
-	casting_words.text = 'Incantation: "%s"' % def.get_incantation_text()
-	casting_detail.text = "Press [F] to try a different spell."
-	mic_level_bar.visible = false
-	if not still_active:
-		mic_level_bar.value = 1.0 - clampf(remaining_sec / def.cooldown_sec, 0.0, 1.0)
-		mic_level_bar.visible = true
+	_refresh_active_row(spell_id)
+	_active_strip.visible = true
 
 
 func update_tome_coaching_countdown(seconds_left: float) -> void:
@@ -352,102 +360,80 @@ func update_tome_coaching_countdown(seconds_left: float) -> void:
 		casting_detail.text = "\n".join(kept)
 
 
-func _refresh_spell_list() -> void:
-	var previous_selection := _selected_spell_id
-	spell_list.clear()
-	if _spellbook == null:
-		_selected_spell_id = ""
-		return
-
-	var known: Array[String] = _spellbook.get_known_spell_ids()
-	if known.is_empty():
-		_selected_spell_id = ""
-		spell_list.add_item("(No spells learned yet)")
-		spellbook_hint.text = "Find floating tomes in the maze."
-		return
-
-	spellbook_hint.text = "Select a spell, then press [F] to cast by voice."
-	var selected_index := -1
-	for spell_id in known:
-		var spell: Resource = _spellbook.get_spell_definition(spell_id)
-		var label: String = spell_id
-		if spell != null:
-			var def := spell as SpellDefinitionScript
-			if def != null:
-				label = def.display_name
-		var active: float = _spellbook.effect_active_remaining(spell_id)
-		var cd: float = _spellbook.cooldown_remaining(spell_id)
-		if active > 0.0:
-			label += " (active %.1fs)" % active
-		elif cd > 0.0:
-			label += " (%.1fs)" % cd
-		spell_list.add_item(label)
-		var item_index := spell_list.item_count - 1
-		spell_list.set_item_metadata(item_index, spell_id)
-		if spell_id == previous_selection:
-			selected_index = item_index
-
-	if selected_index >= 0:
-		spell_list.select(selected_index)
-		_selected_spell_id = previous_selection
-	elif spell_list.item_count > 0:
-		spell_list.select(0)
-		_selected_spell_id = str(spell_list.get_item_metadata(0))
-	else:
-		_selected_spell_id = ""
-
-
-func _on_spell_selected(index: int) -> void:
-	if index < 0:
-		return
-	_selected_spell_id = str(spell_list.get_item_metadata(index))
+func _on_codex_spell_selected(spell_id: String) -> void:
+	_selected_spell_id = spell_id
 
 
 func _on_spell_learned(spell_id: String) -> void:
 	_selected_spell_id = spell_id
-	if _spellbook_open:
-		_refresh_spell_list()
-
-
-func _on_spell_cooldown_started(spell_id: String) -> void:
-	if _spellbook == null:
-		return
-	var spell: Resource = _spellbook.get_spell_definition(spell_id)
-	var def := spell as SpellDefinitionScript
-	var total_sec: float = def.cooldown_sec if def != null else 8.0
-	track_spell_cooldown(spell_id, total_sec)
+	if _guide_open:
+		guide_panel.set_selected_spell_id(spell_id)
+		_refresh_guide_content()
 
 
 func _process(_delta: float) -> void:
-	if _spellbook_open and _spellbook != null:
-		_refresh_spell_list_if_cooling()
-	_update_cooldown_strip()
-	_update_cooldown_blocked_overlay()
+	_update_active_strip()
 
 
-func _setup_cooldown_strip() -> void:
-	_cooldown_strip = VBoxContainer.new()
-	_cooldown_strip.name = "CooldownStrip"
-	_cooldown_strip.add_theme_constant_override("separation", 4)
-	add_child(_cooldown_strip)
-	_cooldown_strip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	_cooldown_strip.offset_left = -220.0
-	_cooldown_strip.offset_top = 12.0
-	_cooldown_strip.offset_right = -16.0
-	_cooldown_strip.offset_bottom = 12.0
-	_cooldown_strip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_cooldown_strip.visible = false
+func _refresh_guide_content() -> void:
+	guide_panel.refresh(_objective_lines)
 
 
-func _ensure_strip_row(spell_id: String) -> void:
-	if _cooldown_rows.has(spell_id):
+func _on_loadout_changed() -> void:
+	if _guide_open:
+		guide_panel.configure_loadout(_loadout)
+		_refresh_guide_content()
+
+
+func _on_objective_phase_changed(_phase: int) -> void:
+	_sync_objective_lines_from_scene()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _on_objective_completed() -> void:
+	_sync_objective_lines_from_scene()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _refresh_objective_lines(objective: DeliveryObjective) -> void:
+	_objective_lines = objective.get_status_lines()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _sync_objective_lines_from_scene() -> void:
+	var objective := get_tree().get_first_node_in_group("delivery_objective") as DeliveryObjective
+	if objective != null:
+		_objective_lines = objective.get_status_lines()
+	else:
+		_objective_lines = PackedStringArray()
+
+
+func _setup_active_strip() -> void:
+	_active_strip = VBoxContainer.new()
+	_active_strip.name = "ActiveEffectStrip"
+	_active_strip.add_theme_constant_override("separation", 4)
+	add_child(_active_strip)
+	_active_strip.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_active_strip.offset_left = -220.0
+	_active_strip.offset_top = 12.0
+	_active_strip.offset_right = -16.0
+	_active_strip.offset_bottom = 12.0
+	_active_strip.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_active_strip.visible = false
+
+
+func _ensure_active_row(spell_id: String) -> void:
+	if _active_rows.has(spell_id):
 		return
 	var container := HBoxContainer.new()
 	container.add_theme_constant_override("separation", 8)
 	var label := Label.new()
 	label.custom_minimum_size = Vector2(96, 0)
 	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", Color(0.92, 0.88, 1, 1))
+	label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.72, 1))
 	var bar := ProgressBar.new()
 	bar.custom_minimum_size = Vector2(120, 14)
 	bar.min_value = 0.0
@@ -455,99 +441,52 @@ func _ensure_strip_row(spell_id: String) -> void:
 	bar.show_percentage = false
 	container.add_child(label)
 	container.add_child(bar)
-	_cooldown_strip.add_child(container)
-	_cooldown_rows[spell_id] = {
+	_active_strip.add_child(container)
+	_active_rows[spell_id] = {
 		"container": container,
 		"label": label,
 		"bar": bar,
-		"phase": STRIP_PHASE_COOLDOWN,
 		"total_sec": 1.0,
 	}
 
 
-func _refresh_strip_row(spell_id: String) -> void:
-	if _spellbook == null or not _cooldown_rows.has(spell_id):
+func _refresh_active_row(spell_id: String) -> void:
+	if not _active_rows.has(spell_id):
 		return
-	var row: Dictionary = _cooldown_rows[spell_id]
-	var spell: Resource = _spellbook.get_spell_definition(spell_id)
+	var row: Dictionary = _active_rows[spell_id]
 	var display_name: String = spell_id
-	if spell != null:
+	if _loadout != null:
+		var spell: Resource = _loadout.get_spell_definition(spell_id)
 		var def := spell as SpellDefinitionScript
 		if def != null:
 			display_name = def.display_name
-	var label: Label = row["label"]
-	var bar: ProgressBar = row["bar"]
-	if row.get("phase") == STRIP_PHASE_ACTIVE:
+	var remaining: float = maxf(
+		0.0,
+		float(row.get("active_until", 0.0)) - Time.get_ticks_msec() / 1000.0
+	)
+	var total: float = maxf(float(row.get("total_sec", 1.0)), 0.001)
+	row["label"].text = "%s %.1fs" % [display_name, remaining]
+	row["bar"].value = clampf(remaining / total, 0.0, 1.0)
+
+
+func _remove_active_row(spell_id: String) -> void:
+	if not _active_rows.has(spell_id):
+		return
+	var row: Dictionary = _active_rows[spell_id]
+	row["container"].queue_free()
+	_active_rows.erase(spell_id)
+	_active_strip.visible = not _active_rows.is_empty()
+
+
+func _update_active_strip() -> void:
+	for spell_id in _active_rows.keys():
+		var row: Dictionary = _active_rows[spell_id]
 		var remaining: float = maxf(
 			0.0,
 			float(row.get("active_until", 0.0)) - Time.get_ticks_msec() / 1000.0
 		)
-		var total: float = maxf(float(row.get("total_sec", 1.0)), 0.001)
-		bar.value = clampf(remaining / total, 0.0, 1.0)
-		label.text = "%s %.1fs" % [display_name, remaining]
-		label.add_theme_color_override("font_color", Color(0.95, 0.92, 0.72, 1))
-	else:
-		var remaining_cd: float = _spellbook.cooldown_remaining(spell_id)
-		var total_cd: float = maxf(float(row.get("total_sec", 1.0)), 0.001)
-		bar.value = 1.0 - clampf(remaining_cd / total_cd, 0.0, 1.0)
-		label.text = "%s %.1fs" % [display_name, remaining_cd]
-		label.add_theme_color_override("font_color", Color(0.82, 0.84, 0.92, 1))
-
-
-func _remove_cooldown_row(spell_id: String) -> void:
-	if not _cooldown_rows.has(spell_id):
-		return
-	var row: Dictionary = _cooldown_rows[spell_id]
-	var container: Node = row["container"]
-	container.queue_free()
-	_cooldown_rows.erase(spell_id)
-	_cooldown_strip.visible = not _cooldown_rows.is_empty()
-
-
-func _update_cooldown_strip() -> void:
-	if _spellbook == null:
-		return
-	for spell_id in _cooldown_rows.keys():
-		var row: Dictionary = _cooldown_rows[spell_id]
-		if row.get("phase") == STRIP_PHASE_ACTIVE:
-			var remaining: float = maxf(
-				0.0,
-				float(row.get("active_until", 0.0)) - Time.get_ticks_msec() / 1000.0
-			)
-			if remaining <= 0.0 and _spellbook.cooldown_remaining(spell_id) <= 0.0:
-				_remove_cooldown_row(spell_id)
-				continue
-			_refresh_strip_row(spell_id)
+		if remaining <= 0.0:
+			_remove_active_row(spell_id)
 			continue
-		if _spellbook.cooldown_remaining(spell_id) <= 0.0:
-			_remove_cooldown_row(spell_id)
-			continue
-		_refresh_strip_row(spell_id)
-	_cooldown_strip.visible = not _cooldown_rows.is_empty()
-
-
-func _update_cooldown_blocked_overlay() -> void:
-	if _cooldown_blocked_spell_id.is_empty() or _spellbook == null:
-		return
-	var remaining: float = _spellbook.cooldown_remaining(_cooldown_blocked_spell_id)
-	if remaining <= 0.0:
-		_cooldown_blocked_spell_id = ""
-		_cooldown_blocked_until = 0.0
-		return
-	if not casting_panel.visible:
-		return
-	var spell: Resource = _spellbook.get_spell_definition(_cooldown_blocked_spell_id)
-	var def := spell as SpellDefinitionScript
-	if def == null:
-		return
-	if casting_title.text.ends_with("on cooldown"):
-		casting_feedback.text = "Cooldown: %.1fs remaining" % remaining
-		mic_level_bar.value = 1.0 - clampf(remaining / def.cooldown_sec, 0.0, 1.0)
-
-
-func _refresh_spell_list_if_cooling() -> void:
-	for spell_id in _spellbook.get_known_spell_ids():
-		if _spellbook.effect_active_remaining(spell_id) > 0.0 \
-				or _spellbook.cooldown_remaining(spell_id) > 0.0:
-			_refresh_spell_list()
-			return
+		_refresh_active_row(spell_id)
+	_active_strip.visible = not _active_rows.is_empty()

@@ -1,0 +1,16 @@
+[gd_scene load_steps=5 format=3 uid="uid://bapprentice1"]
+
+[ext_resource type="PackedScene" uid="uid://bplayable001" path="res://scenes/characters/playable_character.tscn" id="1_base"]
+[ext_resource type="Script" path="res://scripts/characters/apprentice.gd" id="2_apprentice"]
+[ext_resource type="Script" path="res://scripts/position_trail_recorder.gd" id="3_trail"]
+[ext_resource type="Script" path="res://scripts/player/player_wand.gd" id="4_wand"]
+
+[node name="PlayableCharacter" instance=ExtResource("1_base")]
+script = ExtResource("2_apprentice")
+
+[node name="Wand" type="Node3D" parent="Head/CameraPivot/FirstPersonCamera" index="0"]
+transform = Transform3D(1, 0, 0, 0, 0.978148, 0.207912, 0, -0.207912, 0.978148, 0.34, -0.26, -0.52)
+script = ExtResource("4_wand")
+
+[node name="PositionTrailRecorder" type="Node" parent="."]
+script = ExtResource("3_trail")

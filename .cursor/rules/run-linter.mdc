@@ -1,0 +1,24 @@
+---
+description: Run gdlint after code changes in this project
+alwaysApply: true
+---
+
+# Run the linter after code changes
+
+After editing `.gd` scripts (or other files covered by checks), run the linter before finishing:
+
+```bash
+python tools/run_checks.py --lint-only
+```
+
+Or: `make lint`
+
+Do this even for small changes. Fix any gdlint issues before committing or reporting the task complete.
+
+For substantive changes, prefer the full check suite when feasible:
+
+```bash
+python tools/run_checks.py
+```
+
+Or: `make check`

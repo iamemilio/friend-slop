@@ -15,11 +15,9 @@ var _mic_status_label: Label
 var _start_third_person_checkbox: CheckBox
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
-var _dev_tree_name_label: Label
-var _dev_skill_tree_view: SkillTreeView
 var _voice_stub_checkbox: CheckBox
+var _dev_spawn_relic_near_spawn_checkbox: CheckBox
 var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
-var _dev_solo_starting_node_id: String = ""
 
 @onready var _general_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox
@@ -48,7 +46,6 @@ func _ready() -> void:
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
 	_dev_warden_button.pressed.connect(_on_dev_warden_pressed)
-	_dev_skill_tree_view.starting_node_selected.connect(_on_dev_starting_node_selected)
 	_populate_from_settings()
 
 
@@ -107,9 +104,8 @@ func _cache_node_refs() -> void:
 	_mic_status_label = _audio_vbox.get_node("MicStatusLabel")
 	_dev_apprentice_button = _dev_vbox.get_node("DevRoleSection/DevApprenticeButton")
 	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
-	_dev_tree_name_label = _dev_vbox.get_node("DevTreeNameLabel")
-	_dev_skill_tree_view = _dev_vbox.get_node("DevSkillTreeView")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
+	_dev_spawn_relic_near_spawn_checkbox = _dev_vbox.get_node("DevSpawnRelicNearSpawnCheckBox")
 
 
 func _populate_from_settings() -> void:
@@ -129,30 +125,17 @@ func _populate_from_settings() -> void:
 	_master_volume_slider.value = SettingsManager.master_volume
 	_update_master_volume_label(SettingsManager.master_volume)
 	_dev_solo_role = SettingsManager.dev_solo_role
-	_dev_solo_starting_node_id = SettingsManager.dev_solo_starting_node_id
 	_refresh_dev_solo_ui()
 	_voice_stub_checkbox.button_pressed = SettingsManager.voice_use_stub
-
-
-func _tree_for_dev_role(role: int) -> SkillTreeDefinition:
-	if role == GameState.PlayerRole.WARDEN:
-		return Binding.DEFAULT_WARDEN_TREE
-	return Binding.DEFAULT_FIREMAGE_TREE
+	_dev_spawn_relic_near_spawn_checkbox.button_pressed = (
+		SettingsManager.dev_spawn_relic_near_spawn
+	)
 
 
 func _refresh_dev_solo_ui() -> void:
 	var is_apprentice := _dev_solo_role == GameState.PlayerRole.APPRENTICE
 	SelectionStyle.style_choice(_dev_apprentice_button, is_apprentice)
 	SelectionStyle.style_choice(_dev_warden_button, not is_apprentice)
-	var tree := _tree_for_dev_role(_dev_solo_role)
-	_dev_tree_name_label.text = tree.display_name
-	if not tree.is_valid_starting_node(_dev_solo_starting_node_id):
-		_dev_solo_starting_node_id = tree.get_default_starting_node_id()
-	_dev_skill_tree_view.configure(
-		tree,
-		_dev_solo_starting_node_id,
-		SpellDisplayNames.build_catalog()
-	)
 
 
 func _fill_device_option(
@@ -183,8 +166,10 @@ func _apply_to_manager() -> void:
 	SettingsManager.output_device = _read_device_selection(_output_device_option)
 	SettingsManager.input_device = _read_device_selection(_input_device_option)
 	SettingsManager.dev_solo_role = _dev_solo_role
-	SettingsManager.dev_solo_starting_node_id = _dev_solo_starting_node_id
 	SettingsManager.voice_use_stub = _voice_stub_checkbox.button_pressed
+	SettingsManager.dev_spawn_relic_near_spawn = (
+		_dev_spawn_relic_near_spawn_checkbox.button_pressed
+	)
 	SettingsManager.apply_audio_settings()
 	SettingsManager.save_settings()
 
@@ -203,10 +188,6 @@ func _on_dev_apprentice_pressed() -> void:
 func _on_dev_warden_pressed() -> void:
 	_dev_solo_role = GameState.PlayerRole.WARDEN
 	_refresh_dev_solo_ui()
-
-
-func _on_dev_starting_node_selected(node_id: String) -> void:
-	_dev_solo_starting_node_id = node_id
 
 
 func _on_master_volume_changed(value: float) -> void:

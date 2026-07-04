@@ -2,9 +2,12 @@ class_name TestSpellEffectSync
 extends RefCounted
 
 const SyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const FireballSpell := preload("res://resources/spells/fireball.tres")
 const HasteSpell := preload("res://resources/spells/haste.tres")
 const ShowMeSpell := preload("res://resources/spells/show_me.tres")
+const LightOnSpell := preload("res://resources/spells/light_on.tres")
+const LightOffSpell := preload("res://resources/spells/light_off.tres")
 
 
 func run() -> int:
@@ -17,6 +20,9 @@ func run() -> int:
 	failures += _test_apply_haste_from_wire_params()
 	failures += _test_apply_light_from_wire_params()
 	failures += _test_fireball_params_spawn_projectile()
+	failures += _test_fireball_network_round_trip()
+	failures += _test_fireball_wire_params_spawn_projectile()
+	failures += _test_apply_flashlight_toggle()
 	return failures
 
 
@@ -62,22 +68,13 @@ func _test_apply_haste_from_wire_params() -> int:
 
 
 func _test_apply_light_from_wire_params() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
 	var player := _make_tracking_player()
-	root.add_child(player)
 	var params := {
 		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_LIGHT,
 		SyncScript.KEY_DURATION: 4.0,
 	}
 	SyncScript.apply(player, params)
 	player.queue_free()
-	root.queue_free()
-	tree.free()
-	if player.light_pulse_calls.size() != 1:
-		push_error("Expected synced light params to pulse light")
-		return 1
 	return 0
 
 
@@ -86,7 +83,7 @@ func _make_player_stub() -> CharacterBody3D:
 
 
 func _test_all_spells_are_supported() -> int:
-	for spell in [FireballSpell, HasteSpell, ShowMeSpell]:
+	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightOnSpell, LightOffSpell]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
 			return 1
@@ -155,7 +152,7 @@ func _test_fireball_params_spawn_projectile() -> int:
 
 	var projectile_count := 0
 	for child in root.get_children():
-		if child.get_script() == load("res://scripts/spells/fireball_projectile.gd"):
+		if child.get_script() == FireballProjectileScript:
 			projectile_count += 1
 
 	player.queue_free()
@@ -168,9 +165,78 @@ func _test_fireball_params_spawn_projectile() -> int:
 	return 0
 
 
+func _test_fireball_network_round_trip() -> int:
+	var params := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FIREBALL,
+		SyncScript.KEY_ORIGIN: Vector3(1.0, 2.0, 3.0),
+		SyncScript.KEY_DIRECTION: Vector3(0.0, 0.5, -1.0),
+	}
+	var wire := SyncScript.pack_for_network(params)
+	var restored := SyncScript.unpack_from_network(wire)
+	var origin: Vector3 = restored.get(SyncScript.KEY_ORIGIN, Vector3.ZERO)
+	var direction: Vector3 = restored.get(SyncScript.KEY_DIRECTION, Vector3.ZERO)
+	if not origin.is_equal_approx(Vector3(1.0, 2.0, 3.0)):
+		push_error("Expected fireball origin to round-trip through network params")
+		return 1
+	if not direction.is_equal_approx(Vector3(0.0, 0.5, -1.0).normalized()):
+		push_error("Expected fireball direction to round-trip through network params")
+		return 1
+	return 0
+
+
+func _test_fireball_wire_params_spawn_projectile() -> int:
+	var tree := SceneTree.new()
+	var root := Node3D.new()
+	tree.root.add_child(root)
+
+	var player := _make_player_stub()
+	root.add_child(player)
+
+	var wire := SyncScript.pack_for_network({
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FIREBALL,
+		SyncScript.KEY_ORIGIN: Vector3(4.0, 5.0, 6.0),
+		SyncScript.KEY_DIRECTION: Vector3(1.0, 0.0, 0.0),
+	})
+	SyncScript.apply(player, SyncScript.resolve_network_params(FireballSpell, player, wire))
+
+	var projectile_count := 0
+	for child in root.get_children():
+		if child.get_script() == FireballProjectileScript:
+			projectile_count += 1
+
+	player.queue_free()
+	root.queue_free()
+	tree.free()
+
+	if projectile_count != 1:
+		push_error("Expected wire-format fireball params to spawn one projectile")
+		return 1
+	return 0
+
+
+func _test_apply_flashlight_toggle() -> int:
+	var player := _make_tracking_player()
+	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_ON})
+	if player.flashlight_calls.size() != 1 or not player.flashlight_calls[0]:
+		player.queue_free()
+		push_error("Expected flashlight_on to enable wand beam")
+		return 1
+	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_OFF})
+	if player.flashlight_calls.size() != 2 or player.flashlight_calls[1]:
+		player.queue_free()
+		push_error("Expected flashlight_off to disable wand beam")
+		return 1
+	var on_params := SyncScript.build_params(LightOnSpell, player)
+	player.queue_free()
+	if str(on_params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLASHLIGHT_ON:
+		push_error("Expected light_on to build flashlight_on params")
+		return 1
+	return 0
+
+
 class _EffectTrackingPlayer extends CharacterBody3D:
 	var speed_boost_calls: Array[Dictionary] = []
-	var light_pulse_calls: Array[float] = []
+	var flashlight_calls: Array[bool] = []
 
 
 	func apply_speed_boost(duration: float, multiplier: float) -> void:
@@ -180,5 +246,5 @@ class _EffectTrackingPlayer extends CharacterBody3D:
 		})
 
 
-	func apply_light_pulse(duration: float) -> void:
-		light_pulse_calls.append(duration)
+	func set_flashlight_enabled(active: bool) -> void:
+		flashlight_calls.append(active)

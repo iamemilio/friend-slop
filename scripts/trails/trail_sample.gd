@@ -9,12 +9,12 @@ const KEY_Z := "z"
 const KEY_TIME_MSEC := "t"
 
 
-static func make(seq: int, x: float, z: float, time_msec: int) -> Dictionary:
+static func make(trail_seq: int, x: float, z: float, trail_time_msec: int) -> Dictionary:
 	return {
-		KEY_SEQ: seq,
+		KEY_SEQ: trail_seq,
 		KEY_X: x,
 		KEY_Z: z,
-		KEY_TIME_MSEC: time_msec,
+		KEY_TIME_MSEC: trail_time_msec,
 	}
 
 
