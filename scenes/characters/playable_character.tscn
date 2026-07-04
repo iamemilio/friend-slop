@@ -55,14 +55,13 @@ unique_name_in_owner = true
 
 [node name="FirstPersonCamera" type="Camera3D" parent="Head/CameraPivot"]
 unique_name_in_owner = true
-current = true
 fov = 75.0
 
-[node name="ThirdPersonAnchor" type="Node3D" parent="."]
+[node name="ThirdPersonRig" type="Node3D" parent="Head"]
 unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.38, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18, 0)
 
-[node name="ThirdPersonCamera" type="Camera3D" parent="."]
+[node name="ThirdPersonCamera" type="Camera3D" parent="Head/ThirdPersonRig"]
 unique_name_in_owner = true
 fov = 75.0
 
