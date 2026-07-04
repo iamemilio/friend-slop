@@ -31,6 +31,7 @@ const TEST_SUITES: Array[String] = [
 	"res://tests/unit/test_delivery_objective_sync.gd",
 	"res://tests/unit/test_input_prompt.gd",
 	"res://tests/unit/test_display_resolution_presets.gd",
+	"res://tests/unit/test_ui_scale.gd",
 	"res://tests/unit/test_moon.gd",
 	"res://tests/unit/test_cloud_system.gd",
 	"res://tests/unit/test_trail_registry.gd",

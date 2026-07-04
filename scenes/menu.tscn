@@ -109,18 +109,7 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
 text = "Settings"
 
-[node name="BottomBar" type="MarginContainer" parent="."]
-layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_top = -88.0
-grow_horizontal = 2
-grow_vertical = 0
-theme_override_constants/margin_bottom = 24
-
-[node name="ExitButton" type="Button" parent="BottomBar"]
+[node name="ExitButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(240, 48)
 layout_mode = 2
 size_flags_horizontal = 4
