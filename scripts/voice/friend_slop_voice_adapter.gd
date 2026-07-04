@@ -31,6 +31,7 @@ func _build_session() -> void:
 	session = VoiceSessionScript.new()
 	session.name = "VoiceSession"
 	add_child(session)
+	session.session_started.connect(_on_voice_session_started)
 	proximity_channel = VoiceChannelScript.new()
 	proximity_channel.name = "Proximity"
 	proximity_channel.channel_name = "Proximity"
@@ -41,17 +42,69 @@ func _build_session() -> void:
 
 func on_maze_ready(maze: Node3D) -> void:
 	if session == null or not GameState.is_multiplayer:
+		TomeDebug.log(
+			"Voice",
+			"Skipped — session=%s multiplayer=%s"
+			% [session != null, GameState.is_multiplayer]
+		)
 		return
 	if not maze.has_method("get_wall_grid") or not maze.has_method("world_to_cell"):
+		TomeDebug.log("Voice", "Skipped — maze missing wall grid helpers")
 		return
+	if not SteamService.is_ready():
+		TomeDebug.log(
+			"Voice",
+			"Cannot start — Steam not ready (launch Steam client and restart Godot)"
+		)
+		return
+	if not Engine.has_singleton("Steam"):
+		TomeDebug.log(
+			"Voice",
+			"Cannot start — GodotSteam not loaded (see docs/STEAM_SETUP.md)"
+		)
+		return
+
+	SteamService.allow_p2p_relay()
+
+	if session.is_active:
+		session.stop()
+
 	session.muffling_map = MufflingMapScript.from_wall_grid(
 		maze.get_wall_grid(),
 		Callable(maze, "world_to_cell")
 	)
-	session.set_session_peers(
-		SteamMultiplayerPeerAdapterScript.collect_session_steam_ids(get_tree().get_multiplayer())
+	var steam_ids := SteamMultiplayerPeerAdapterScript.collect_session_steam_ids(
+		get_tree().get_multiplayer()
+	)
+	session.set_session_peers(steam_ids)
+	TomeDebug.log(
+		"Voice",
+		"Starting proximity voice — steam peers=%s local_steam_id=%s"
+		% [steam_ids, SteamService.get_steam_id()]
 	)
 	session.start()
+	if not session.is_active:
+		TomeDebug.log(
+			"Voice",
+			"Failed to start — GodotSteam voice transport unavailable"
+		)
+
+
+func _on_voice_session_started() -> void:
+	var channel := proximity_channel
+	var listener := channel.get_listener_node() if channel != null else null
+	var speaker_ids: Array[int] = []
+	if channel != null:
+		speaker_ids = channel.get_registered_speaker_ids()
+	TomeDebug.log(
+		"Voice",
+		"Session active — listener=%s speakers=%s phase=%s"
+		% [
+			listener != null,
+			speaker_ids,
+			MatchState.phase_to_string(MatchStateManager.get_phase()),
+		]
+	)
 
 
 func end_voice() -> void:

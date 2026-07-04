@@ -81,17 +81,38 @@ func send_packet(steam_id: int, data: PackedByteArray, p2p_channel: int) -> void
 
 func read_packets(p2p_channel: int, max_packet_size: int = 8192) -> Array[Dictionary]:
 	var packets: Array[Dictionary] = []
-	if not available:
+	if not available or not _steam.has_method("readP2PPacket"):
 		return packets
-	while true:
-		var result: Variant = _steam.call("readP2PPacket", max_packet_size, p2p_channel)
+	while _steam.has_method("getAvailableP2PPacketSize"):
+		var available_size := int(_steam.call("getAvailableP2PPacketSize", p2p_channel))
+		if available_size <= 0:
+			break
+		var packet_size := mini(available_size, max_packet_size)
+		var result: Variant = _steam.call("readP2PPacket", packet_size, p2p_channel)
 		if not result is Dictionary:
 			break
 		var data: Dictionary = result
-		if int(data.get("result", 0)) == 0:
+		if data.is_empty():
 			break
-		packets.append(data)
+		var payload: PackedByteArray = data.get("data", PackedByteArray()) as PackedByteArray
+		if payload.is_empty():
+			break
+		packets.append(normalize_p2p_packet(data))
 	return packets
+
+
+static func parse_sender_steam_id(data: Dictionary) -> int:
+	for key in ["steam_id", "steam_id_remote", "remote_steam_id", "steamIDRemote"]:
+		if data.has(key):
+			return int(data[key])
+	return 0
+
+
+static func normalize_p2p_packet(data: Dictionary) -> Dictionary:
+	return {
+		"data": data.get("data", PackedByteArray()) as PackedByteArray,
+		"steam_id": parse_sender_steam_id(data),
+	}
 
 
 static func pcm_bytes_to_mono_floats(buffer: PackedByteArray) -> PackedFloat32Array:

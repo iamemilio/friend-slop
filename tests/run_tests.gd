@@ -41,6 +41,7 @@ const TEST_SUITES: Array[String] = [
 	"res://tests/unit/test_guide_content.gd",
 	"res://tests/unit/test_spell_codex.gd",
 	"res://tests/unit/test_voice_capture_worker.gd",
+	"res://tests/unit/test_steam_voice_transport.gd",
 	"res://tests/unit/test_gdvosk_extension_config.gd",
 	"res://tests/unit/test_spell_stt_config.gd",
 	"res://tests/integration/test_gdvosk_runtime.gd",

@@ -62,9 +62,52 @@ def is_godotsteam_editor(godot: Path) -> bool:
 	return "godotsteam" in godot.name.lower()
 
 
+def _extension_uid(active: Path) -> Path:
+	return active.with_suffix(".gdextension.uid")
+
+
+def _disable_extension(active: Path, disabled: Path) -> bool:
+	"""Ensure only the disabled manifest exists. Returns True if anything changed."""
+	if not active.exists():
+		return False
+	uid_active = _extension_uid(active)
+	uid_disabled = _extension_uid(disabled)
+	if disabled.exists():
+		active.unlink()
+		if uid_active.exists():
+			uid_active.unlink()
+		return True
+	active.rename(disabled)
+	if uid_active.exists():
+		if uid_disabled.exists():
+			uid_active.unlink()
+		else:
+			uid_active.rename(uid_disabled)
+	return True
+
+
+def _enable_extension(active: Path, disabled: Path) -> bool:
+	"""Ensure only the active manifest exists. Returns True if anything changed."""
+	if not disabled.exists():
+		return False
+	uid_active = _extension_uid(active)
+	uid_disabled = _extension_uid(disabled)
+	if active.exists():
+		disabled.unlink()
+		if uid_disabled.exists():
+			uid_disabled.unlink()
+		return True
+	disabled.rename(active)
+	if uid_disabled.exists():
+		if uid_active.exists():
+			uid_disabled.unlink()
+		else:
+			uid_disabled.rename(uid_active)
+	return True
+
+
 def _restore_if_disabled(active: Path, disabled: Path) -> str | None:
-	if disabled.exists() and not active.exists():
-		disabled.rename(active)
+	if _enable_extension(active, disabled):
 		return str(active.relative_to(ROOT))
 	return None
 
@@ -75,24 +118,15 @@ def sync_godotsteam_gdextension(godot: Path | None = None) -> list[str]:
 		godot = find_godot_binary()
 
 	if godot is not None and is_godotsteam_editor(godot):
-		if GODOTSTEAM_ACTIVE.exists():
-			GODOTSTEAM_ACTIVE.rename(GODOTSTEAM_DISABLED)
-			uid = GODOTSTEAM_ACTIVE.with_suffix(".gdextension.uid")
-			if uid.exists():
-				uid.rename(GODOTSTEAM_DISABLED.with_suffix(".gdextension.uid"))
+		if _disable_extension(GODOTSTEAM_ACTIVE, GODOTSTEAM_DISABLED):
 			changes.append(
 				"Disabled addons/godotsteam/godotsteam.gdextension "
 				+ "(GodotSteam editor already includes Steam)."
 			)
 		return changes
 
-	restored = _restore_if_disabled(GODOTSTEAM_ACTIVE, GODOTSTEAM_DISABLED)
-	if restored is not None:
-		uid_disabled = GODOTSTEAM_DISABLED.with_suffix(".gdextension.uid")
-		uid_active = GODOTSTEAM_ACTIVE.with_suffix(".gdextension.uid")
-		if uid_disabled.exists() and not uid_active.exists():
-			uid_disabled.rename(uid_active)
-		changes.append(f"Restored {restored}")
+	if _enable_extension(GODOTSTEAM_ACTIVE, GODOTSTEAM_DISABLED):
+		changes.append(f"Restored {GODOTSTEAM_ACTIVE.relative_to(ROOT)}")
 	return changes
 
 
