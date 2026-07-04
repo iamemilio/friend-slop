@@ -15,6 +15,7 @@ var _mic_test_button: Button
 var _mic_level_bar: ProgressBar
 var _mic_status_label: Label
 var _resolution_option: OptionButton
+var _resolution_hint_label: Label
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
 var _voice_stub_checkbox: CheckBox
@@ -99,6 +100,7 @@ func _process(_delta: float) -> void:
 
 func _cache_node_refs() -> void:
 	_resolution_option = _general_vbox.get_node("ResolutionOption")
+	_resolution_hint_label = _general_vbox.get_node("ResolutionHintLabel")
 	_output_device_option = _audio_vbox.get_node("OutputDeviceOption")
 	_input_device_option = _audio_vbox.get_node("InputDeviceOption")
 	_master_volume_slider = _audio_vbox.get_node("MasterVolumeRow/MasterVolumeSlider")
@@ -145,6 +147,22 @@ func _populate_resolution_options() -> void:
 	_resolution_option.clear()
 	for size in SettingsManager.get_resolution_presets():
 		_resolution_option.add_item(DisplayResolutionPresetsScript.format_label(size))
+	_update_resolution_hint()
+
+
+func _update_resolution_hint() -> void:
+	if _resolution_hint_label == null:
+		return
+	if SettingsManager.is_running_embedded_in_editor():
+		_resolution_hint_label.text = (
+			"Resolution applies when running the exported game or with "
+			+ "Embed Game On Next Play disabled in the Godot editor."
+		)
+	else:
+		_resolution_hint_label.text = (
+			"Changes the game window size. Drag the window edges to resize manually. "
+			+ "Fullscreen is exited automatically when applying a preset."
+		)
 
 
 func _select_resolution(index: int) -> void:

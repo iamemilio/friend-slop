@@ -25,6 +25,8 @@ const FLASHLIGHT_ATTENUATION := 1.2
 const FLASHLIGHT_LIGHT_SIZE := 0.65
 const FLASHLIGHT_COLOR := Color(1.0, 0.86, 0.56)
 const FLASHLIGHT_TIP_EMISSION := 1.0
+const FLAME_GLOW_COLOR := Color(0.72, 0.08, 0.04)
+const FLAME_GLOW_EMISSION := 3.2
 
 var _shaft_mesh: MeshInstance3D
 var _tip_mesh: MeshInstance3D
@@ -34,6 +36,7 @@ var _fizzle_particles: CPUParticles3D
 var _success_particles: CPUParticles3D
 var _armed := false
 var _flashlight_active := false
+var _flame_glow_active := false
 var _listen_level: float = 0.0
 var _listen_peak: float = 0.0
 
@@ -71,7 +74,7 @@ func play_cast_success(spell: SpellDefinition = null, keep_armed: bool = false) 
 	if not keep_armed:
 		set_armed(false)
 	_emit_burst(_success_particles, _success_color_for_spell(spell))
-	_pulse_tip(Color(1.0, 0.98, 0.92), 0.35)
+	_pulse_tip(_success_pulse_color_for_spell(spell), 0.35)
 
 
 func play_fizzle(keep_armed: bool = false) -> void:
@@ -87,14 +90,20 @@ func set_flashlight_enabled(active: bool) -> void:
 		return
 	_flashlight_light.visible = active
 	_flashlight_light.light_energy = FLASHLIGHT_ENERGY if active else 0.0
-	if active:
-		_set_tip_emission(FLASHLIGHT_COLOR, FLASHLIGHT_TIP_EMISSION)
-	elif not _armed:
-		_set_tip_emission(Color.WHITE, 0.0)
+	_refresh_tip_light()
 
 
 func is_flashlight_active() -> bool:
 	return _flashlight_active
+
+
+func set_flame_glow_enabled(active: bool) -> void:
+	_flame_glow_active = active
+	_refresh_tip_light()
+
+
+func is_flame_glow_active() -> bool:
+	return _flame_glow_active
 
 
 func _build_wand_meshes() -> void:
@@ -183,12 +192,18 @@ func _make_burst_particles(node_name: String, color: Color) -> CPUParticles3D:
 
 
 func _refresh_tip_light() -> void:
-	var emission := 0.0
-	var visual := 0.0
 	if _armed:
-		visual = _listen_visual_strength(_listen_level)
-		emission = TIP_EMISSION_ARMED + visual * TIP_EMISSION_LISTEN_MAX
-	_apply_tip_visual(visual, emission)
+		var visual := _listen_visual_strength(_listen_level)
+		var emission := TIP_EMISSION_ARMED + visual * TIP_EMISSION_LISTEN_MAX
+		_apply_tip_visual(visual, emission)
+		return
+	if _flame_glow_active:
+		_apply_flame_glow_visual()
+		return
+	if _flashlight_active:
+		_apply_flashlight_tip_visual()
+		return
+	_apply_tip_visual(0.0, 0.0)
 
 
 static func _listen_visual_strength(listen_level: float) -> float:
@@ -205,6 +220,24 @@ func _apply_tip_visual(visual: float, emission: float) -> void:
 		mat.emission = glow
 		mat.emission_energy_multiplier = emission
 	_tip_mesh.scale = Vector3.ONE * (1.0 + visual * TIP_SCALE_LISTEN_BOOST)
+
+
+func _apply_flashlight_tip_visual() -> void:
+	if _tip_mesh.material_override is StandardMaterial3D:
+		var mat: StandardMaterial3D = _tip_mesh.material_override
+		mat.albedo_color = Color(0.85, 0.88, 0.95)
+		mat.emission = FLASHLIGHT_COLOR
+		mat.emission_energy_multiplier = FLASHLIGHT_TIP_EMISSION
+	_tip_mesh.scale = Vector3.ONE
+
+
+func _apply_flame_glow_visual() -> void:
+	if _tip_mesh.material_override is StandardMaterial3D:
+		var mat: StandardMaterial3D = _tip_mesh.material_override
+		mat.albedo_color = FLAME_GLOW_COLOR.lightened(0.12)
+		mat.emission = FLAME_GLOW_COLOR
+		mat.emission_energy_multiplier = FLAME_GLOW_EMISSION
+	_tip_mesh.scale = Vector3.ONE
 
 
 func _pulse_tip(color: Color, duration: float) -> void:
@@ -257,16 +290,25 @@ func _tip_local_position() -> Vector3:
 
 
 func _success_color_for_spell(spell: SpellDefinition) -> Color:
+	var fallback := Color(1.0, 0.95, 0.85)
 	if spell == null:
-		return Color(1.0, 0.95, 0.85)
+		return fallback
+	var color := fallback
 	match spell.effect_id:
 		"fireball":
-			return Color(1.0, 0.55, 0.15)
+			color = Color(1.0, 0.55, 0.15)
+		"flame_on":
+			color = Color(0.95, 0.22, 0.08)
 		"light":
-			return Color(1.0, 0.92, 0.55)
+			color = Color(1.0, 0.92, 0.55)
 		"haste":
-			return Color(0.55, 0.82, 1.0)
+			color = Color(0.55, 0.82, 1.0)
 		"flashlight_on", "flashlight_off":
-			return FLASHLIGHT_COLOR
-		_:
-			return Color(1.0, 0.95, 0.85)
+			color = FLASHLIGHT_COLOR
+	return color
+
+
+func _success_pulse_color_for_spell(spell: SpellDefinition) -> Color:
+	if spell != null and spell.effect_id == "flame_on":
+		return FLAME_GLOW_COLOR.lightened(0.35)
+	return Color(1.0, 0.98, 0.92)

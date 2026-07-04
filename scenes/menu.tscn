@@ -109,6 +109,17 @@ theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
 text = "Settings"
 
+[node name="ExitButton" type="Button" parent="CenterContainer/VBoxContainer"]
+custom_minimum_size = Vector2(240, 48)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_colors/font_color = Color(1, 0.82, 0.82, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
+text = "Exit"
+
 [node name="SettingsPanel" parent="." instance=ExtResource("2_settings")]
 
 [node name="LobbyPanel" parent="." instance=ExtResource("3_lobby")]

@@ -140,6 +140,11 @@ func set_flashlight_enabled(active: bool) -> void:
 		_wand.set_flashlight_enabled(active)
 
 
+func set_flame_glow_enabled(active: bool) -> void:
+	if _wand != null:
+		_wand.set_flame_glow_enabled(active)
+
+
 func launch_fireball() -> void:
 	launch_fireball_from_params(_aim_fireball_origin(), _aim_fireball_direction())
 
@@ -249,6 +254,7 @@ func _on_wand_cast_failed(
 	if _casting_session.is_tome_teaching():
 		return
 	_wand.play_fizzle()
+
 
 
 func _separate_from_players() -> void:

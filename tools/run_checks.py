@@ -127,27 +127,37 @@ def _read_versions_env(key: str) -> str:
     return ""
 
 
+def _resolve_godot_executable(candidate: Path) -> Path | None:
+    if candidate.is_file():
+        return candidate
+    if candidate.suffix.lower() == ".exe":
+        console = candidate.with_name(f"{candidate.stem}_console{candidate.suffix}")
+        if console.is_file():
+            return console
+    return None
+
+
 def _find_godot() -> Path | None:
     env_path = os.environ.get("GODOT_PATH", "").strip()
     if env_path:
-        candidate = Path(env_path)
-        if candidate.exists():
-            return candidate
+        resolved = _resolve_godot_executable(Path(env_path))
+        if resolved is not None:
+            return resolved
 
     pinned_win = _read_versions_env("GODOT_EDITOR_WIN")
     if pinned_win:
-        candidate = Path(pinned_win)
-        if candidate.exists():
-            return candidate
+        resolved = _resolve_godot_executable(Path(pinned_win))
+        if resolved is not None:
+            return resolved
 
     settings_path = ROOT / ".vscode" / "settings.json"
     if settings_path.exists():
         data = json.loads(settings_path.read_text(encoding="utf-8"))
         editor_path = data.get("godotTools.editorPath", "")
         if editor_path:
-            candidate = Path(str(editor_path))
-            if candidate.exists():
-                return candidate
+            resolved = _resolve_godot_executable(Path(str(editor_path)))
+            if resolved is not None:
+                return resolved
 
     which_godot = shutil.which("godot")
     if which_godot:
@@ -155,15 +165,39 @@ def _find_godot() -> Path | None:
     return None
 
 
+def _venv_scripts_dir() -> Path | None:
+    if sys.platform == "win32":
+        candidate = ROOT / ".venv" / "Scripts"
+    else:
+        candidate = ROOT / ".venv" / "bin"
+    return candidate if candidate.is_dir() else None
+
+
+def _project_python() -> Path:
+    if sys.platform == "win32":
+        candidate = ROOT / ".venv" / "Scripts" / "python.exe"
+    else:
+        candidate = ROOT / ".venv" / "bin" / "python"
+    if candidate.is_file():
+        return candidate
+    return Path(sys.executable)
+
+
 def _find_gdlint() -> Path:
+    search_dirs: list[Path] = []
     scripts_dir = subprocess.check_output(
-        [sys.executable, "-c", "import sysconfig; print(sysconfig.get_path('scripts'))"],
+        [_project_python(), "-c", "import sysconfig; print(sysconfig.get_path('scripts'))"],
         text=True,
     ).strip()
-    for name in ("gdlint.exe", "gdlint"):
-        candidate = Path(scripts_dir) / name
-        if candidate.exists():
-            return candidate
+    search_dirs.append(Path(scripts_dir))
+    venv_scripts = _venv_scripts_dir()
+    if venv_scripts is not None:
+        search_dirs.append(venv_scripts)
+    for directory in search_dirs:
+        for name in ("gdlint.exe", "gdlint"):
+            candidate = directory / name
+            if candidate.exists():
+                return candidate
     raise FileNotFoundError(
         "gdlint not found. Install with: make setup-dev"
     )
@@ -302,6 +336,12 @@ def run_tests() -> tuple[int, str]:
 
 def run_voice_addon_tests() -> tuple[int, str]:
     """Run godot-steam-voice tests from vendor clone (GdUnit4, no Friend Slop deps)."""
+    if _godot_editor_running():
+        return 0, (
+            "Skipping godot-steam-voice tests while the Godot editor is open "
+            "(avoids GDExtension/autoload conflicts)."
+        )
+
     if not VOICE_ADDON_TEST_RUNNER.is_file():
         sync_script = ROOT / "tools" / "sync_godot_steam_voice.py"
         if sync_script.is_file():

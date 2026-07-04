@@ -32,7 +32,7 @@ func _ready() -> void:
 
 
 func get_resolution_presets() -> Array[Vector2i]:
-	return DisplayResolutionPresetsScript.PRESETS.duplicate()
+	return DisplayResolutionPresetsScript.build_presets(Vector2i(window_width, window_height))
 
 
 func set_window_resolution(width: int, height: int) -> void:
@@ -42,41 +42,77 @@ func set_window_resolution(width: int, height: int) -> void:
 
 
 func set_window_resolution_preset_index(index: int) -> void:
-	var size := DisplayResolutionPresetsScript.get_preset(index)
+	var current := Vector2i(window_width, window_height)
+	var size := DisplayResolutionPresetsScript.get_preset(index, current)
 	window_width = size.x
 	window_height = size.y
 
 
 func get_window_resolution_preset_index() -> int:
-	return DisplayResolutionPresetsScript.find_preset_index(
-		Vector2i(window_width, window_height)
-	)
+	var current := Vector2i(window_width, window_height)
+	return DisplayResolutionPresetsScript.find_preset_index(current, current)
+
+
+func is_running_embedded_in_editor() -> bool:
+	return Engine.is_embedded_in_editor()
 
 
 func apply_display_settings() -> void:
 	if not is_inside_tree() or DisplayServer.get_name() == "headless":
 		return
+	if Engine.is_embedded_in_editor():
+		return
 	call_deferred("_deferred_apply_window_size", Vector2i(window_width, window_height))
 
 
 func _deferred_apply_window_size(target: Vector2i) -> void:
+	if Engine.is_embedded_in_editor():
+		return
 	var window := get_tree().root as Window
 	if window == null:
 		return
-	window.unresizable = false
 	_ensure_windowed(window)
-	window.content_scale_size = target
+	_configure_root_window(window)
+	window.content_scale_size = Vector2i.ZERO
 	DisplayServer.window_set_size(target)
 	window.size = target
+	DisplayServer.window_set_min_size(Vector2i(640, 360))
+	_center_window(target)
+
+
+func _configure_root_window(window: Window) -> void:
+	window.borderless = false
+	window.unresizable = false
+	window.popup_window = false
+	window.extend_to_title = false
+	window.exclusive = false
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_POPUP, false)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_EXTEND_TO_TITLE, false)
+
+
+func _center_window(size: Vector2i) -> void:
+	var screen_id := DisplayServer.window_get_current_screen()
+	if screen_id < 0:
+		screen_id = DisplayServer.get_primary_screen()
+	var screen_origin := DisplayServer.screen_get_position(screen_id)
+	var screen_size := DisplayServer.screen_get_size(screen_id)
+	var window_pos := screen_origin + (screen_size - size) / 2
+	DisplayServer.window_set_position(window_pos)
 
 
 func load_settings() -> void:
 	var config := ConfigFile.new()
 	if config.load(SETTINGS_PATH) != OK:
+		_apply_native_default_window_size()
 		return
 
 	window_width = int(config.get_value("display", "window_width", window_width))
 	window_height = int(config.get_value("display", "window_height", window_height))
+	if window_width <= 0 or window_height <= 0:
+		_apply_native_default_window_size()
+		return
 	var normalized := DisplayResolutionPresetsScript.normalize_size(
 		Vector2i(window_width, window_height)
 	)
@@ -216,3 +252,9 @@ func _ensure_windowed(window: Window) -> void:
 			or mode == DisplayServer.WINDOW_MODE_MAXIMIZED:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 		window.mode = Window.MODE_WINDOWED
+
+
+func _apply_native_default_window_size() -> void:
+	var native := DisplayResolutionPresetsScript.get_default_monitor_size()
+	window_width = native.x
+	window_height = native.y
