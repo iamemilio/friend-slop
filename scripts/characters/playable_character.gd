@@ -44,7 +44,7 @@ var _casting_lmb_held := false
 @onready var head: Node3D = %Head
 @onready var camera_pivot: Node3D = %CameraPivot
 @onready var first_person_camera: Camera3D = %FirstPersonCamera
-@onready var third_person_anchor: Node3D = %ThirdPersonAnchor
+@onready var third_person_rig: Node3D = %ThirdPersonRig
 @onready var third_person_camera: Camera3D = %ThirdPersonCamera
 @onready var spell_loadout: Node = %CharacterSpellLoadout
 @onready var casting_session: SpellCastingSession = %SpellCastingSession
@@ -63,7 +63,7 @@ func _ready() -> void:
 	_configure_collision()
 	_character_color = GameState.get_snail_color(player_index)
 	_apply_character_color(_character_color)
-	_configure_network_player()
+	_configure_view_camera()
 
 
 func _configure_collision() -> void:
@@ -77,14 +77,11 @@ func _configure_collision() -> void:
 	_body_collision.position.y = bottom_y + body_capsule.radius + body_capsule.height * 0.5
 
 
-func _configure_network_player() -> void:
-	if is_multiplayer_authority():
+func _configure_view_camera() -> void:
+	if _is_view_owner():
 		_third_person = SettingsManager.start_third_person
-		_apply_camera_mode()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	else:
-		first_person_camera.current = false
-		third_person_camera.current = false
+	_sync_view_camera()
 
 
 func initialize_player(index: int) -> void:
@@ -201,7 +198,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_third_person = not _third_person
 		if _third_person:
 			camera_pivot.rotation.x = 0.0
-		_apply_camera_mode()
+		_sync_view_camera()
 
 	if event.is_action_pressed("spellbook"):
 		if _casting_session != null \
@@ -259,7 +256,14 @@ func _on_wand_cast_failed(
 	_wand.play_fizzle()
 
 
-func _apply_camera_mode() -> void:
+func _sync_view_camera() -> void:
+	var mine := _is_view_owner()
+	first_person_camera.enabled = mine
+	third_person_camera.enabled = mine
+	if not mine:
+		first_person_camera.current = false
+		third_person_camera.current = false
+		return
 	first_person_camera.current = not _third_person
 	third_person_camera.current = _third_person
 	if _third_person:
@@ -267,29 +271,32 @@ func _apply_camera_mode() -> void:
 
 
 func refresh_camera_after_spawn() -> void:
-	_apply_camera_mode()
+	_sync_view_camera()
+
+
+func _is_view_owner() -> bool:
+	if not multiplayer.has_multiplayer_peer():
+		return true
+	return is_multiplayer_authority()
 
 
 func _update_third_person_camera() -> void:
-	third_person_anchor.rotation.y = head.rotation.y
-
-	var origin := third_person_anchor.global_position
-	var desired := third_person_anchor.to_global(
-		Vector3(0.0, THIRD_PERSON_HEIGHT, THIRD_PERSON_DISTANCE)
-	)
+	var local_offset := Vector3(0.0, THIRD_PERSON_HEIGHT, THIRD_PERSON_DISTANCE)
+	var origin := third_person_rig.global_position
+	var desired := third_person_rig.to_global(local_offset)
 
 	var space_state := get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(origin, desired)
 	query.exclude = [get_rid()]
 	var hit := space_state.intersect_ray(query)
 
-	if hit.is_empty():
-		third_person_camera.global_position = desired
-	else:
+	var resolved := desired
+	if not hit.is_empty():
 		var direction := (desired - origin).normalized()
-		third_person_camera.global_position = hit.position - direction * THIRD_PERSON_WALL_PADDING
+		resolved = hit.position - direction * THIRD_PERSON_WALL_PADDING
 
-	var look_at_point := third_person_anchor.to_global(
+	third_person_camera.position = third_person_rig.to_local(resolved)
+	var look_at_point := third_person_rig.to_global(
 		Vector3(0.0, 0.0, -THIRD_PERSON_LOOK_AHEAD)
 	)
 	third_person_camera.look_at(look_at_point, Vector3.UP)
