@@ -87,6 +87,27 @@ theme_override_constants/margin_bottom = 8
 layout_mode = 2
 theme_override_constants/separation = 14
 
+[node name="DisplayHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Display"
+
+[node name="ResolutionLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Resolution"
+
+[node name="ResolutionOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="ResolutionHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "Resize the game window. Fullscreen is exited automatically when applying a preset."
+
 [node name="CameraHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
@@ -247,12 +268,17 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
 text = "Spawn relic near player start (testing)"
 
+[node name="DevAllowAnyLobbySizeCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.65, 0.82, 1)
+text = "Allow any lobby size in multiplayer (testing)"
+
 [node name="DevHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
-text = "Saved locally. Solo Game uses the role above; multiplayer is unchanged."
+text = "Saved locally. Solo Game uses the role above; lobby size override applies to multiplayer host."
 
 [node name="CloseButton" type="Button" parent="Panel/MarginContainer/VBox"]
 custom_minimum_size = Vector2(0, 44)
