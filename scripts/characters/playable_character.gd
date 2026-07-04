@@ -61,6 +61,10 @@ func _ready() -> void:
 	_setup_view_camera()
 
 
+func _exit_tree() -> void:
+	NetworkManager.disable_player_sync(self)
+
+
 func _setup_view_camera() -> void:
 	if _uses_local_view():
 		_view_camera.current = true

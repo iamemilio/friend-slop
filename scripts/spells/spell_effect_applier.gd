@@ -28,6 +28,8 @@ func cast_spell(player: CharacterBody3D, spell: SpellDefinition) -> void:
 	if not GameState.is_multiplayer:
 		SyncScript.apply(player, params)
 		return
+	if not MatchStateManager.allows_gameplay_actions():
+		return
 	var wire_params := SyncScript.pack_for_network(params)
 	if wire_params.is_empty():
 		return

@@ -15,6 +15,12 @@ enum Phase {
 	COMPLETE = 2,
 }
 
+enum NetworkOp {
+	REQUEST_INTERACT,
+	BROADCAST_STATE,
+	BROADCAST_PING,
+}
+
 
 static func pack_snapshot(
 	phase: int,

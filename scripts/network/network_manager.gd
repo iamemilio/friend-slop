@@ -13,6 +13,7 @@ signal lobby_roles_changed
 signal lobby_character_configs_changed
 signal session_ended(reason: String)
 signal steam_lobby_invite_received(lobby_id: int)
+signal players_spawned
 
 const APPRENTICE_SCENE := preload("res://scenes/characters/apprentice.tscn")
 const WARDEN_SCENE := preload("res://scenes/characters/warden.tscn")
@@ -20,15 +21,12 @@ const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_con
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
-const STEAM_ADD_PEER_MAX_ATTEMPTS := 8
-const STEAM_ADD_PEER_RETRY_SEC := 0.25
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
 var lobby: LobbyMatchState = LobbyMatchState.new()
 
 var _transport_ready: bool = false
-var _steam_peer_add_attempts: Dictionary = {}
 
 
 func _ready() -> void:
@@ -39,8 +37,6 @@ func _ready() -> void:
 	if SteamService.lobby_invite_received.is_connected(_on_steam_lobby_invite_received):
 		SteamService.lobby_invite_received.disconnect(_on_steam_lobby_invite_received)
 	SteamService.lobby_invite_received.connect(_on_steam_lobby_invite_received)
-	SteamService.lobby_member_joined.connect(_on_steam_lobby_member_joined)
-	became_host.connect(_on_became_host_sync_steam_peers)
 
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -206,7 +202,6 @@ func start_game() -> void:
 
 func disconnect_session() -> void:
 	is_session_active = false
-	_steam_peer_add_attempts.clear()
 	lobby.reset()
 	MatchStateManager.reset()
 	TrailRegistry.reset()
@@ -218,8 +213,7 @@ func spawn_players(
 	players_root: Node3D,
 	configure_local_player: Callable
 ) -> void:
-	for child in players_root.get_children():
-		child.queue_free()
+	_clear_player_nodes(players_root)
 
 	if not GameState.is_multiplayer:
 		var solo_player := _instantiate_player_for_peer(1)
@@ -227,10 +221,26 @@ func spawn_players(
 		players_root.add_child(solo_player)
 		solo_player.initialize_player(0)
 		configure_local_player.call(solo_player)
+		players_spawned.emit()
 		return
 
+	call_deferred("_spawn_multiplayer_players", players_root, configure_local_player)
+
+
+func _clear_player_nodes(players_root: Node3D) -> void:
+	for child in players_root.get_children():
+		disable_player_sync(child)
+		players_root.remove_child(child)
+		child.queue_free()
+
+
+func _spawn_multiplayer_players(
+	players_root: Node3D,
+	configure_local_player: Callable
+) -> void:
 	for peer_id in get_lobby_peer_ids():
 		spawn_player_for_peer(peer_id, players_root, configure_local_player)
+	players_spawned.emit()
 
 
 func spawn_player_for_peer(
@@ -244,7 +254,7 @@ func spawn_player_for_peer(
 	var player := _instantiate_player_for_peer(peer_id)
 	player.name = str(peer_id)
 	player.set_multiplayer_authority(peer_id)
-	players_root.add_child(player)
+	players_root.add_child(player, true)
 	player.initialize_player(get_player_index_for_peer(peer_id))
 	if peer_id == multiplayer.get_unique_id():
 		configure_local_player.call(player)
@@ -323,7 +333,7 @@ func request_spell_cast(spell_id: String, params: Dictionary) -> void:
 
 
 func broadcast_spell_cast(caster_peer_id: int, spell_id: String, params: Dictionary) -> void:
-	if not GameState.is_multiplayer:
+	if not GameState.is_multiplayer or not MatchStateManager.allows_gameplay_actions():
 		return
 	if multiplayer.is_server():
 		var wire_params := _prepare_spell_cast_wire(caster_peer_id, spell_id, params)
@@ -347,20 +357,84 @@ func _prepare_spell_cast_wire(
 
 @rpc("authority", "call_local", "reliable")
 func _execute_spell_cast(caster_peer_id: int, spell_id: String, params: Dictionary) -> void:
-	var main := get_tree().current_scene
-	if main != null and main.has_method("apply_synced_spell_cast"):
-		main.apply_synced_spell_cast(caster_peer_id, spell_id, params)
+	_forward_to_main("apply_synced_spell_cast", [caster_peer_id, spell_id, params])
+
+
+func request_match_victory(winner_peer_id: int) -> void:
+	if not MatchStateManager.allows_gameplay_actions():
+		return
+	if multiplayer.is_server():
+		_rpc_match_victory.rpc(winner_peer_id)
+	else:
+		_request_match_victory.rpc_id(1, winner_peer_id)
+
+
+func relay_delivery_objective(op: int, payload: Variant = null) -> void:
+	if not MatchStateManager.allows_gameplay_actions():
+		return
+	match op:
+		DeliveryObjectiveSync.NetworkOp.REQUEST_INTERACT:
+			_request_delivery_objective_interact.rpc_id(1, int(payload))
+		DeliveryObjectiveSync.NetworkOp.BROADCAST_STATE:
+			if not multiplayer.is_server():
+				return
+			_rpc_delivery_objective_state.rpc(payload as Dictionary)
+		DeliveryObjectiveSync.NetworkOp.BROADCAST_PING:
+			if not multiplayer.is_server():
+				return
+			_rpc_delivery_objective_ping.rpc()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_delivery_objective_interact(action: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var actor_peer_id := multiplayer.get_remote_sender_id()
+	_forward_to_main(
+		"apply_delivery_objective_network",
+		[DeliveryObjectiveSync.NetworkOp.REQUEST_INTERACT, [actor_peer_id, action]]
+	)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_delivery_objective_state(data: Dictionary) -> void:
+	_forward_to_main(
+		"apply_delivery_objective_network",
+		[DeliveryObjectiveSync.NetworkOp.BROADCAST_STATE, data]
+	)
+
+
+@rpc("authority", "call_local", "unreliable")
+func _rpc_delivery_objective_ping() -> void:
+	_forward_to_main(
+		"apply_delivery_objective_network",
+		[DeliveryObjectiveSync.NetworkOp.BROADCAST_PING, null]
+	)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_match_victory(winner_peer_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	_rpc_match_victory.rpc(winner_peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_match_victory(winner_peer_id: int) -> void:
+	_forward_to_main("trigger_match_victory", [winner_peer_id])
 
 
 @rpc("any_peer", "call_remote", "unreliable")
-func submit_trail_sample(seq: int, x: float, z: float) -> void:
-	if not multiplayer.is_server():
+func _submit_trail_sample(seq: int, x: float, z: float) -> void:
+	if not multiplayer.is_server() or not MatchStateManager.allows_gameplay_actions():
 		return
 	TrailRegistry.host_accept_sample(multiplayer.get_remote_sender_id(), seq, x, z)
 
 
 @rpc("authority", "call_local", "unreliable")
-func broadcast_trail_sample(peer_id: int, seq: int, x: float, z: float, time_msec: int) -> void:
+func _broadcast_trail_sample(peer_id: int, seq: int, x: float, z: float, time_msec: int) -> void:
+	if not MatchStateManager.allows_gameplay_actions():
+		return
 	TrailRegistry.client_apply_sample(peer_id, seq, x, z, time_msec)
 
 
@@ -382,18 +456,6 @@ func _on_steam_lobby_invite_received(lobby_id: int) -> void:
 	steam_lobby_invite_received.emit(lobby_id)
 
 
-func _on_became_host_sync_steam_peers(_room_code: String) -> void:
-	call_deferred("_sync_steam_lobby_peers")
-
-
-func _on_steam_lobby_member_joined(steam_id: int) -> void:
-	if not is_host():
-		return
-	if steam_id == SteamService.get_steam_id():
-		return
-	call_deferred("_try_add_steam_peer", steam_id)
-
-
 func _sync_steam_lobby_peers() -> void:
 	if not is_host():
 		return
@@ -410,37 +472,30 @@ func _sync_steam_lobby_peers() -> void:
 
 func _try_add_steam_peer(steam_id: int) -> void:
 	if not is_host() or not is_session_active:
-		_steam_peer_add_attempts.erase(steam_id)
 		return
 	var mp_peer := multiplayer.multiplayer_peer
 	if mp_peer == null or not mp_peer.has_method("add_peer"):
 		TomeDebug.log("NetworkManager", "Cannot add Steam peer %s — multiplayer peer missing" % steam_id)
 		return
+	if _steam_peer_has_mapping(mp_peer, steam_id):
+		return
 	if _steam_peer_already_connected(mp_peer, steam_id):
-		_steam_peer_add_attempts.erase(steam_id)
 		return
 	var err: Error = mp_peer.call("add_peer", steam_id, 0)
 	if err == OK:
-		_steam_peer_add_attempts.erase(steam_id)
 		TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
-		return
-	if err == ERR_CANT_CREATE:
-		var attempts: int = int(_steam_peer_add_attempts.get(steam_id, 0)) + 1
-		_steam_peer_add_attempts[steam_id] = attempts
-		if attempts <= STEAM_ADD_PEER_MAX_ATTEMPTS:
-			get_tree().create_timer(STEAM_ADD_PEER_RETRY_SEC).timeout.connect(
-				func() -> void:
-					_try_add_steam_peer(steam_id),
-				CONNECT_ONE_SHOT
-			)
-		else:
-			_steam_peer_add_attempts.erase(steam_id)
-			TomeDebug.log(
-				"NetworkManager",
-				"add_peer steam_id=%s failed after %s attempts" % [steam_id, attempts]
-			)
-		return
-	TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
+	elif err == ERR_CANT_CREATE:
+		# Client likely has not finished connect_to_lobby yet, or already connected
+		# inbound — a duplicate outbound add_peer is invalid. Skip noisy retries.
+		pass
+	else:
+		TomeDebug.log("NetworkManager", "add_peer steam_id=%s err=%s" % [steam_id, err])
+
+
+func _steam_peer_has_mapping(mp_peer: Object, steam_id: int) -> bool:
+	if not mp_peer.has_method("get_peer_id_for_steam_id"):
+		return false
+	return int(mp_peer.call("get_peer_id_for_steam_id", steam_id)) != 0
 
 
 func _steam_peer_already_connected(mp_peer: Object, steam_id: int) -> bool:
@@ -518,6 +573,29 @@ func _pack_character_configs_for_current_peers() -> Dictionary:
 		lobby.character_configs,
 		get_lobby_peer_ids()
 	)
+
+
+static func set_player_sync_enabled(player_root: Node, enabled: bool) -> void:
+	var sync := player_root.get_node_or_null("MultiplayerSynchronizer") as MultiplayerSynchronizer
+	if sync != null:
+		sync.public_visibility = enabled
+
+
+static func set_players_sync_enabled(players_root: Node3D, enabled: bool) -> void:
+	for child in players_root.get_children():
+		set_player_sync_enabled(child, enabled)
+
+
+static func disable_player_sync(player_root: Node) -> void:
+	set_player_sync_enabled(player_root, false)
+
+
+func _forward_to_main(method: StringName, args: Array = []) -> void:
+	if not MatchStateManager.allows_gameplay_actions():
+		return
+	var main := get_tree().current_scene
+	if main != null and main.has_method(method):
+		main.callv(method, args)
 
 
 func _instantiate_player_for_peer(peer_id: int) -> CharacterBody3D:

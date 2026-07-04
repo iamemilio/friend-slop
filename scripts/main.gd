@@ -11,6 +11,7 @@ var _maze_exit_cell: Vector2i = Vector2i(-1, -1)
 var _maze_layout_ready: bool = false
 var _players_spawned: bool = false
 var _discoverables_spawned: bool = false
+var _match_subsystems_active: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
 @onready var moon: Moon = $Moon
@@ -33,6 +34,7 @@ func _ready() -> void:
 	pause_menu.quit_to_menu_requested.connect(_on_quit_to_menu)
 
 	if GameState.is_multiplayer:
+		MatchStateManager.snapshot_changed.connect(_on_match_snapshot_changed)
 		multiplayer.peer_connected.connect(_on_peer_connected)
 		var role_name := RoleAssignment.role_label(GameState.get_local_role())
 		var phase_name := MatchState.phase_to_string(MatchStateManager.get_phase())
@@ -51,10 +53,27 @@ func _ready() -> void:
 		players_root,
 		_configure_local_player
 	)
+	await NetworkManager.players_spawned
 	_players_spawned = true
-	if GameState.is_multiplayer:
-		call_deferred("_start_proximity_voice")
 	_finish_match_layout()
+
+
+func _on_match_snapshot_changed(_snapshot: Dictionary) -> void:
+	_apply_match_gameplay_state()
+
+
+func _apply_match_gameplay_state() -> void:
+	if not GameState.is_multiplayer or not _players_spawned:
+		return
+	var enable := MatchStateManager.is_gameplay_active()
+	if enable == _match_subsystems_active:
+		return
+	_match_subsystems_active = enable
+	NetworkManager.set_players_sync_enabled(players_root, enable)
+	if enable:
+		SteamProximityVoiceHub.start_session()
+	else:
+		SteamProximityVoiceHub.stop_session()
 
 
 func _ensure_speech_stt_ready() -> void:
@@ -77,10 +96,6 @@ func _ensure_speech_stt_ready() -> void:
 
 func _apply_voice_settings() -> void:
 	voice_validator.use_stub = SettingsManager.voice_use_stub
-
-
-func _start_proximity_voice() -> void:
-	SteamProximityVoiceHub.start_session()
 
 
 func _configure_local_player(player: CharacterBody3D) -> void:
@@ -120,16 +135,12 @@ func _on_peer_connected(peer_id: int) -> void:
 		players_root,
 		_configure_local_player
 	)
-	if GameState.is_multiplayer:
-		call_deferred("_start_proximity_voice")
 
 
 func _on_quit_to_menu() -> void:
 	SettingsManager.stop_mic_test()
-	SteamProximityVoiceHub.stop_session()
 	NetworkManager.disconnect_session()
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file("res://scenes/menu.tscn")
+	_leave_match_scene("res://scenes/menu.tscn")
 
 
 func _on_maze_ready(
@@ -213,6 +224,10 @@ func _finish_match_layout() -> void:
 		Callable(maze, "cell_to_world"),
 		wall_grid
 	)
+
+
+func apply_delivery_objective_network(op: int, payload: Variant = null) -> void:
+	delivery_objective.apply_network_op(op, payload)
 
 
 func _get_casting_session() -> SpellCastingSession:
@@ -390,31 +405,33 @@ func _on_exit_reached(player: Node3D) -> void:
 		return
 	if GameState.is_multiplayer:
 		if player.is_multiplayer_authority():
-			_report_race_won.rpc_id(1, multiplayer.get_unique_id())
+			NetworkManager.request_match_victory(multiplayer.get_unique_id())
 		return
 	_trigger_victory()
 
 
-@rpc("any_peer", "call_local", "reliable")
-func _report_race_won(winner_peer_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-	_broadcast_victory.rpc(winner_peer_id)
-
-
-@rpc("authority", "call_local", "reliable")
-func _broadcast_victory(winner_peer_id: int) -> void:
+func trigger_match_victory(winner_peer_id: int) -> void:
 	if _game_won:
 		return
 	_game_won = true
 	if winner_peer_id == multiplayer.get_unique_id():
 		GameState.local_player_form = GameState.PlayerForm.HUMAN
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		get_tree().change_scene_to_file("res://scenes/victory.tscn")
+	_teardown_match_subsystems()
+	_leave_match_scene("res://scenes/victory.tscn")
 
 
 func _trigger_victory() -> void:
-	_game_won = true
-	GameState.local_player_form = GameState.PlayerForm.HUMAN
+	trigger_match_victory(1)
+
+
+func _teardown_match_subsystems() -> void:
+	if not _match_subsystems_active:
+		return
+	_match_subsystems_active = false
+	NetworkManager.set_players_sync_enabled(players_root, false)
+	SteamProximityVoiceHub.stop_session()
+
+
+func _leave_match_scene(scene_path: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file("res://scenes/victory.tscn")
+	get_tree().call_deferred("change_scene_to_file", scene_path)

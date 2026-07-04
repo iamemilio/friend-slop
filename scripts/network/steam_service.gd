@@ -264,6 +264,8 @@ func _on_lobby_chat_update(
 		return
 	if change_id == 0:
 		return
+	if is_ready():
+		_steam_call("acceptP2PSessionWithUser", [change_id])
 	lobby_member_joined.emit(change_id)
 
 

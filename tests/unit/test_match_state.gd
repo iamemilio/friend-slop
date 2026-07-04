@@ -11,6 +11,7 @@ func run() -> int:
 	failures += _test_create_initial_briefing()
 	failures += _test_phase_transitions()
 	failures += _test_invalid_transition_rejected()
+	failures += _test_gameplay_and_teardown_phases()
 	failures += _test_snapshot_round_trip()
 	return failures
 
@@ -52,6 +53,25 @@ func _test_invalid_transition_rejected() -> int:
 	state.phase = MatchStateScript.Phase.ENDED
 	if state.transition_to(MatchStateScript.Phase.ACTIVE) == OK:
 		push_error("Expected ENDED -> ACTIVE to be rejected")
+		return 1
+	return 0
+
+
+func _test_gameplay_and_teardown_phases() -> int:
+	if not MatchStateScript.is_gameplay_phase(MatchStateScript.Phase.ACTIVE):
+		push_error("Expected ACTIVE to be a gameplay phase")
+		return 1
+	if MatchStateScript.is_gameplay_phase(MatchStateScript.Phase.BRIEFING):
+		push_error("Expected BRIEFING not to be a gameplay phase")
+		return 1
+	if not MatchStateScript.is_teardown_phase(MatchStateScript.Phase.ENDED):
+		push_error("Expected ENDED to be a teardown phase")
+		return 1
+	if not MatchStateScript.is_teardown_phase(MatchStateScript.Phase.RESOLVING):
+		push_error("Expected RESOLVING to be a teardown phase")
+		return 1
+	if MatchStateScript.is_teardown_phase(MatchStateScript.Phase.ACTIVE):
+		push_error("Expected ACTIVE not to be a teardown phase")
 		return 1
 	return 0
 

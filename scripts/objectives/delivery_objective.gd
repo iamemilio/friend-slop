@@ -121,7 +121,10 @@ func _process(delta: float) -> void:
 	if _ping_timer >= PING_INTERVAL_SEC:
 		_ping_timer = 0.0
 		if GameState.is_multiplayer:
-			_rpc_play_ping.rpc()
+			if MatchStateManager.allows_gameplay_actions():
+				NetworkManager.relay_delivery_objective(
+					DeliveryObjectiveSync.NetworkOp.BROADCAST_PING
+				)
 		else:
 			_play_ping()
 
@@ -169,6 +172,8 @@ func _try_interact_local(player: Node) -> bool:
 
 
 func _try_interact_multiplayer(player: Node) -> bool:
+	if not MatchStateManager.allows_gameplay_actions():
+		return false
 	if not player.is_multiplayer_authority():
 		return false
 	var actor_peer_id := _peer_id_for_player(player)
@@ -185,7 +190,10 @@ func _try_interact_multiplayer(player: Node) -> bool:
 		return false
 	if multiplayer.is_server():
 		return _host_apply_action(actor_peer_id, action, player.global_position)
-	_request_interact.rpc_id(1, action)
+	NetworkManager.relay_delivery_objective(
+		DeliveryObjectiveSync.NetworkOp.REQUEST_INTERACT,
+		action
+	)
 	return false
 
 
@@ -209,7 +217,8 @@ func _host_apply_action(actor_peer_id: int, action: int, _client_pos: Vector3) -
 	)
 	if result.is_empty():
 		return false
-	_rpc_apply_state.rpc(
+	NetworkManager.relay_delivery_objective(
+		DeliveryObjectiveSync.NetworkOp.BROADCAST_STATE,
 		DeliveryObjectiveSync.pack_snapshot(
 			int(result.get("phase", state.phase)),
 			int(result.get("carrier_peer_id", -1)),
@@ -217,6 +226,17 @@ func _host_apply_action(actor_peer_id: int, action: int, _client_pos: Vector3) -
 		)
 	)
 	return true
+
+
+func apply_network_op(op: int, payload: Variant = null) -> void:
+	match op:
+		DeliveryObjectiveSync.NetworkOp.REQUEST_INTERACT:
+			var interact := payload as Array
+			_host_apply_action(int(interact[0]), int(interact[1]), Vector3.ZERO)
+		DeliveryObjectiveSync.NetworkOp.BROADCAST_STATE:
+			_apply_synced_state(DeliveryObjectiveSync.unpack_snapshot(payload as Dictionary))
+		DeliveryObjectiveSync.NetworkOp.BROADCAST_PING:
+			_play_ping()
 
 
 func _apply_synced_state(result: Dictionary) -> void:
@@ -267,25 +287,6 @@ func _find_player(peer_id: int) -> Node3D:
 		if node is Node3D and int(node.get_multiplayer_authority()) == peer_id:
 			return node as Node3D
 	return null
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _request_interact(action: int) -> void:
-	if not multiplayer.is_server():
-		return
-	var actor_peer_id := multiplayer.get_remote_sender_id()
-	_host_apply_action(actor_peer_id, action, Vector3.ZERO)
-
-
-@rpc("authority", "call_local", "reliable")
-func _rpc_apply_state(data: Dictionary) -> void:
-	var snap := DeliveryObjectiveSync.unpack_snapshot(data)
-	_apply_synced_state(snap)
-
-
-@rpc("authority", "call_local", "reliable")
-func _rpc_play_ping() -> void:
-	_play_ping()
 
 
 func _cell_center(cell: Vector2i) -> Vector3:

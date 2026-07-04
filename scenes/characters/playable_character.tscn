@@ -75,4 +75,5 @@ script = ExtResource("4_effects")
 
 [node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
 root_path = NodePath("..")
+public_visibility = false
 replication_config = SubResource("SceneReplicationConfig_player")
