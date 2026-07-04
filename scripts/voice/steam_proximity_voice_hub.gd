@@ -35,7 +35,10 @@ func start_session() -> void:
 		return
 	session.start()
 	if session.is_active:
-		TomeDebug.log("Voice", "Proximity voice started — peers=%s" % session.get_session_peers())
+		TomeDebug.log(
+			"Voice",
+			"Proximity voice started — peers=%s" % [session.get_session_peers()]
+		)
 	else:
 		TomeDebug.log("Voice", "Proximity voice failed to start")
 
