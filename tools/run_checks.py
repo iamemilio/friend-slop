@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from restore_extensions import restore_extensions  # noqa: E402
+from restore_extensions import find_godot_binary, sync_extensions  # noqa: E402
 VOICE_LIB_ROOT = ROOT / "vendor" / "godot-steam-voice"
 VOICE_ADDON_TEST_RUNNER = VOICE_LIB_ROOT / "tools" / "run_tests.py"
 VERSIONS_ENV = ROOT / "tools" / "versions.env"
@@ -64,12 +64,12 @@ def _validate_godotsteam() -> str | None:
     return None
 
 
-def _ensure_extensions_restored() -> None:
-    """Recover from older test/import runs that renamed .gdextension files."""
-    restore_extensions()
+def _ensure_extensions_synced() -> None:
+    """Keep GDExtension manifests aligned with the active Godot binary."""
+    sync_extensions(find_godot_binary())
 
 
-atexit.register(_ensure_extensions_restored)
+atexit.register(_ensure_extensions_synced)
 
 
 def _validate_gdvosk_manifest() -> str | None:
@@ -261,7 +261,7 @@ def _godot_editor_running() -> bool:
 def run_tests() -> tuple[int, str]:
     output_lines: list[str] = []
 
-    _ensure_extensions_restored()
+    _ensure_extensions_synced()
 
     if _godot_editor_running():
         message = (
@@ -415,7 +415,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _ensure_extensions_restored()
+    _ensure_extensions_synced()
     args = _parse_args(argv or sys.argv[1:])
     lint = not args.tests_only
     tests = not args.lint_only

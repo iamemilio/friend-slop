@@ -174,8 +174,6 @@ func _finish_match_layout() -> void:
 		var player := players[i]
 		player.global_position = spawn_positions[i]
 		player.velocity = Vector3.ZERO
-		if player is PlayableCharacter:
-			(player as PlayableCharacter).refresh_camera_after_spawn()
 
 	if GameState.is_multiplayer:
 		FriendSlopVoiceAdapter.on_maze_ready(maze)

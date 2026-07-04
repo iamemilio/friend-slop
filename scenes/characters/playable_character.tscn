@@ -57,14 +57,6 @@ unique_name_in_owner = true
 unique_name_in_owner = true
 fov = 75.0
 
-[node name="ThirdPersonRig" type="Node3D" parent="Head"]
-unique_name_in_owner = true
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.18, 0)
-
-[node name="ThirdPersonCamera" type="Camera3D" parent="Head/ThirdPersonRig"]
-unique_name_in_owner = true
-fov = 75.0
-
 [node name="VoiceMember" type="Node" parent="."]
 script = ExtResource("5_voice")
 head_path = NodePath("../Head")

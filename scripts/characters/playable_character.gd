@@ -10,10 +10,6 @@ const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
 const JUMP_VELOCITY := 2.5
 const MOUSE_SENSITIVITY := 0.002
-const THIRD_PERSON_DISTANCE := 3.5
-const THIRD_PERSON_HEIGHT := 2.0
-const THIRD_PERSON_LOOK_AHEAD := 4.0
-const THIRD_PERSON_WALL_PADDING := 0.35
 const INTERACT_RANGE_SQ := 9.0
 const PLAYER_MIN_SEPARATION := 0.55
 const BODY_RADIUS := 0.20
@@ -30,7 +26,6 @@ const WorldVisualLayers := preload("res://scripts/world_visual_layers.gd")
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-var _third_person: bool = false
 var _character_color: Color = Color.WHITE
 var _spell_loadout: Node
 var _casting_session: SpellCastingSession
@@ -43,12 +38,10 @@ var _casting_lmb_held := false
 
 @onready var head: Node3D = %Head
 @onready var camera_pivot: Node3D = %CameraPivot
-@onready var first_person_camera: Camera3D = %FirstPersonCamera
-@onready var third_person_rig: Node3D = %ThirdPersonRig
-@onready var third_person_camera: Camera3D = %ThirdPersonCamera
 @onready var spell_loadout: Node = %CharacterSpellLoadout
 @onready var casting_session: SpellCastingSession = %SpellCastingSession
 @onready var effect_applier: Node = %SpellEffectApplier
+@onready var _view_camera: Camera3D = %FirstPersonCamera
 @onready var _body_mesh: MeshInstance3D = %Body
 @onready var _head_mesh: MeshInstance3D = %HeadMesh
 @onready var _body_collision: CollisionShape3D = %CollisionShape3D
@@ -59,11 +52,27 @@ func _ready() -> void:
 	floor_block_on_wall = false
 	floor_snap_length = 0.15
 	safe_margin = 0.04
-	_wand = get_node_or_null("Head/CameraPivot/FirstPersonCamera/Wand") as PlayerWand
+	_wand = get_node_or_null("Head/CameraPivot/Wand") as PlayerWand
+	if _wand == null:
+		_wand = get_node_or_null("Head/CameraPivot/FirstPersonCamera/Wand") as PlayerWand
 	_configure_collision()
 	_character_color = GameState.get_snail_color(player_index)
 	_apply_character_color(_character_color)
-	_configure_view_camera()
+	_setup_view_camera()
+
+
+func _setup_view_camera() -> void:
+	if _uses_local_view():
+		_view_camera.current = true
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	else:
+		_view_camera.queue_free()
+
+
+func _uses_local_view() -> bool:
+	if not multiplayer.has_multiplayer_peer():
+		return true
+	return is_multiplayer_authority()
 
 
 func _configure_collision() -> void:
@@ -75,13 +84,6 @@ func _configure_collision() -> void:
 	body_capsule.height = maxf(0.08, total_height - body_capsule.radius * 2.0)
 	_body_collision.shape = body_capsule
 	_body_collision.position.y = bottom_y + body_capsule.radius + body_capsule.height * 0.5
-
-
-func _configure_view_camera() -> void:
-	if _is_view_owner():
-		_third_person = SettingsManager.start_third_person
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	_sync_view_camera()
 
 
 func initialize_player(index: int) -> void:
@@ -191,19 +193,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		head.rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
-		if not _third_person:
-			camera_pivot.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
-			camera_pivot.rotation.x = clampf(
-				camera_pivot.rotation.x,
-				deg_to_rad(-70.0),
-				deg_to_rad(70.0)
-			)
-
-	if event.is_action_pressed("toggle_camera"):
-		_third_person = not _third_person
-		if _third_person:
-			camera_pivot.rotation.x = 0.0
-		_sync_view_camera()
+		camera_pivot.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
+		camera_pivot.rotation.x = clampf(
+			camera_pivot.rotation.x,
+			deg_to_rad(-70.0),
+			deg_to_rad(70.0)
+		)
 
 	if event.is_action_pressed("spellbook"):
 		if _casting_session != null \
@@ -260,49 +255,6 @@ func _on_wand_cast_failed(
 		return
 	_wand.play_fizzle()
 
-
-func _sync_view_camera() -> void:
-	var mine := _is_view_owner()
-	if not mine:
-		first_person_camera.current = false
-		third_person_camera.current = false
-		return
-	first_person_camera.current = not _third_person
-	third_person_camera.current = _third_person
-	if _third_person:
-		_update_third_person_camera()
-
-
-func refresh_camera_after_spawn() -> void:
-	_sync_view_camera()
-
-
-func _is_view_owner() -> bool:
-	if not multiplayer.has_multiplayer_peer():
-		return true
-	return is_multiplayer_authority()
-
-
-func _update_third_person_camera() -> void:
-	var local_offset := Vector3(0.0, THIRD_PERSON_HEIGHT, THIRD_PERSON_DISTANCE)
-	var origin := third_person_rig.global_position
-	var desired := third_person_rig.to_global(local_offset)
-
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(origin, desired)
-	query.exclude = [get_rid()]
-	var hit := space_state.intersect_ray(query)
-
-	var resolved := desired
-	if not hit.is_empty():
-		var direction := (desired - origin).normalized()
-		resolved = hit.position - direction * THIRD_PERSON_WALL_PADDING
-
-	third_person_camera.position = third_person_rig.to_local(resolved)
-	var look_at_point := third_person_rig.to_global(
-		Vector3(0.0, 0.0, -THIRD_PERSON_LOOK_AHEAD)
-	)
-	third_person_camera.look_at(look_at_point, Vector3.UP)
 
 
 func _separate_from_players() -> void:
@@ -524,6 +476,3 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 	_separate_from_players()
 	_update_interaction_prompt()
-
-	if _third_person:
-		_update_third_person_camera()
