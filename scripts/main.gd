@@ -20,6 +20,7 @@ var _discoverables_spawned: bool = false
 @onready var game_hud: CanvasLayer = $GameHUD
 @onready var voice_validator = $VoiceSpellValidator
 @onready var pause_menu = $PauseMenu
+@onready var delivery_objective: DeliveryObjective = $DeliveryObjective
 
 
 func _ready() -> void:
@@ -167,6 +168,13 @@ func _finish_match_layout() -> void:
 		FriendSlopVoiceAdapter.on_maze_ready(maze)
 		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
 
+	delivery_objective.setup(
+		maze,
+		_maze_spawn_cell,
+		Callable(maze, "cell_to_world")
+	)
+	game_hud.configure_objective(delivery_objective)
+
 	if _discoverables_spawned or discoverable_spawner.run_config == null:
 		return
 
@@ -205,6 +213,21 @@ func _get_effect_applier() -> Node:
 	if _local_player == null:
 		return null
 	return _local_player.get_effect_applier()
+
+
+func prepare_spell_cast_wire(
+	caster_peer_id: int,
+	spell_id: String,
+	params: Dictionary
+) -> Dictionary:
+	var player := players_root.get_node_or_null(str(caster_peer_id)) as CharacterBody3D
+	var spell := spell_registry.get_spell(spell_id)
+	if spell == null:
+		return {}
+	var resolved := SpellEffectSyncScript.resolve_network_params(spell, player, params)
+	if resolved.is_empty():
+		return {}
+	return SpellEffectSyncScript.pack_for_network(resolved)
 
 
 func apply_synced_spell_cast(

@@ -69,6 +69,13 @@ func _test_regression_editor_keys_prevent_play_in_editor_load() -> int:
 	if issue.is_empty():
 		push_error("Expected upstream manifest to fail validation")
 		return 1
+	var editor_stt_issue := SpellSttConfigScript.get_extension_load_issue(true)
+	if not editor_stt_issue.contains("gdvosk is not loaded in the Godot editor"):
+		push_error(
+			"Expected editor STT preflight guidance when gdvosk fails to load, got: %s"
+			% editor_stt_issue
+		)
+		return 1
 	return 0
 
 

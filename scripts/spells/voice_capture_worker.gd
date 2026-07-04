@@ -68,11 +68,11 @@ func take_samples() -> PackedFloat32Array:
 func _worker_loop() -> void:
 	while true:
 		_mutex.lock()
-		var stop := _stop_requested
+		var should_stop := _stop_requested
 		var chunks: Array = _pending_chunks.duplicate()
 		_pending_chunks.clear()
 		_mutex.unlock()
-		if stop:
+		if should_stop:
 			break
 		for chunk_variant in chunks:
 			if chunk_variant is PackedFloat32Array:

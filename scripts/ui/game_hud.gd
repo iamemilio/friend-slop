@@ -1,23 +1,23 @@
 class_name GameHud
 extends CanvasLayer
 
-## In-game HUD: interaction prompt, spell codex, casting overlay.
+## In-game HUD: spell codex, casting overlay, Tab guide menu.
 
 const SpellDefinitionScript := preload("res://scripts/spells/spell_definition.gd")
 
 var _loadout: Node
 var _selected_spell_id: String = ""
-var _spellbook_open := false
 var _active_spell: Resource
 var _from_tome := false
 var _coaching_countdown := 0.0
 var _active_strip: VBoxContainer
 var _active_rows: Dictionary = {}
+var _guide_open := false
+var _objective_lines: PackedStringArray = PackedStringArray()
+
+@onready var guide_panel: GuidePanel = $GuidePanel
 
 @onready var prompt_label: Label = $MarginContainer/PromptLabel
-@onready var spellbook_panel: PanelContainer = $SpellbookPanel
-@onready var spell_list: ItemList = $SpellbookPanel/MarginContainer/VBox/SpellList
-@onready var spellbook_hint: Label = $SpellbookPanel/MarginContainer/VBox/HintLabel
 @onready var casting_panel: PanelContainer = $CastingPanel
 @onready var casting_title: Label = $CastingPanel/MarginContainer/VBox/TitleLabel
 @onready var casting_words: Label = $CastingPanel/MarginContainer/VBox/WordsLabel
@@ -29,21 +29,74 @@ var _active_rows: Dictionary = {}
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	add_to_group("game_hud")
 	prompt_label.text = ""
-	spellbook_panel.visible = false
+	$MarginContainer.visible = false
 	casting_panel.visible = false
 	mic_level_bar.min_value = 0.0
 	mic_level_bar.max_value = 1.0
 	mic_level_bar.value = 0.0
-	spell_list.item_selected.connect(_on_spell_selected)
+	guide_panel.spell_selected.connect(_on_codex_spell_selected)
 	_setup_active_strip()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("guide_menu"):
+		return
+	toggle_guide_menu()
+	get_viewport().set_input_as_handled()
+
+
+func toggle_guide_menu() -> void:
+	if _guide_open:
+		close_guide_menu()
+	else:
+		_open_guide(GuidePanel.Page.MAIN)
+
+
+func _open_guide(page: GuidePanel.Page = GuidePanel.Page.MAIN) -> void:
+	_guide_open = true
+	guide_panel.visible = true
+	guide_panel.configure_loadout(_loadout)
+	guide_panel.set_selected_spell_id(_selected_spell_id)
+	if page == GuidePanel.Page.CODEX:
+		guide_panel.open_codex()
+	else:
+		guide_panel.reset_to_main()
+	_refresh_guide_content()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func is_guide_open() -> bool:
+	return _guide_open
+
+
+func close_guide_menu() -> void:
+	if not _guide_open:
+		return
+	_guide_open = false
+	guide_panel.visible = false
+	guide_panel.reset_to_main()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func configure_objective(objective: DeliveryObjective) -> void:
+	if objective == null:
+		return
+	if not objective.phase_changed.is_connected(_on_objective_phase_changed):
+		objective.phase_changed.connect(_on_objective_phase_changed)
+	if not objective.completed.is_connected(_on_objective_completed):
+		objective.completed.connect(_on_objective_completed)
+	_refresh_objective_lines(objective)
 
 
 func configure(loadout: Node, casting_session: Node = null) -> void:
 	_loadout = loadout
 	if _loadout != null and _loadout.has_signal("spell_learned"):
 		_loadout.spell_learned.connect(_on_spell_learned)
+	if _loadout != null and _loadout.has_signal("loadout_changed"):
+		_loadout.loadout_changed.connect(_on_loadout_changed)
 	if casting_session != null and casting_session.has_signal("listen_level_changed"):
 		casting_session.listen_level_changed.connect(update_listen_level)
 	if casting_session != null and casting_session.has_signal("listen_coaching_changed"):
@@ -52,29 +105,28 @@ func configure(loadout: Node, casting_session: Node = null) -> void:
 		casting_session.tome_retry_tick.connect(update_tome_coaching_countdown)
 
 
-func set_interaction_prompt(text: String) -> void:
-	prompt_label.text = text
+func set_interaction_prompt(_text: String) -> void:
+	pass
 
 
 func toggle_spellbook() -> void:
-	_spellbook_open = not _spellbook_open
-	spellbook_panel.visible = _spellbook_open
-	if _spellbook_open:
-		_refresh_spell_list()
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if _guide_open and guide_panel.is_codex_view():
+		close_guide_menu()
+	elif _guide_open:
+		guide_panel.open_codex()
+		guide_panel.set_selected_spell_id(_selected_spell_id)
+		_refresh_guide_content()
 	else:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_open_guide(GuidePanel.Page.CODEX)
 
 
 func close_spellbook() -> void:
-	if not _spellbook_open:
-		return
-	_spellbook_open = false
-	spellbook_panel.visible = false
+	if _guide_open and guide_panel.is_codex_view():
+		close_guide_menu()
 
 
 func is_spellbook_open() -> bool:
-	return _spellbook_open
+	return _guide_open and guide_panel.is_codex_view()
 
 
 func get_selected_spell_id() -> String:
@@ -302,59 +354,55 @@ func update_tome_coaching_countdown(seconds_left: float) -> void:
 		casting_detail.text = "\n".join(kept)
 
 
-func _refresh_spell_list() -> void:
-	var previous_selection := _selected_spell_id
-	spell_list.clear()
-	if _loadout == null:
-		_selected_spell_id = ""
-		return
-
-	var known: Array[String] = _loadout.get_known_spell_ids()
-	if known.is_empty():
-		_selected_spell_id = ""
-		spell_list.add_item("(No spells known yet)")
-		spellbook_hint.text = "Find floating tomes in the maze."
-		return
-
-	spellbook_hint.text = "Reference only — hold [LMB], say an incantation, then release."
-	var selected_index := -1
-	for spell_id in known:
-		var spell: Resource = _loadout.get_spell_definition(spell_id)
-		var label: String = spell_id
-		if spell != null:
-			var def := spell as SpellDefinitionScript
-			if def != null:
-				label = "%s — \"%s\"" % [def.display_name, def.get_incantation_text()]
-		spell_list.add_item(label)
-		var item_index := spell_list.item_count - 1
-		spell_list.set_item_metadata(item_index, spell_id)
-		if spell_id == previous_selection:
-			selected_index = item_index
-
-	if selected_index >= 0:
-		spell_list.select(selected_index)
-		_selected_spell_id = previous_selection
-	elif spell_list.item_count > 0:
-		spell_list.select(0)
-		_selected_spell_id = str(spell_list.get_item_metadata(0))
-	else:
-		_selected_spell_id = ""
-
-
-func _on_spell_selected(index: int) -> void:
-	if index < 0:
-		return
-	_selected_spell_id = str(spell_list.get_item_metadata(index))
+func _on_codex_spell_selected(spell_id: String) -> void:
+	_selected_spell_id = spell_id
 
 
 func _on_spell_learned(spell_id: String) -> void:
 	_selected_spell_id = spell_id
-	if _spellbook_open:
-		_refresh_spell_list()
+	if _guide_open:
+		guide_panel.set_selected_spell_id(spell_id)
+		_refresh_guide_content()
 
 
 func _process(_delta: float) -> void:
 	_update_active_strip()
+
+
+func _refresh_guide_content() -> void:
+	guide_panel.refresh(_objective_lines)
+
+
+func _on_loadout_changed() -> void:
+	if _guide_open:
+		guide_panel.configure_loadout(_loadout)
+		_refresh_guide_content()
+
+
+func _on_objective_phase_changed(_phase: int) -> void:
+	_sync_objective_lines_from_scene()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _on_objective_completed() -> void:
+	_sync_objective_lines_from_scene()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _refresh_objective_lines(objective: DeliveryObjective) -> void:
+	_objective_lines = objective.get_status_lines()
+	if _guide_open:
+		_refresh_guide_content()
+
+
+func _sync_objective_lines_from_scene() -> void:
+	var objective := get_tree().get_first_node_in_group("delivery_objective") as DeliveryObjective
+	if objective != null:
+		_objective_lines = objective.get_status_lines()
+	else:
+		_objective_lines = PackedStringArray()
 
 
 func _setup_active_strip() -> void:

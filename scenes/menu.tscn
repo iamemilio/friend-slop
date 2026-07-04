@@ -65,15 +65,6 @@ theme_override_font_sizes/font_size = 48
 text = "FriendSlop"
 horizontal_alignment = 1
 
-[node name="SubtitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
-theme_override_font_sizes/font_size = 16
-text = "Cursed apprentice wizards. Snail form. One maze. First to the crystal wins."
-horizontal_alignment = 1
-autowrap_mode = 2
-custom_minimum_size = Vector2(520, 0)
-
 [node name="StartButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(240, 48)
 layout_mode = 2
@@ -117,13 +108,6 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_button")
 theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
 text = "Settings"
-
-[node name="HintLabel" type="Label" parent="CenterContainer/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
-theme_override_font_sizes/font_size = 13
-text = "Reach the Restoration Crystal to reclaim your human form."
-horizontal_alignment = 1
 
 [node name="SettingsPanel" parent="." instance=ExtResource("2_settings")]
 

@@ -12,12 +12,16 @@ func setup(_tree: SceneTree) -> void:
 
 
 func host(_options: Dictionary) -> Error:
-	push_error("MultiplayerTransport.host() is not implemented.")
+	var message := "MultiplayerTransport.host() is not implemented."
+	push_error(message)
+	status_changed.emit(message)
 	return ERR_UNAVAILABLE
 
 
 func join(_options: Dictionary) -> Error:
-	push_error("MultiplayerTransport.join() is not implemented.")
+	var message := "MultiplayerTransport.join() is not implemented."
+	push_error(message)
+	status_changed.emit(message)
 	return ERR_UNAVAILABLE
 
 

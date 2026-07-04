@@ -26,10 +26,13 @@ func cast_spell(player: CharacterBody3D, spell: SpellDefinition) -> void:
 	if not GameState.is_multiplayer:
 		SyncScript.apply(player, params)
 		return
+	var wire_params := SyncScript.pack_for_network(params)
+	if wire_params.is_empty():
+		return
 	if multiplayer.is_server():
-		NetworkManager.broadcast_spell_cast(multiplayer.get_unique_id(), spell.id, params)
+		NetworkManager.broadcast_spell_cast(multiplayer.get_unique_id(), spell.id, wire_params)
 	else:
-		NetworkManager.request_spell_cast.rpc_id(1, spell.id, params)
+		NetworkManager.request_spell_cast.rpc_id(1, spell.id, wire_params)
 
 
 func apply_synced_cast(
@@ -39,8 +42,7 @@ func apply_synced_cast(
 ) -> void:
 	if player == null or spell == null:
 		return
-	if params.is_empty():
-		params = SyncScript.build_params(spell, player)
-	if params.is_empty():
+	var resolved := SyncScript.resolve_network_params(spell, player, params)
+	if resolved.is_empty():
 		return
-	SyncScript.apply(player, params)
+	SyncScript.apply(player, resolved)

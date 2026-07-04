@@ -39,13 +39,13 @@ func reset_for_new_game() -> void:
 
 
 func prepare_match(
-	seed: int,
+	match_seed: int,
 	roles: Dictionary,
 	character_configs: Dictionary = {}
 ) -> void:
 	is_multiplayer = true
 	local_player_form = PlayerForm.SNAIL
-	run_seed = seed
+	run_seed = match_seed
 	peer_roles = _normalize_peer_roles(roles)
 	peer_character_configs = _normalize_peer_configs(character_configs)
 

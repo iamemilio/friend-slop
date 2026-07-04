@@ -19,6 +19,7 @@ func run(tree: SceneTree) -> int:
 	failures += _test_validation_runs_async_without_blocking_first_poll(tree)
 	failures += _test_offline_session_runs_process(tree)
 	failures += _test_non_stub_fails_before_validation_when_stt_unavailable(tree)
+	failures += _test_cast_preflight_surfaces_editor_stt_guidance(tree)
 	failures += _test_cast_fireball_stub_succeeds(tree)
 	failures += _test_cast_fireball_heard_transcript_succeeds(tree)
 	failures += _test_cast_fireball_wrong_words_fails(tree)
@@ -443,3 +444,52 @@ func _test_non_stub_fails_before_validation_when_stt_unavailable(tree: SceneTree
 		)
 		return 1
 	return 0
+
+
+func _test_cast_preflight_surfaces_editor_stt_guidance(tree: SceneTree) -> int:
+	if (
+		not SpellSttConfigScript.is_configured()
+		or GdvoskAdapter.is_available()
+		or not OS.has_feature("editor")
+	):
+		return 0
+
+	var expected := SpellSttConfigScript.get_extension_load_issue(true)
+	var session := _make_session(tree)
+	var validator := VoiceSpellValidator.new()
+	validator.use_stub = false
+	session.configure(validator)
+
+	var fail_reason := ""
+	session.cast_failed.connect(func(_spell, reason, _partial) -> void:
+		fail_reason = reason
+	)
+
+	session.begin_tome_teaching(FireballSpell)
+	session._process(0.51)
+	session._recorded_samples = _loud_samples(0.5)
+	session._sample_rate = 48000
+	session._begin_validation()
+
+	var state := session.get_state()
+	_free_session(session)
+
+	var failures := 0
+	if fail_reason != expected:
+		push_error(
+			"Expected cast preflight to fail with editor STT guidance, got: %s"
+			% fail_reason
+		)
+		failures += 1
+	elif not fail_reason.contains("gdvosk is not loaded in the Godot editor"):
+		push_error(
+			"Expected validation FAILED guidance for unloaded editor gdvosk, got: %s"
+			% fail_reason
+		)
+		failures += 1
+	if state != "idle":
+		push_error(
+			"Expected idle state after editor STT preflight failure, got: %s" % state
+		)
+		failures += 1
+	return failures

@@ -13,7 +13,6 @@ var _in_lobby: bool = false
 @onready var _room_code_host_row: HBoxContainer = (
 	$Panel/MarginContainer/VBox/RoomCodeHostRow
 )
-@onready var _room_code_caption: Label = $Panel/MarginContainer/VBox/RoomCodeHostRow/RoomCodeCaption
 @onready var _room_code_display: LineEdit = (
 	$Panel/MarginContainer/VBox/RoomCodeHostRow/RoomCodeDisplay
 )
@@ -25,9 +24,6 @@ var _in_lobby: bool = false
 )
 @onready var _room_code_edit: LineEdit = $Panel/MarginContainer/VBox/RoomCodeEdit
 @onready var _players_section: VBoxContainer = $Panel/MarginContainer/VBox/PlayersSection
-@onready var _player_list_scroll: ScrollContainer = (
-	$Panel/MarginContainer/VBox/PlayersSection/PlayerListScroll
-)
 @onready var _player_list_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/PlayersSection/PlayerListScroll/PlayerListVBox
 )

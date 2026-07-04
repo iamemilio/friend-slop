@@ -164,9 +164,7 @@ func get_snail_color() -> Color:
 
 
 func _camera_aim_direction() -> Vector3:
-	var forward := -camera_pivot.global_transform.basis.z.normalized()
-	forward.y = clampf(forward.y, -0.25, 0.25)
-	return forward.normalized()
+	return -camera_pivot.global_transform.basis.z.normalized()
 
 
 func _head_aim_origin() -> Vector3:
@@ -330,6 +328,10 @@ func _try_interact() -> void:
 	if _try_tome_teaching_interact():
 		return
 
+	var objective := _find_delivery_objective()
+	if objective != null and objective.try_interact(self):
+		return
+
 	var interactable: Interactable = _find_nearest_interactable()
 	if interactable != null:
 		interactable.interact(self)
@@ -415,6 +417,13 @@ func _find_nearest_tome() -> TomeInteractable:
 	return best
 
 
+func _find_delivery_objective() -> DeliveryObjective:
+	for node in get_tree().get_nodes_in_group("delivery_objective"):
+		if node is DeliveryObjective:
+			return node
+	return null
+
+
 func _update_interaction_prompt() -> void:
 	if _game_hud == null or not _game_hud.has_method("set_interaction_prompt"):
 		return
@@ -423,6 +432,12 @@ func _update_interaction_prompt() -> void:
 		return
 	if _casting_session != null and _casting_session.is_active():
 		return
+	var objective := _find_delivery_objective()
+	if objective != null:
+		var objective_prompt := objective.get_interaction_prompt(self)
+		if not objective_prompt.is_empty():
+			_game_hud.set_interaction_prompt(objective_prompt)
+			return
 	var interactable: Interactable = _find_nearest_interactable()
 	if interactable != null:
 		_game_hud.set_interaction_prompt(interactable.get_prompt())
@@ -431,8 +446,6 @@ func _update_interaction_prompt() -> void:
 
 
 func _default_cast_prompt() -> String:
-	if _spell_loadout != null and _spell_loadout.has_known_spells():
-		return "Hold [LMB], speak, then release to cast"
 	return ""
 
 

@@ -2,6 +2,7 @@ class_name TestSpellEffectSync
 extends RefCounted
 
 const SyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const FireballSpell := preload("res://resources/spells/fireball.tres")
 const HasteSpell := preload("res://resources/spells/haste.tres")
 const ShowMeSpell := preload("res://resources/spells/show_me.tres")
@@ -17,6 +18,8 @@ func run() -> int:
 	failures += _test_apply_haste_from_wire_params()
 	failures += _test_apply_light_from_wire_params()
 	failures += _test_fireball_params_spawn_projectile()
+	failures += _test_fireball_network_round_trip()
+	failures += _test_fireball_wire_params_spawn_projectile()
 	return failures
 
 
@@ -155,7 +158,7 @@ func _test_fireball_params_spawn_projectile() -> int:
 
 	var projectile_count := 0
 	for child in root.get_children():
-		if child.get_script() == load("res://scripts/spells/fireball_projectile.gd"):
+		if child.get_script() == FireballProjectileScript:
 			projectile_count += 1
 
 	player.queue_free()
@@ -164,6 +167,55 @@ func _test_fireball_params_spawn_projectile() -> int:
 
 	if projectile_count != 1:
 		push_error("Expected synced fireball params to spawn one projectile")
+		return 1
+	return 0
+
+
+func _test_fireball_network_round_trip() -> int:
+	var params := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FIREBALL,
+		SyncScript.KEY_ORIGIN: Vector3(1.0, 2.0, 3.0),
+		SyncScript.KEY_DIRECTION: Vector3(0.0, 0.5, -1.0),
+	}
+	var wire := SyncScript.pack_for_network(params)
+	var restored := SyncScript.unpack_from_network(wire)
+	var origin: Vector3 = restored.get(SyncScript.KEY_ORIGIN, Vector3.ZERO)
+	var direction: Vector3 = restored.get(SyncScript.KEY_DIRECTION, Vector3.ZERO)
+	if not origin.is_equal_approx(Vector3(1.0, 2.0, 3.0)):
+		push_error("Expected fireball origin to round-trip through network params")
+		return 1
+	if not direction.is_equal_approx(Vector3(0.0, 0.5, -1.0).normalized()):
+		push_error("Expected fireball direction to round-trip through network params")
+		return 1
+	return 0
+
+
+func _test_fireball_wire_params_spawn_projectile() -> int:
+	var tree := SceneTree.new()
+	var root := Node3D.new()
+	tree.root.add_child(root)
+
+	var player := _make_player_stub()
+	root.add_child(player)
+
+	var wire := SyncScript.pack_for_network({
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FIREBALL,
+		SyncScript.KEY_ORIGIN: Vector3(4.0, 5.0, 6.0),
+		SyncScript.KEY_DIRECTION: Vector3(1.0, 0.0, 0.0),
+	})
+	SyncScript.apply(player, SyncScript.resolve_network_params(FireballSpell, player, wire))
+
+	var projectile_count := 0
+	for child in root.get_children():
+		if child.get_script() == FireballProjectileScript:
+			projectile_count += 1
+
+	player.queue_free()
+	root.queue_free()
+	tree.free()
+
+	if projectile_count != 1:
+		push_error("Expected wire-format fireball params to spawn one projectile")
 		return 1
 	return 0
 

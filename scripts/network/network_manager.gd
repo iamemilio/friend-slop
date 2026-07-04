@@ -19,6 +19,7 @@ const WARDEN_SCENE := preload("res://scenes/characters/warden.tscn")
 const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_config.tres")
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
+const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
@@ -319,9 +320,23 @@ func broadcast_spell_cast(caster_peer_id: int, spell_id: String, params: Diction
 	if not GameState.is_multiplayer:
 		return
 	if multiplayer.is_server():
-		_execute_spell_cast.rpc(caster_peer_id, spell_id, params)
+		var wire_params := _prepare_spell_cast_wire(caster_peer_id, spell_id, params)
+		if wire_params.is_empty():
+			return
+		_execute_spell_cast.rpc(caster_peer_id, spell_id, wire_params)
 	else:
 		request_spell_cast.rpc_id(1, spell_id, params)
+
+
+func _prepare_spell_cast_wire(
+	caster_peer_id: int,
+	spell_id: String,
+	params: Dictionary
+) -> Dictionary:
+	var main := get_tree().current_scene
+	if main != null and main.has_method("prepare_spell_cast_wire"):
+		return main.prepare_spell_cast_wire(caster_peer_id, spell_id, params)
+	return SpellEffectSyncScript.pack_for_network(SpellEffectSyncScript.normalize_params(params))
 
 
 @rpc("authority", "call_local", "reliable")

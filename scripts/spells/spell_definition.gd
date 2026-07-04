@@ -2,6 +2,7 @@ class_name SpellDefinition
 extends Resource
 
 const DEFAULT_ONE_WORD_DURATION_MS := 700
+const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 
 @export var id: String = ""
 @export var display_name: String = ""
@@ -122,3 +123,46 @@ func get_cast_success_text() -> String:
 			return "A blazing fireball launches from your wand!"
 		_:
 			return "The spell takes effect."
+
+
+func get_codex_effect_detail() -> String:
+	match effect_id:
+		"light":
+			return (
+				"Surrounds you with golden light for %.0f seconds. "
+				% SpellEffectSyncScript.DEFAULT_LIGHT_DURATION
+				+ "Reveals snail smoke trails in the maze so you can track movement."
+			)
+		"haste":
+			return (
+				"Increases movement speed by %.0f%% for %.0f seconds."
+				% [
+					(SpellEffectSyncScript.DEFAULT_HASTE_MULTIPLIER - 1.0) * 100.0,
+					SpellEffectSyncScript.DEFAULT_HASTE_DURATION,
+				]
+			)
+		"fireball":
+			return (
+				"Launches a blazing fireball from your wand. "
+				+ "Shots explode on impact with sparks and smoke."
+			)
+		_:
+			return get_cast_success_text()
+
+
+func get_codex_detail_lines() -> PackedStringArray:
+	var lines := PackedStringArray()
+	lines.append('Incantation: "%s"' % get_incantation_text())
+	lines.append("")
+	lines.append("How to cast")
+	lines.append(get_listen_coaching_text())
+	var timing := get_timing_guide_text()
+	if not timing.is_empty():
+		lines.append(timing)
+	var pitch := get_pitch_guide_text()
+	if not pitch.is_empty():
+		lines.append(pitch)
+	lines.append("")
+	lines.append("What it does")
+	lines.append(get_codex_effect_detail())
+	return lines

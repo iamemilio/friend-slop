@@ -74,7 +74,7 @@ func host(options: Dictionary) -> Error:
 		return int(create_result.get("error", ERR_CANT_CREATE))
 
 	var lobby_id := int(create_result.get("lobby_id", 0))
-	return await _start_host_peer(lobby_id)
+	return _start_host_peer(lobby_id)
 
 
 func join(options: Dictionary) -> Error:
@@ -107,7 +107,7 @@ func join(options: Dictionary) -> Error:
 
 	lobby_id = int(join_result.get("lobby_id", lobby_id))
 	if SteamService.is_local_lobby_owner(lobby_id):
-		return await _start_host_peer(lobby_id)
+		return _start_host_peer(lobby_id)
 	return await _start_client_peer(lobby_id)
 
 

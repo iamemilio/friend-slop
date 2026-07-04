@@ -24,7 +24,7 @@ static func build_catalog() -> Dictionary:
 static func build_descriptions() -> Dictionary:
 	return {
 		"show_me": "Cast to light the area and reveal recent player smoke trails for 20 seconds.",
-		"fireball": "Launch a fireball in the direction you are facing.",
+		"fireball": "Launch a fireball that explodes on impact.",
 		"haste": "Surge forward with increased movement speed.",
 		"warden_stalk": "Sense apprentice positions near your location.",
 		"warden_pounce": "Close distance on a target in your line of sight.",

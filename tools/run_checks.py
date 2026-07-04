@@ -26,8 +26,16 @@ GODOTSTEAM_GDEXTENSION_DISABLED = (
 GODOTSTEAM_LINUX_LIB = (
     ROOT / "addons" / "godotsteam" / "linux64" / "libgodotsteam.linux.template_debug.x86_64.so"
 )
-# Windows STATUS_ACCESS_VIOLATION when gdvosk unloads after headless test runs.
-GDVOSK_CRASH_EXIT = 3221225477
+# Godot editor/analyzer warnings gdlint does not cover — fail CI when seen in test output.
+GDSCRIPT_ANALYZER_ERRORS = (
+    "SHADOWED_GLOBAL_IDENTIFIER",
+    "SHADOWED_VARIABLE",
+    "SHADOWED_VARIABLE_BASE_CLASS",
+    "UNUSED_PRIVATE_CLASS_VARIABLE",
+    "REDUNDANT_AWAIT",
+    "NARROWING_CONVERSION",
+    "UNUSED_SIGNAL",
+)
 GDVOSK_EDITOR_LIBRARY_KEYS = (
     "windows.editor.x86_64",
     "windows.editor.x86_32",
@@ -102,6 +110,18 @@ def _restore_godotsteam_after_tests(was_disabled: bool) -> None:
         return
     if GODOTSTEAM_GDEXTENSION_DISABLED.exists() and not GODOTSTEAM_GDEXTENSION.exists():
         GODOTSTEAM_GDEXTENSION_DISABLED.rename(GODOTSTEAM_GDEXTENSION)
+
+
+def _find_gdscript_analyzer_issues(output: str) -> list[str]:
+    issues: list[str] = []
+    for line in output.splitlines():
+        if "<GDScript Error>" not in line:
+            continue
+        for code in GDSCRIPT_ANALYZER_ERRORS:
+            if code in line:
+                issues.append(line.strip())
+                break
+    return issues
 
 
 def _normalize_test_exit(returncode: int, stdout: str, stderr: str) -> int:
@@ -262,6 +282,11 @@ def run_tests() -> tuple[int, str]:
         _restore_gdvosk_after_tests(gdvosk_disabled)
         _restore_godotsteam_after_tests(godotsteam_disabled)
     output_lines.append(stdout_text)
+    analyzer_issues = _find_gdscript_analyzer_issues(stdout_text)
+    if analyzer_issues:
+        output_lines.append("GDScript analyzer issues (see Godot output above):")
+        output_lines.extend(analyzer_issues)
+        return 1, "\n".join(line for line in output_lines if line)
     exit_code = _normalize_test_exit(test_proc.returncode, stdout_text, "")
     return exit_code, "\n".join(line for line in output_lines if line)
 

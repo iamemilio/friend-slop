@@ -34,6 +34,4 @@ func _apply_character_color(color: Color) -> void:
 
 
 func _default_cast_prompt() -> String:
-	if _spell_loadout != null and _spell_loadout.has_known_spells():
-		return "Hold [LMB], speak, then release to cast"
 	return ""

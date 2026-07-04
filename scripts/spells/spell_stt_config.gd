@@ -33,22 +33,26 @@ static func get_setup_issue() -> String:
 	return ""
 
 
+static func get_extension_load_issue(is_editor: bool) -> String:
+	if is_editor:
+		return (
+			"gdvosk is not loaded in the Godot editor. "
+			+ SETUP_SCRIPT_HINT
+			+ " Fully quit Godot, reopen the project, and check the Output panel for GDExtension errors."
+		)
+	return (
+		"gdvosk is not loaded. "
+		+ SETUP_SCRIPT_HINT
+		+ " Then restart the game."
+	)
+
+
 static func get_runtime_issue() -> String:
 	var setup_issue := get_setup_issue()
 	if not setup_issue.is_empty():
 		return setup_issue
 	if not GdvoskAdapter.is_available():
-		if OS.has_feature("editor"):
-			return (
-				"gdvosk is not loaded in the Godot editor. "
-				+ SETUP_SCRIPT_HINT
-				+ " Fully quit Godot, reopen the project, and check the Output panel for GDExtension errors."
-			)
-		return (
-			"gdvosk is not loaded. "
-			+ SETUP_SCRIPT_HINT
-			+ " Then restart the game."
-		)
+		return get_extension_load_issue(OS.has_feature("editor"))
 	if not GdvoskAdapter.is_model_loaded():
 		var loader_status: String = _speech_stt_loader_status()
 		if loader_status.is_empty():

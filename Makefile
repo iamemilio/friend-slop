@@ -73,11 +73,17 @@ endif
 lint:
 	$(RUN_PYTHON) tools/run_checks.py --lint-only
 
+ifeq ($(OS),Windows_NT)
+test:
+	$(RUN_PYTHON) tools/run_checks.py --tests-only
+test-voice:
+	$(RUN_PYTHON) vendor/godot-steam-voice/tools/run_tests.py --tests-only
+else
 test:
 	GODOT_PATH="$(GODOT)" $(RUN_PYTHON) tools/run_checks.py --tests-only
-
 test-voice:
 	GODOT_PATH="$(GODOT)" $(RUN_PYTHON) vendor/godot-steam-voice/tools/run_tests.py --tests-only
+endif
 
 sync-voice-addon:
 	$(RUN_PYTHON) tools/sync_godot_steam_voice.py --clone
