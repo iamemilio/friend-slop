@@ -201,6 +201,8 @@ func _spell_color_for(spell_id: String) -> Color:
 			return Color(0.35, 0.85, 0.95)
 		"fireball":
 			return Color(1.0, 0.45, 0.12)
+		"flame_on":
+			return Color(0.85, 0.12, 0.06)
 		_:
 			return Color(0.7, 0.45, 0.95)
 

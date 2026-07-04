@@ -13,6 +13,7 @@ func run() -> int:
 	failures += _test_heard_text_contains_incantation()
 	failures += _test_compound_single_word_fireball()
 	failures += _test_light_on_and_off_phrases()
+	failures += _test_flame_on_phrase()
 	return failures
 
 
@@ -88,5 +89,16 @@ func _test_light_on_and_off_phrases() -> int:
 		return 1
 	if IncantationMatcherScript.matches(PackedStringArray(["light", "on"]), light_off):
 		push_error("Expected light on to not match light off")
+		return 1
+	return 0
+
+
+func _test_flame_on_phrase() -> int:
+	var flame_on := _make_spell("flame_on", ["flame", "on"])
+	if not IncantationMatcherScript.matches(PackedStringArray(["flame", "on"]), flame_on):
+		push_error("Expected exact match for flame on")
+		return 1
+	if IncantationMatcherScript.matches(PackedStringArray(["light", "on"]), flame_on):
+		push_error("Expected light on to not match flame on")
 		return 1
 	return 0
