@@ -18,6 +18,7 @@ var output_device: String = ""
 var dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 var voice_use_stub: bool = false
 var dev_spawn_relic_near_spawn: bool = false
+var dev_allow_any_lobby_size: bool = false
 
 var _capture_effect: AudioEffectCapture
 var _mic_test_player: AudioStreamPlayer
@@ -91,6 +92,9 @@ func load_settings() -> void:
 	dev_spawn_relic_near_spawn = config.get_value(
 		"dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn
 	)
+	dev_allow_any_lobby_size = config.get_value(
+		"dev", "dev_allow_any_lobby_size", dev_allow_any_lobby_size
+	)
 
 
 func apply_solo_dev_loadout_to_game_state() -> void:
@@ -108,6 +112,7 @@ func save_settings() -> void:
 	config.set_value("dev", "dev_solo_role", dev_solo_role)
 	config.set_value("dev", "voice_use_stub", voice_use_stub)
 	config.set_value("dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn)
+	config.set_value("dev", "dev_allow_any_lobby_size", dev_allow_any_lobby_size)
 	config.save(SETTINGS_PATH)
 	settings_applied.emit()
 

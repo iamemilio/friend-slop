@@ -20,6 +20,7 @@ var _dev_apprentice_button: Button
 var _dev_warden_button: Button
 var _voice_stub_checkbox: CheckBox
 var _dev_spawn_relic_near_spawn_checkbox: CheckBox
+var _dev_allow_any_lobby_size_checkbox: CheckBox
 var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 
 @onready var _general_vbox: VBoxContainer = (
@@ -111,6 +112,7 @@ func _cache_node_refs() -> void:
 	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
 	_dev_spawn_relic_near_spawn_checkbox = _dev_vbox.get_node("DevSpawnRelicNearSpawnCheckBox")
+	_dev_allow_any_lobby_size_checkbox = _dev_vbox.get_node("DevAllowAnyLobbySizeCheckBox")
 
 
 func _populate_from_settings() -> void:
@@ -136,6 +138,9 @@ func _populate_from_settings() -> void:
 	_voice_stub_checkbox.button_pressed = SettingsManager.voice_use_stub
 	_dev_spawn_relic_near_spawn_checkbox.button_pressed = (
 		SettingsManager.dev_spawn_relic_near_spawn
+	)
+	_dev_allow_any_lobby_size_checkbox.button_pressed = (
+		SettingsManager.dev_allow_any_lobby_size
 	)
 
 
@@ -191,6 +196,9 @@ func _apply_to_manager() -> void:
 	SettingsManager.voice_use_stub = _voice_stub_checkbox.button_pressed
 	SettingsManager.dev_spawn_relic_near_spawn = (
 		_dev_spawn_relic_near_spawn_checkbox.button_pressed
+	)
+	SettingsManager.dev_allow_any_lobby_size = (
+		_dev_allow_any_lobby_size_checkbox.button_pressed
 	)
 	SettingsManager.apply_audio_settings()
 	SettingsManager.apply_display_settings()
