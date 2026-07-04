@@ -403,6 +403,8 @@ ACTIVE → DOWNED (brief) → SEALED_WAIT (timer) → SEALED_ACTIVE → ACTIVE
 
 ## Phase 5 — Warden client (dread + three powers)
 
+> **Updated direction:** See [`WARDEN_TRICKSTER_PLAN.md`](WARDEN_TRICKSTER_PLAN.md) for the trickster-director Warden, Chime acts, fling/cut/false-wall mechanics, and dual win (time tax + Spectacle). The deliverables below remain a useful baseline; implementation should follow the trickster plan.
+
 **Goal:** Asymmetric antagonist with readable UI and bounded power.
 
 ### Deliverables
