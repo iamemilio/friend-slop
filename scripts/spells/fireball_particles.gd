@@ -170,10 +170,19 @@ static func apply_render_setup(particles: CPUParticles3D, preset: String) -> voi
 
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(1.0, 1.0, 1.0, 1.0)
 	mat.vertex_color_use_as_albedo = true
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.no_depth_write = true
+	match preset:
+		"smoke_trail":
+			mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+		"firework", "ember":
+			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		_:
+			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 
 	particles.mesh = quad
 	particles.material_override = mat

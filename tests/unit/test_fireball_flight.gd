@@ -83,22 +83,31 @@ func _test_burst_particle_defaults() -> int:
 		0.5,
 		0.9
 	)
+	var failures := 0
 	if burst.amount != 32:
 		push_error("Expected burst particle amount to match request")
-		return 1
+		failures += 1
 	if not burst.one_shot:
 		push_error("Expected burst particles to be one-shot")
-		return 1
+		failures += 1
 	if burst.local_coords:
 		push_error("Expected burst particles to use world coordinates")
-		return 1
-	if burst.mesh == null:
-		push_error("Expected burst particles to assign a render mesh")
-		return 1
+		failures += 1
 	if burst.material_override == null:
 		push_error("Expected burst particles to assign a material")
-		return 1
-	return 0
+		failures += 1
+	else:
+		var mat := burst.material_override as StandardMaterial3D
+		if mat.albedo_color != Color(1.0, 1.0, 1.0, 1.0):
+			push_error("Expected particle material to use white albedo for vertex colors")
+			failures += 1
+		if not mat.vertex_color_use_as_albedo:
+			push_error("Expected particle material to tint from vertex colors")
+			failures += 1
+	if burst.mesh == null:
+		push_error("Expected burst particles to assign a render mesh")
+		failures += 1
+	return failures
 
 
 func _test_hit_radius_matches_visual() -> int:
@@ -113,8 +122,8 @@ func _test_hit_radius_matches_visual() -> int:
 
 func _test_cast_lights_use_shadows() -> int:
 	var travel := FireballLightingScript.make_travel_cast_light()
-	if not travel.shadow_enabled:
-		push_error("Expected travel fireball light to cast shadows")
+	if travel.shadow_enabled:
+		push_error("Expected travel fireball light to skip shadows to avoid square shadow artifacts")
 		return 1
 
 	var flash := FireballLightingScript.make_explosion_flash_light()
@@ -125,11 +134,6 @@ func _test_cast_lights_use_shadows() -> int:
 	var beacon := FireballLightingScript.make_signal_beacon_light(12.0, 80.0)
 	if not beacon.shadow_enabled:
 		push_error("Expected sky flare beacon to cast shadows")
-		return 1
-
-	var halo := FireballLightingScript.make_travel_halo_mesh()
-	if halo.mesh == null:
-		push_error("Expected travel halo mesh to be assigned")
 		return 1
 	return 0
 

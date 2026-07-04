@@ -1,7 +1,7 @@
 class_name FireballLighting
 extends RefCounted
 
-## Shadow-casting omni lights and emissive halos for fireball VFX.
+## Shadow-casting lights for fireball VFX.
 
 
 static func configure_cast_light(
@@ -27,44 +27,22 @@ static func make_travel_cast_light(sky_flare: bool = false) -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.name = "TravelCastLight"
 	if sky_flare:
-		configure_cast_light(light, 2.4, 7.5, Color(1.0, 0.58, 0.18))
+		configure_cast_light(light, 2.4, 7.5, Color(1.0, 0.58, 0.18), false)
 	else:
-		configure_cast_light(light, 1.35, 4.8, Color(1.0, 0.5, 0.14))
+		configure_cast_light(light, 1.35, 4.8, Color(1.0, 0.5, 0.14), false)
 	return light
-
-
-static func make_travel_halo_mesh() -> MeshInstance3D:
-	var halo := MeshInstance3D.new()
-	halo.name = "TravelHalo"
-	var mesh := SphereMesh.new()
-	mesh.radius = FireballFlight.VISUAL_RADIUS * 2.15
-	mesh.height = mesh.radius * 2.0
-	halo.mesh = mesh
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(1.0, 0.55, 0.12, 0.14)
-	material.emission_enabled = true
-	material.emission = Color(1.0, 0.42, 0.08)
-	material.emission_energy_multiplier = 1.6
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	material.no_depth_test = false
-	halo.material_override = material
-	return halo
 
 
 static func start_travel_glow_pulse(
 	owner: Node,
 	cast_light: OmniLight3D,
 	core_material: StandardMaterial3D,
-	halo: MeshInstance3D,
 	sky_flare: bool = false
-) -> void:
+) -> Tween:
 	var peak_energy := 2.8 if sky_flare else 1.75
 	var base_energy := 1.6 if sky_flare else 1.05
 	var peak_emission := 4.2 if sky_flare else 3.2
 	var base_emission := 2.6 if sky_flare else 2.2
-	var halo_mat := halo.material_override as StandardMaterial3D if halo != null else null
 
 	var pulse := owner.create_tween()
 	pulse.set_loops()
@@ -75,9 +53,7 @@ static func start_travel_glow_pulse(
 				base_emission,
 				peak_emission,
 				intensity
-			)
-			if halo_mat != null:
-				halo_mat.emission_energy_multiplier = lerpf(1.2, 2.0, intensity),
+			),
 		0.0,
 		1.0,
 		0.42
@@ -89,13 +65,12 @@ static func start_travel_glow_pulse(
 				peak_emission,
 				base_emission,
 				intensity
-			)
-			if halo_mat != null:
-				halo_mat.emission_energy_multiplier = lerpf(2.0, 1.2, intensity),
+			),
 		0.0,
 		1.0,
 		0.42
 	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	return pulse
 
 
 static func make_explosion_flash_light() -> OmniLight3D:

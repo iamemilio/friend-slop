@@ -20,6 +20,8 @@ var _comet_sparks: CPUParticles3D
 var _hit_shape: SphereShape3D
 var _travel_light: OmniLight3D
 var _core_material: StandardMaterial3D
+var _core_mesh: MeshInstance3D
+var _glow_tween: Tween
 
 
 static func spawn(parent: Node, origin: Vector3, direction: Vector3) -> FireballProjectile:
@@ -59,22 +61,19 @@ func _ready() -> void:
 	material.emission = Color(1.0, 0.35, 0.05)
 	material.emission_energy_multiplier = 2.4 if not _sky_flare_mode else 3.2
 	material.roughness = 0.2
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_core_material = material
 	mesh_instance.material_override = material
+	_core_mesh = mesh_instance
 	add_child(mesh_instance)
 
 	_travel_light = FireballLightingScript.make_travel_cast_light(_sky_flare_mode)
 	add_child(_travel_light)
 
-	var travel_halo: MeshInstance3D = null
-	if not _sky_flare_mode:
-		travel_halo = FireballLightingScript.make_travel_halo_mesh()
-		add_child(travel_halo)
-	FireballLightingScript.start_travel_glow_pulse(
+	_glow_tween = FireballLightingScript.start_travel_glow_pulse(
 		self,
 		_travel_light,
 		_core_material,
-		travel_halo,
 		_sky_flare_mode
 	)
 
@@ -140,16 +139,30 @@ func _finish(sky_flare: bool) -> void:
 		return
 	var world_parent := get_parent()
 	var impact_pos := global_position
-	FireballSmokeTrailScript.release_emitter(_smoke_trail, world_parent)
-	_smoke_trail = null
-	if _comet_sparks != null and is_instance_valid(_comet_sparks):
-		FireballSmokeTrailScript.release_emitter(_comet_sparks, world_parent)
-		_comet_sparks = null
+	_clear_projectile_visuals()
 	if sky_flare:
 		SkyFlareEffectScript.spawn(world_parent, impact_pos)
 	else:
 		FireballExplosionEffectScript.spawn(world_parent, impact_pos)
 	queue_free()
+
+
+func _clear_projectile_visuals() -> void:
+	if _glow_tween != null and _glow_tween.is_valid():
+		_glow_tween.kill()
+		_glow_tween = null
+	if _smoke_trail != null and is_instance_valid(_smoke_trail):
+		_smoke_trail.queue_free()
+		_smoke_trail = null
+	if _comet_sparks != null and is_instance_valid(_comet_sparks):
+		_comet_sparks.queue_free()
+		_comet_sparks = null
+	if _core_mesh != null and is_instance_valid(_core_mesh):
+		_core_mesh.visible = false
+	if _travel_light != null and is_instance_valid(_travel_light):
+		_travel_light.visible = false
+		_travel_light.light_energy = 0.0
+	visible = false
 
 
 func _on_body_entered(body: Node3D) -> void:
