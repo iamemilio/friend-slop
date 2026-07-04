@@ -175,7 +175,7 @@ static func apply_render_setup(particles: CPUParticles3D, preset: String) -> voi
 	mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.no_depth_write = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
 	match preset:
 		"smoke_trail":
 			mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
