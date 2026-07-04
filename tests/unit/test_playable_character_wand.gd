@@ -15,6 +15,7 @@ func run(tree: SceneTree) -> int:
 	failures += _test_free_cast_blocked_while_carrying_relic(tree)
 	failures += _test_wand_cast_feedback_is_emission_only(tree)
 	failures += _test_wand_tip_brightness_tracks_listen_level(tree)
+	failures += _test_wand_flame_glow_after_cast(tree)
 	return failures
 
 
@@ -190,6 +191,31 @@ func _test_wand_tip_brightness_tracks_listen_level(tree: SceneTree) -> int:
 	if tip.scale.x <= 1.01:
 		wand.queue_free()
 		push_error("Expected wand tip to swell slightly at full listen level")
+		return 1
+
+	wand.queue_free()
+	return 0
+
+
+func _test_wand_flame_glow_after_cast(tree: SceneTree) -> int:
+	var wand := PlayerWandScript.new()
+	tree.root.add_child(wand)
+	wand.set_flame_glow_enabled(true)
+
+	var tip := wand.get_node_or_null("Tip") as MeshInstance3D
+	if tip == null or not (tip.material_override is StandardMaterial3D):
+		wand.queue_free()
+		push_error("Expected wand tip material for flame glow")
+		return 1
+
+	var mat: StandardMaterial3D = tip.material_override
+	if mat.emission_energy_multiplier < 2.0:
+		wand.queue_free()
+		push_error("Expected flame glow to brighten wand tip emission")
+		return 1
+	if mat.emission.r < 0.5 or mat.emission.g > 0.2:
+		wand.queue_free()
+		push_error("Expected flame glow to use a deep red emission color")
 		return 1
 
 	wand.queue_free()

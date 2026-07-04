@@ -15,14 +15,6 @@ run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
-[display]
-
-window/size/viewport_width=1920
-window/size/viewport_height=1080
-window/size/resizable=true
-window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
-
 [audio]
 
 driver/enable_input=true
@@ -38,6 +30,16 @@ SteamService="*res://scripts/network/steam_service.gd"
 NetworkManager="*res://scripts/network/network_manager.gd"
 MatchStateManager="*res://scripts/match/match_state_manager.gd"
 FriendSlopVoiceAdapter="*res://scripts/voice/friend_slop_voice_adapter.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/resizable=true
+window/size/borderless=false
+window/size/mode=0
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
 
 [editor_plugins]
 

@@ -114,30 +114,33 @@ func get_learned_confirmation_text() -> String:
 
 
 func get_cast_success_text() -> String:
+	var text := "The spell takes effect."
 	match effect_id:
 		"light":
-			return "Smoke trails glow in the maze for several seconds."
+			text = "Smoke trails glow in the maze for several seconds."
 		"haste":
-			return "You surge forward — movement speed increased!"
+			text = "You surge forward — movement speed increased!"
 		"fireball":
-			return "A blazing fireball launches from your wand!"
+			text = "A blazing fireball launches from your wand!"
+		"flame_on":
+			text = "Your wand tip flares with a deep red glow!"
 		"flashlight_on":
-			return "A steady beam of light shines from your wand."
+			text = "A steady beam of light shines from your wand."
 		"flashlight_off":
-			return "The wand light clicks off."
-		_:
-			return "The spell takes effect."
+			text = "The wand light clicks off."
+	return text
 
 
 func get_codex_effect_detail() -> String:
+	var text := get_cast_success_text()
 	match effect_id:
 		"light":
-			return (
+			text = (
 				"Reveals recent player smoke trails in the maze for %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_LIGHT_DURATION
 			)
 		"haste":
-			return (
+			text = (
 				"Increases movement speed by %.0f%% for %.0f seconds."
 				% [
 					(SpellEffectSyncScript.DEFAULT_HASTE_MULTIPLIER - 1.0) * 100.0,
@@ -145,19 +148,20 @@ func get_codex_effect_detail() -> String:
 				]
 			)
 		"fireball":
-			return (
+			text = (
 				"Launches a blazing fireball from your wand. "
 				+ "Shots explode on impact with sparks and smoke."
 			)
+		"flame_on":
+			text = "Ignites the wand tip with a steady deep-red glow."
 		"flashlight_on":
-			return (
+			text = (
 				"Projects a focused beam from your wand until you cast Light Off. "
 				+ "Illuminates the maze ahead of you."
 			)
 		"flashlight_off":
-			return "Extinguishes your wand flashlight beam."
-		_:
-			return get_cast_success_text()
+			text = "Extinguishes your wand flashlight beam."
+	return text
 
 
 func get_codex_detail_lines() -> PackedStringArray:
