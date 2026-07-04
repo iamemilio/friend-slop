@@ -50,7 +50,6 @@ func _test_prepare_match() -> int:
 	var config_dict := PlayerCharacterConfigScript.create_default(
 		GameStateScript.PlayerRole.APPRENTICE
 	).to_dict()
-	config_dict["binding"] = {"tree_id": "firemage", "starting_node_id": "haste"}
 	state.prepare_match(12345, roles, {1: config_dict})
 
 	if not state.is_multiplayer:
@@ -63,7 +62,7 @@ func _test_prepare_match() -> int:
 		push_error("Expected peer 1 to be Warden")
 		return 1
 	var restored := state.get_character_config_for_peer(1)
-	if restored.binding.starting_node_id != "haste":
+	if restored.role != GameStateScript.PlayerRole.APPRENTICE:
 		push_error("Expected prepare_match to store character configs")
 		return 1
 	if state.local_player_form != GameStateScript.PlayerForm.SNAIL:

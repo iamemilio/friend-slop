@@ -101,8 +101,6 @@ func _apply_role_starting_spells(loadout: Node) -> void:
 	if GameState.is_multiplayer:
 		peer_id = multiplayer.get_unique_id()
 	var config := GameState.get_character_config_for_peer(peer_id)
-	if GameState.is_multiplayer and config.role != GameState.PlayerRole.WARDEN:
-		return
 	for spell_id in config.get_starting_spell_ids():
 		loadout.learn_spell(spell_id, "starting")
 

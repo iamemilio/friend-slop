@@ -34,7 +34,6 @@ var _in_lobby: bool = false
 @onready var _status_label: Label = $Panel/MarginContainer/VBox/StatusLabel
 @onready var _primary_button: Button = $Panel/MarginContainer/VBox/PrimaryButton
 @onready var _back_button: Button = $Panel/MarginContainer/VBox/BackButton
-@onready var _character_setup: CharacterSetupPanel = $CharacterSetupPanel
 
 
 func _ready() -> void:
@@ -44,7 +43,6 @@ func _ready() -> void:
 	_back_button.pressed.connect(_on_back_pressed)
 	_copy_room_code_button.pressed.connect(_on_copy_room_code_pressed)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
-	_character_setup.closed.connect(_on_character_setup_closed)
 	NetworkManager.status_changed.connect(_on_network_status)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
 	NetworkManager.became_host.connect(_on_became_host)
@@ -103,7 +101,7 @@ func open_join() -> void:
 
 
 func close_panel() -> void:
-	if _busy or _character_setup.visible:
+	if _busy:
 		return
 	_leave_to_menu()
 
@@ -198,11 +196,6 @@ func _on_steam_lobby_invite_received(lobby_id: int) -> void:
 	_primary_button.grab_focus()
 
 
-func _on_character_setup_closed() -> void:
-	_lobby_panel_root.visible = true
-	_refresh_player_list()
-
-
 func _enter_lobby_ui() -> void:
 	_in_lobby = true
 	_room_code_edit.visible = false
@@ -260,11 +253,6 @@ func _build_player_row(peer_id: int, local_peer_id: int) -> HBoxContainer:
 	if peer_id == local_peer_id:
 		row.add_child(_build_role_button("Apprentice", GameState.PlayerRole.APPRENTICE, role))
 		row.add_child(_build_role_button("Warden", GameState.PlayerRole.WARDEN, role))
-		var configure_button := Button.new()
-		configure_button.text = "Configure"
-		configure_button.custom_minimum_size = Vector2(84, 32)
-		configure_button.pressed.connect(_on_configure_pressed)
-		row.add_child(configure_button)
 	else:
 		var role_label := Label.new()
 		role_label.text = RoleAssignment.role_label(role)
@@ -287,11 +275,6 @@ func _build_role_button(caption: String, role: int, selected_role: int) -> Butto
 
 func _on_role_button_pressed(role: int) -> void:
 	NetworkManager.request_lobby_role(role)
-
-
-func _on_configure_pressed() -> void:
-	_lobby_panel_root.visible = false
-	_character_setup.open()
 
 
 func _update_start_button_state() -> void:

@@ -65,23 +65,17 @@ func get_role_for_peer(peer_id: int) -> PlayerRole:
 	return PlayerRole.APPRENTICE
 
 
-func get_binding_for_peer(peer_id: int) -> Binding:
-	var config := get_character_config_for_peer(peer_id)
-	return config.binding
-
-
 func get_character_config_for_peer(peer_id: int) -> PlayerCharacterConfig:
 	if peer_character_configs.has(peer_id):
 		return PlayerCharacterConfig.from_dict(peer_character_configs[peer_id])
 	return PlayerCharacterConfig.create_default(get_role_for_peer(peer_id))
 
 
-func apply_solo_dev_loadout(role: int, binding: Binding) -> void:
+func apply_solo_dev_loadout(role: int) -> void:
 	is_multiplayer = false
 	peer_roles = {1: role}
 	var config := PlayerCharacterConfig.create_default(role)
 	config.role = role
-	config.binding = binding
 	peer_character_configs = {1: config.to_dict()}
 
 

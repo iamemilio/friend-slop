@@ -1,7 +1,7 @@
 class_name SpellDisplayNames
 extends RefCounted
 
-## Spell labels and short descriptions for lobby skill-tree UI.
+## Spell labels and short descriptions for UI.
 
 
 static func build_catalog() -> Dictionary:

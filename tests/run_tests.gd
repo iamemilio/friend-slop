@@ -22,8 +22,7 @@ const TestNetworkManager := preload("res://tests/unit/test_network_manager.gd")
 const TestMatchState := preload("res://tests/unit/test_match_state.gd")
 const TestRoleAssignment := preload("res://tests/unit/test_role_assignment.gd")
 const TestPlayerCharacterConfig := preload("res://tests/unit/test_player_character_config.gd")
-const TestBinding := preload("res://tests/unit/test_binding.gd")
-const TestSkillTree := preload("res://tests/unit/test_skill_tree.gd")
+const TestRoleLoadout := preload("res://tests/unit/test_role_loadout.gd")
 const TestTrailRegistry := preload("res://tests/unit/test_trail_registry.gd")
 const TestPlayerSpawnLayout := preload("res://tests/unit/test_player_spawn_layout.gd")
 const TestSpellValidationRunner := preload("res://tests/unit/test_spell_validation_runner.gd")
@@ -97,11 +96,8 @@ func _run_tests() -> void:
 	var player_character_config_suite := TestPlayerCharacterConfig.new()
 	failures += player_character_config_suite.run()
 
-	var binding_suite := TestBinding.new()
-	failures += binding_suite.run()
-
-	var skill_tree_suite := TestSkillTree.new()
-	failures += skill_tree_suite.run()
+	var role_loadout_suite := TestRoleLoadout.new()
+	failures += role_loadout_suite.run()
 
 	var trail_registry_suite := TestTrailRegistry.new()
 	failures += trail_registry_suite.run()
