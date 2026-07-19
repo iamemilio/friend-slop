@@ -245,6 +245,9 @@ func _test_build_light_ball_params() -> int:
 	if not params.has(SyncScript.KEY_ORIGIN):
 		push_error("Expected light_ball origin in params")
 		return 1
+	if not params.has(SyncScript.KEY_WAND_ORIGIN):
+		push_error("Expected light_ball wand_origin in params")
+		return 1
 	if float(params.get(SyncScript.KEY_DURATION, 0.0)) != SyncScript.DEFAULT_LIGHT_BALL_DURATION:
 		push_error("Expected light_ball duration to be 30 seconds")
 		return 1

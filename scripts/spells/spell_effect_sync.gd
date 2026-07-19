@@ -8,6 +8,7 @@ const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
+const KEY_WAND_ORIGIN := "wand_origin"
 const KEY_DIRECTION := "direction"
 const KEY_DURATION := "duration"
 const KEY_MULTIPLIER := "multiplier"
@@ -58,6 +59,7 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			params[KEY_MULTIPLIER] = DEFAULT_HASTE_MULTIPLIER
 		EFFECT_LIGHT_BALL:
 			params[KEY_ORIGIN] = _light_ball_origin(player)
+			params[KEY_WAND_ORIGIN] = _fireball_origin(player)
 			params[KEY_DURATION] = DEFAULT_LIGHT_BALL_DURATION
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
@@ -88,9 +90,13 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
 		EFFECT_LIGHT_BALL:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			var wand_origin := coerce_vector3(local.get(KEY_WAND_ORIGIN, Vector3.ZERO))
 			wire["origin_x"] = origin.x
 			wire["origin_y"] = origin.y
 			wire["origin_z"] = origin.z
+			wire["wand_x"] = wand_origin.x
+			wire["wand_y"] = wand_origin.y
+			wire["wand_z"] = wand_origin.z
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
@@ -126,6 +132,11 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 				float(wire.get("origin_x", 0.0)),
 				float(wire.get("origin_y", 0.0)),
 				float(wire.get("origin_z", 0.0))
+			)
+			params[KEY_WAND_ORIGIN] = Vector3(
+				float(wire.get("wand_x", 0.0)),
+				float(wire.get("wand_y", 0.0)),
+				float(wire.get("wand_z", 0.0))
 			)
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
 		EFFECT_FLASHLIGHT_TOGGLE:
@@ -283,30 +294,25 @@ static func _toggle_flashlight(player: CharacterBody3D) -> void:
 
 
 static func _light_ball_origin(player: CharacterBody3D) -> Vector3:
-	var origin := _fireball_origin(player)
-	var forward := _fireball_direction(player)
-	forward.y = 0.0
-	if forward.length_squared() < 0.0001:
-		forward = -player.transform.basis.z
-		forward.y = 0.0
-	forward = forward.normalized()
-	var pos := origin + forward * LightBallOrbScript.PLACE_FORWARD
-	pos.y = player.global_position.y + LightBallOrbScript.PLACE_HEIGHT
-	return pos
+	return LightBallOrbScript.resolve_placement(player)
 
 
 static func _apply_light_ball(player: CharacterBody3D, params: Dictionary) -> void:
-	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
-	if origin == Vector3.ZERO:
-		origin = _light_ball_origin(player)
+	var target := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	if target == Vector3.ZERO:
+		target = _light_ball_origin(player)
+	var wand_origin := coerce_vector3(params.get(KEY_WAND_ORIGIN, Vector3.ZERO))
+	if wand_origin == Vector3.ZERO:
+		wand_origin = _fireball_origin(player)
 	var world: Node = player.get_tree().current_scene if player.is_inside_tree() else null
 	if world == null:
 		world = player.get_parent()
 	if world == null:
 		return
-	LightBallOrbScript.spawn(
+	LightBallOrbScript.spawn_cast(
 		world,
-		origin,
+		wand_origin,
+		target,
 		float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
 	)
 
