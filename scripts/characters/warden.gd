@@ -1,7 +1,7 @@
+class_name Warden
 extends PlayableCharacter
 
 ## Maze Warden — larger silhouette, no wand; voice and spells use head aim.
-
 
 const WARDEN_BODY_SCALE := 1.18
 const WARDEN_COLLISION_SCALE := 1.12
@@ -30,7 +30,7 @@ func _apply_character_color(color: Color) -> void:
 	var body_mat := _body_mesh.material_override as StandardMaterial3D
 	if body_mat != null:
 		body_mat.roughness = 0.85
-		body_mat.emission = warden_tint * 0.15
+		body_mat.metallic = 0.12
 
 
 func _default_cast_prompt() -> String:

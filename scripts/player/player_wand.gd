@@ -42,9 +42,25 @@ var _listen_peak: float = 0.0
 
 
 func _ready() -> void:
-	_build_wand_meshes()
+	if has_node("Shaft") and has_node("Tip") and has_node("CastOrigin"):
+		_bind_existing_meshes()
+	else:
+		_build_wand_meshes()
 	_build_particles()
 	set_armed(false)
+
+
+func _bind_existing_meshes() -> void:
+	_shaft_mesh = get_node("Shaft") as MeshInstance3D
+	_tip_mesh = get_node("Tip") as MeshInstance3D
+	_cast_origin = get_node("CastOrigin") as Marker3D
+	_flashlight_light = _cast_origin.get_node_or_null("FlashlightBeam") as SpotLight3D
+	if _flashlight_light != null:
+		_configure_flashlight_light(_flashlight_light)
+	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
+	_tip_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
+	_shaft_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
 
 
 func set_armed(active: bool) -> void:
@@ -119,11 +135,13 @@ func _build_wand_meshes() -> void:
 	_shaft_mesh.position = tip_offset * 0.5
 	_shaft_mesh.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 	var shaft_mat := StandardMaterial3D.new()
+	shaft_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	shaft_mat.albedo_color = Color(0.18, 0.12, 0.1)
 	shaft_mat.roughness = 0.55
 	shaft_mat.metallic = 0.35
 	_shaft_mesh.material_override = shaft_mat
 	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
+	_shaft_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(_shaft_mesh)
 
 	_tip_mesh = MeshInstance3D.new()

@@ -180,7 +180,7 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 				float(params.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 			)
 		EFFECT_LIGHT:
-			TrailRegistry.reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
+			_reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 		EFFECT_FIREBALL:
 			_apply_fireball(player, params)
 		EFFECT_FLASHLIGHT_ON:
@@ -194,6 +194,15 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 				"SpellEffectSync: unknown effect '%s'" % str(params.get(KEY_EFFECT_ID, ""))
 			)
 
+
+
+static func _reveal_trails(duration_sec: float) -> void:
+	var tree := Engine.get_main_loop()
+	if tree == null:
+		return
+	var registry: Node = tree.root.get_node_or_null("TrailRegistry")
+	if registry != null and registry.has_method("reveal_trails"):
+		registry.reveal_trails(duration_sec)
 
 static func is_supported_effect(effect_id: String) -> bool:
 	return effect_id in [

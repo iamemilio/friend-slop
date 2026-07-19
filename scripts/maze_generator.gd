@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 
 ## Generates a random maze and builds floor + wall collision geometry.
@@ -13,10 +14,22 @@ signal exit_reached(player: Node3D)
 
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 const MazeWallMeshScript := preload("res://scripts/maze_wall_mesh.gd")
+const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 
-@export var maze_width: int = 15
-@export var maze_height: int = 15
-@export var cell_size: float = 3.0
+const SPAWN_ZONE_PREVIEW_NAME := "SpawnZonePreview"
+
+@export var maze_width: int = 15:
+	set(value):
+		maze_width = maxi(value, 1)
+		_on_editor_dims_changed()
+@export var maze_height: int = 15:
+	set(value):
+		maze_height = maxi(value, 1)
+		_on_editor_dims_changed()
+@export var cell_size: float = 3.0:
+	set(value):
+		cell_size = maxf(value, 0.1)
+		_on_editor_dims_changed()
 @export var wall_height: float = 3.0
 @export var regenerate_on_ready: bool = true
 @export_range(0.0, 1.0, 0.05) var straight_bias: float = 0.4
@@ -27,7 +40,22 @@ var _exit_triggered: bool = false
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		_notify_main_editor_preview()
+		return
 	call_deferred("_deferred_generate")
+
+
+func _on_editor_dims_changed() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	_notify_main_editor_preview()
+
+
+func _notify_main_editor_preview() -> void:
+	var main := get_parent()
+	if main != null and main.has_method("editor_refresh_environment_preview"):
+		main.editor_refresh_environment_preview()
 
 
 func _deferred_generate() -> void:
@@ -58,6 +86,8 @@ func generate_maze(seed_value: int = -1) -> void:
 	exit.y = 0.5
 
 	_build_exit_marker(exit)
+	if Engine.is_editor_hint():
+		_build_spawn_zone_preview()
 	maze_ready.emit(spawn, exit, Vector2i(0, 0), Vector2i(maze_width - 1, maze_height - 1))
 
 
@@ -78,9 +108,75 @@ func world_to_cell(world_position: Vector3) -> Vector2i:
 	return Vector2i(gx, gy)
 
 
+## Convert a world position to a maze room cell (not raw wall-grid coords).
+func world_position_to_maze_cell(world_position: Vector3) -> Vector2i:
+	var offset := _maze_offset()
+	var gx := int(round((world_position.x + offset.x) / cell_size))
+	var gy := int(round((world_position.z + offset.z) / cell_size))
+	var cell_x := clampi(int(floor(float(gx) / 2.0)), 0, maze_width - 1)
+	var cell_y := clampi(int(floor(float(gy) / 2.0)), 0, maze_height - 1)
+	return Vector2i(cell_x, cell_y)
+
+
+func rebuild_spawn_zone_preview_from_slots(slots: Array) -> void:
+	## Replace default roster pads with pads matching PlayerSpawnSlot cells.
+	if not Engine.is_editor_hint():
+		return
+	var existing := get_node_or_null(SPAWN_ZONE_PREVIEW_NAME)
+	if existing != null:
+		remove_child(existing)
+		existing.free()
+	if slots.is_empty():
+		_build_spawn_zone_preview()
+		return
+
+	var root := Node3D.new()
+	root.name = SPAWN_ZONE_PREVIEW_NAME
+	add_child(root)
+
+	var apprentice_i := 0
+	var apprentice_colors: Array[Color] = [
+		Color(0.2, 0.75, 1.0, 0.55),
+		Color(0.15, 0.95, 0.85, 0.55),
+		Color(0.35, 0.65, 1.0, 0.55),
+	]
+	for slot in slots:
+		if slot == null or not (slot is PlayerSpawnSlot):
+			continue
+		var spawn_slot := slot as PlayerSpawnSlot
+		var cell: Vector2i = spawn_slot.spawn_cell
+		if spawn_slot.role == PlayerSpawnSlot.Role.WARDEN:
+			root.add_child(
+				_make_spawn_zone_marker(
+					cell,
+					cell_size * 2.4,
+					0.35,
+					Color(0.85, 0.25, 0.95, 0.55),
+					Color(0.7, 0.15, 0.9),
+					"WardenZone"
+				)
+			)
+		else:
+			var tint: Color = apprentice_colors[apprentice_i % apprentice_colors.size()]
+			root.add_child(
+				_make_spawn_zone_marker(
+					cell,
+					cell_size * 2.2,
+					0.28,
+					tint,
+					Color(tint.r, tint.g, tint.b),
+					"ApprenticeZone_%d" % apprentice_i
+				)
+			)
+			apprentice_i += 1
+
+
 func _clear_maze() -> void:
-	for child in get_children():
-		child.queue_free()
+	# Free immediately so editor rebuilds do not stack duplicate floors/walls.
+	while get_child_count() > 0:
+		var child := get_child(0)
+		remove_child(child)
+		child.free()
 	_wall_grid.clear()
 
 
@@ -215,6 +311,85 @@ func _build_exit_marker(exit_position: Vector3) -> void:
 	trigger_shape.position = Vector3(0.0, 1.5, 0.0)
 	trigger.add_child(trigger_shape)
 	gate_root.add_child(trigger)
+
+
+func _build_spawn_zone_preview() -> void:
+	## Editor-only: large role-colored pads at warden center + apprentice corners.
+	var roster: Array[Vector2i] = PlayerSpawnLayoutScript.collect_roster_spawn_cells(
+		_wall_grid,
+		maze_width,
+		maze_height
+	)
+	if roster.is_empty():
+		return
+
+	var root := Node3D.new()
+	root.name = SPAWN_ZONE_PREVIEW_NAME
+	add_child(root)
+
+	# Warden — magenta center pad
+	root.add_child(
+		_make_spawn_zone_marker(
+			roster[0],
+			cell_size * 2.4,
+			0.35,
+			Color(0.85, 0.25, 0.95, 0.55),
+			Color(0.7, 0.15, 0.9),
+			"WardenZone"
+		)
+	)
+
+	# Apprentices — cyan corner pads
+	var apprentice_colors: Array[Color] = [
+		Color(0.2, 0.75, 1.0, 0.55),
+		Color(0.15, 0.95, 0.85, 0.55),
+		Color(0.35, 0.65, 1.0, 0.55),
+	]
+	for i in range(1, mini(roster.size(), 4)):
+		var tint: Color = apprentice_colors[(i - 1) % apprentice_colors.size()]
+		var emission := Color(tint.r, tint.g, tint.b)
+		root.add_child(
+			_make_spawn_zone_marker(
+				roster[i],
+				cell_size * 2.2,
+				0.28,
+				tint,
+				emission,
+				"ApprenticeZone_%d" % (i - 1)
+			)
+		)
+
+
+func _make_spawn_zone_marker(
+	cell: Vector2i,
+	diameter: float,
+	height: float,
+	albedo: Color,
+	emission: Color,
+	marker_name: String
+) -> MeshInstance3D:
+	var world := _cell_to_world(cell.x, cell.y)
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = marker_name
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = diameter * 0.5
+	cylinder.bottom_radius = diameter * 0.5
+	cylinder.height = height
+	mesh_instance.mesh = cylinder
+	mesh_instance.position = Vector3(world.x, height * 0.5, world.z)
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = albedo
+	mat.emission_enabled = true
+	mat.emission = emission
+	mat.emission_energy_multiplier = 2.0
+	mat.disable_fog = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mesh_instance.material_override = mat
+	return mesh_instance
 
 
 func _on_exit_body_entered(body: Node3D) -> void:

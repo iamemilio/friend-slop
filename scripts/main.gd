@@ -1,7 +1,12 @@
+@tool
 extends Node3D
 
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+
+# Fixed seed so opening main.tscn in the editor builds the same maze/clouds
+# as a deterministic match.
+const EDITOR_MATCH_SEED := 4242
 
 var _game_won: bool = false
 var _learn_confirm_pending: bool = false
@@ -12,21 +17,26 @@ var _maze_layout_ready: bool = false
 var _players_spawned: bool = false
 var _discoverables_spawned: bool = false
 var _match_subsystems_active: bool = false
+var _editor_rebuild_queued: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
 @onready var moon: Moon = $Moon
 @onready var cloud_system: CloudSystem = $CloudSystem
 @onready var players_root: Node3D = $Players
 @onready var smoke_trails: SmokeTrailManager = $SmokeTrails
-@onready var discoverable_spawner = $DiscoverableSpawner
+@onready var discoverable_spawner: DiscoverableSpawner = $DiscoverableSpawner
 @onready var spell_registry: SpellRegistry = $SpellRegistry
 @onready var game_hud: CanvasLayer = $GameHUD
-@onready var voice_validator = $VoiceSpellValidator
-@onready var pause_menu = $PauseMenu
+@onready var voice_validator: VoiceSpellValidator = $VoiceSpellValidator
+@onready var pause_menu: PauseMenu = $PauseMenu
 @onready var delivery_objective: DeliveryObjective = $DeliveryObjective
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		call_deferred("editor_refresh_environment_preview")
+		return
+
 	_apply_voice_settings()
 	SettingsManager.settings_applied.connect(_apply_voice_settings)
 	maze.maze_ready.connect(_on_maze_ready)
@@ -56,6 +66,98 @@ func _ready() -> void:
 	await NetworkManager.players_spawned
 	_players_spawned = true
 	_finish_match_layout()
+
+
+func editor_refresh_environment_preview() -> void:
+	# Rebuild using the same generate_maze / configure_for_maze path as a real match.
+	if not Engine.is_editor_hint():
+		return
+	if _editor_rebuild_queued:
+		return
+	_editor_rebuild_queued = true
+	call_deferred("_editor_build_match_world")
+
+
+func _editor_build_match_world() -> void:
+	_editor_rebuild_queued = false
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	var maze_node := get_node_or_null("MazeGenerator")
+	if maze_node == null or not maze_node.has_method("generate_maze"):
+		return
+	if not maze_node.maze_ready.is_connected(_on_editor_maze_ready):
+		maze_node.maze_ready.connect(_on_editor_maze_ready)
+	maze_node.generate_maze(EDITOR_MATCH_SEED)
+
+
+func _on_editor_maze_ready(
+	_spawn_position: Vector3,
+	_exit_position: Vector3,
+	_spawn_cell: Vector2i,
+	_exit_cell: Vector2i
+) -> void:
+	if not Engine.is_editor_hint():
+		return
+	_maze_spawn_cell = _spawn_cell
+	_maze_exit_cell = _exit_cell
+	_configure_sky_for_maze(EDITOR_MATCH_SEED, 1)
+	_snap_player_spawn_slots()
+
+
+func _configure_sky_for_maze(run_seed: int, start_time_msec: int) -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	var moon_node := get_node_or_null("Moon") as Moon
+	var clouds := get_node_or_null("CloudSystem") as CloudSystem
+	if maze_node == null:
+		return
+	if moon_node != null:
+		moon_node.configure_for_maze(
+			maze_node.maze_width,
+			maze_node.maze_height,
+			maze_node.cell_size
+		)
+	if clouds != null:
+		clouds.configure_for_maze(
+			maze_node.maze_width,
+			maze_node.maze_height,
+			maze_node.cell_size,
+			moon_node.position.y if moon_node != null else 200.0,
+			run_seed,
+			start_time_msec
+		)
+
+
+func _snap_player_spawn_slots() -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	var players_node := get_node_or_null("Players")
+	if maze_node == null or players_node == null:
+		return
+	if not maze_node.has_method("get_wall_grid"):
+		return
+
+	var slots: Array = []
+	for child in players_node.get_children():
+		if child is PlayerSpawnSlot:
+			var slot := child as PlayerSpawnSlot
+			slot.sync_to_maze(maze_node)
+			slots.append(slot)
+
+	if maze_node.has_method("rebuild_spawn_zone_preview_from_slots"):
+		maze_node.rebuild_spawn_zone_preview_from_slots(slots)
+
+
+func _refresh_spawn_zone_preview_from_slots() -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	var players_node := get_node_or_null("Players")
+	if maze_node == null or players_node == null:
+		return
+	if not maze_node.has_method("rebuild_spawn_zone_preview_from_slots"):
+		return
+	var slots: Array = []
+	for child in players_node.get_children():
+		if child is PlayerSpawnSlot:
+			slots.append(child)
+	maze_node.rebuild_spawn_zone_preview_from_slots(slots)
 
 
 func _on_match_snapshot_changed(_snapshot: Dictionary) -> void:
@@ -152,17 +254,7 @@ func _on_maze_ready(
 	_maze_spawn_cell = spawn_cell
 	_maze_exit_cell = exit_cell
 	_maze_layout_ready = true
-	if moon != null:
-		moon.configure_for_maze(maze.maze_width, maze.maze_height, maze.cell_size)
-	if cloud_system != null:
-		cloud_system.configure_for_maze(
-			maze.maze_width,
-			maze.maze_height,
-			maze.cell_size,
-			moon.position.y,
-			GameState.run_seed,
-			GameState.match_start_time_msec
-		)
+	_configure_sky_for_maze(GameState.run_seed, GameState.match_start_time_msec)
 	_finish_match_layout()
 
 
@@ -181,18 +273,8 @@ func _finish_match_layout() -> void:
 		return a.player_index < b.player_index
 	)
 
-	var spawn_positions: Array[Vector3] = PlayerSpawnLayoutScript.compute_positions(
-		_maze_spawn_cell,
-		maze.get_wall_grid(),
-		maze.maze_width,
-		maze.maze_height,
-		Callable(maze, "cell_to_world"),
-		players.size()
-	) as Array[Vector3]
-	for i in players.size():
-		var player := players[i]
-		player.global_position = spawn_positions[i]
-		player.velocity = Vector3.ZERO
+	_snap_player_spawn_slots()
+	_place_players_at_spawn_slots(players)
 
 	if GameState.is_multiplayer:
 		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)
@@ -224,6 +306,47 @@ func _finish_match_layout() -> void:
 		Callable(maze, "cell_to_world"),
 		wall_grid
 	)
+
+
+func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
+	var warden_slot: PlayerSpawnSlot = null
+	var apprentice_slots: Array[PlayerSpawnSlot] = []
+	for child in players_root.get_children():
+		if not (child is PlayerSpawnSlot):
+			continue
+		var slot := child as PlayerSpawnSlot
+		if slot.role == PlayerSpawnSlot.Role.WARDEN:
+			warden_slot = slot
+		else:
+			apprentice_slots.append(slot)
+
+	apprentice_slots.sort_custom(func(a: PlayerSpawnSlot, b: PlayerSpawnSlot) -> bool:
+		return a.spawn_slot_index < b.spawn_slot_index
+	)
+
+	var apprentice_index := 0
+	for player in players:
+		var peer_id := _peer_id_for_player_node(player)
+		var role := GameState.get_role_for_peer(peer_id)
+		var target: PlayerSpawnSlot = null
+		if role == GameState.PlayerRole.WARDEN:
+			target = warden_slot
+		else:
+			if apprentice_index < apprentice_slots.size():
+				target = apprentice_slots[apprentice_index]
+			elif not apprentice_slots.is_empty():
+				target = apprentice_slots[apprentice_slots.size() - 1]
+			apprentice_index += 1
+
+		if target != null:
+			player.global_position = target.get_spawn_world_position()
+		player.velocity = Vector3.ZERO
+
+
+func _peer_id_for_player_node(player: Node) -> int:
+	if player.name.is_valid_int():
+		return int(player.name)
+	return 1
 
 
 func apply_delivery_objective_network(op: int, payload: Variant = null) -> void:

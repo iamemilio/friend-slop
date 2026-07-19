@@ -11,8 +11,7 @@ const VBOX_SEPARATION_BASE := 18
 @onready var _center_container: CenterContainer = $CenterContainer
 @onready var _menu_vbox: VBoxContainer = $CenterContainer/VBoxContainer
 @onready var _title_label: Label = $CenterContainer/VBoxContainer/TitleLabel
-@onready var _start_button: Button = $CenterContainer/VBoxContainer/StartButton
-@onready var _host_button: Button = $CenterContainer/VBoxContainer/HostButton
+@onready var _play_button: Button = $CenterContainer/VBoxContainer/PlayButton
 @onready var _join_button: Button = $CenterContainer/VBoxContainer/JoinButton
 @onready var _settings_button: Button = $CenterContainer/VBoxContainer/SettingsButton
 @onready var _exit_button: Button = $CenterContainer/VBoxContainer/ExitButton
@@ -22,8 +21,7 @@ const VBOX_SEPARATION_BASE := 18
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_start_button.pressed.connect(_on_solo_pressed)
-	_host_button.pressed.connect(_on_host_pressed)
+	_play_button.pressed.connect(_on_play_pressed)
 	_join_button.pressed.connect(_on_join_pressed)
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_exit_button.pressed.connect(_on_exit_pressed)
@@ -51,25 +49,14 @@ func _apply_menu_layout() -> void:
 
 func _menu_buttons() -> Array[Button]:
 	return [
-		_start_button,
-		_host_button,
+		_play_button,
 		_join_button,
 		_settings_button,
 		_exit_button,
 	]
 
 
-func _on_solo_pressed() -> void:
-	if SpeechSttLoader.is_loading():
-		_start_button.disabled = true
-		await SpeechSttLoader.loading_finished
-		_start_button.disabled = false
-	GameState.reset_for_new_game()
-	SettingsManager.apply_solo_dev_loadout_to_game_state()
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
-
-
-func _on_host_pressed() -> void:
+func _on_play_pressed() -> void:
 	_hide_menu()
 	_lobby_panel.open_host()
 
