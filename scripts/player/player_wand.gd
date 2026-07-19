@@ -119,11 +119,13 @@ func _build_wand_meshes() -> void:
 	_shaft_mesh.position = tip_offset * 0.5
 	_shaft_mesh.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 	var shaft_mat := StandardMaterial3D.new()
+	shaft_mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	shaft_mat.albedo_color = Color(0.18, 0.12, 0.1)
 	shaft_mat.roughness = 0.55
 	shaft_mat.metallic = 0.35
 	_shaft_mesh.material_override = shaft_mat
 	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
+	_shaft_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	add_child(_shaft_mesh)
 
 	_tip_mesh = MeshInstance3D.new()

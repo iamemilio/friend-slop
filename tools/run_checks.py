@@ -32,6 +32,7 @@ GODOTSTEAM_LINUX_LIB = (
 # Headless Godot may crash while unloading gdvosk on exit (Windows access violation,
 # Linux segfault). Treat that as success when the test log reports all tests passed.
 GDVOSK_CRASH_EXIT = 3221225477
+GDVOSK_HEAP_CRASH_EXIT = 3221226356  # 0xC0000374 — seen on Windows headless shutdown
 GDVOSK_CRASH_EXIT_LINUX = 139
 # Godot editor/analyzer warnings gdlint does not cover — fail CI when seen in test output.
 GDSCRIPT_ANALYZER_ERRORS = (
@@ -89,13 +90,24 @@ def _validate_gdvosk_manifest() -> str | None:
 
 def _find_gdscript_analyzer_issues(output: str) -> list[str]:
     issues: list[str] = []
+    reload_keywords = (
+        "shadowing",
+        "same name as a built-in",
+        "same name as a global class",
+        "never used in the class",
+        "never explicitly used",
+        "Narrowing conversion",
+        "unnecessary because",
+    )
     for line in output.splitlines():
-        if "<GDScript Error>" not in line:
+        if "<GDScript Error>" in line:
+            for code in GDSCRIPT_ANALYZER_ERRORS:
+                if code in line:
+                    issues.append(line.strip())
+                    break
             continue
-        for code in GDSCRIPT_ANALYZER_ERRORS:
-            if code in line:
-                issues.append(line.strip())
-                break
+        if "GDScript::reload" in line and any(key in line for key in reload_keywords):
+            issues.append(line.strip())
     return issues
 
 
@@ -105,11 +117,14 @@ def _normalize_test_exit(returncode: int, stdout: str, stderr: str) -> int:
         return 0
     if "All tests passed." in combined and returncode in (
         GDVOSK_CRASH_EXIT,
+        GDVOSK_HEAP_CRASH_EXIT,
         GDVOSK_CRASH_EXIT_LINUX,
         -GDVOSK_CRASH_EXIT_LINUX,
+        -GDVOSK_CRASH_EXIT,
+        -GDVOSK_HEAP_CRASH_EXIT,
     ):
         return 0
-    if "test(s) failed." in combined:
+    if "test(s) failed." in combined or "  FAIL:" in combined:
         return 1
     return returncode
 

@@ -78,6 +78,10 @@ func test_horizon_travel_span() -> void:
 		bounds_size >= expected_span - 0.01,
 		"cloud bounds should cover the full travel span"
 	)
+	_assert_true(
+		system.get_bounds_min().y < 60.0 and system.get_bounds_max().y < 80.0,
+		"clouds should stay low enough for maze-floor shadow cascades"
+	)
 
 	root.queue_free()
 

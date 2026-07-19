@@ -21,7 +21,6 @@ const BODY_COLLISION_RADIUS := BODY_RADIUS + COLLISION_WALL_PADDING
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
-const WorldVisualLayers := preload("res://scripts/world_visual_layers.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -278,18 +277,19 @@ func _separate_from_players() -> void:
 
 
 func _apply_character_color(color: Color) -> void:
+	# Lit materials (no constant emission) so moonlight / world lights shade the mesh.
+	# Layer PLAYER_SELF: moon uses SCENE_LIGHT_MASK; wand flashlight stays WORLD-only.
 	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
 	material.albedo_color = color
-	material.roughness = 0.55
-	material.emission_enabled = true
-	material.emission = color * 0.25
-	material.emission_energy_multiplier = 0.8
+	material.roughness = 0.62
+	material.metallic = 0.05
+	material.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	_body_mesh.material_override = material
 	_body_mesh.layers = PLAYER_SELF_VISUAL_LAYER
 	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	var head_material := material.duplicate()
+	var head_material := material.duplicate() as StandardMaterial3D
 	head_material.albedo_color = color.lightened(0.08)
-	head_material.emission = head_material.albedo_color * 0.25
 	_head_mesh.material_override = head_material
 	_head_mesh.layers = PLAYER_SELF_VISUAL_LAYER
 	_head_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON

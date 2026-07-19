@@ -9,13 +9,13 @@ const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 static func configure_cast_light(
 	light: OmniLight3D,
 	energy: float,
-	range: float,
+	light_range: float,
 	color: Color,
 	enable_shadows: bool = true
 ) -> void:
 	light.light_color = color
 	light.light_energy = energy
-	light.omni_range = range
+	light.omni_range = light_range
 	light.omni_attenuation = 1.35
 	light.light_specular = 0.4
 	light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
@@ -91,10 +91,10 @@ static func make_explosion_glow_light() -> OmniLight3D:
 	return glow
 
 
-static func make_signal_beacon_light(energy: float, range: float) -> OmniLight3D:
+static func make_signal_beacon_light(energy: float, light_range: float) -> OmniLight3D:
 	var beacon := OmniLight3D.new()
 	beacon.name = "SignalBeaconLight"
-	configure_cast_light(beacon, energy, range, Color(1.0, 0.58, 0.18))
+	configure_cast_light(beacon, energy, light_range, Color(1.0, 0.58, 0.18))
 	return beacon
 
 

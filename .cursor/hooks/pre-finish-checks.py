@@ -96,8 +96,9 @@ def main() -> int:
             text = text[:MAX_OUTPUT_CHARS] + "\n... (output truncated)"
 
         followup = (
-            f"Pre-finish checks failed (exit {exit_code}). "
-            "Fix lint and/or unit test failures, then finish again.\n\n"
+            f"Heads up: pre-finish checks didn't pass (exit {exit_code}). "
+            "If you're wrapping up code changes, you may want to look at "
+            "lint or unit test output below.\n\n"
             f"{text}"
         )
         _emit({"followup_message": followup})

@@ -18,11 +18,11 @@ var _match_subsystems_active: bool = false
 @onready var cloud_system: CloudSystem = $CloudSystem
 @onready var players_root: Node3D = $Players
 @onready var smoke_trails: SmokeTrailManager = $SmokeTrails
-@onready var discoverable_spawner = $DiscoverableSpawner
+@onready var discoverable_spawner: DiscoverableSpawner = $DiscoverableSpawner
 @onready var spell_registry: SpellRegistry = $SpellRegistry
 @onready var game_hud: CanvasLayer = $GameHUD
-@onready var voice_validator = $VoiceSpellValidator
-@onready var pause_menu = $PauseMenu
+@onready var voice_validator: VoiceSpellValidator = $VoiceSpellValidator
+@onready var pause_menu: PauseMenu = $PauseMenu
 @onready var delivery_objective: DeliveryObjective = $DeliveryObjective
 
 
@@ -161,7 +161,8 @@ func _on_maze_ready(
 			maze.cell_size,
 			moon.position.y,
 			GameState.run_seed,
-			GameState.match_start_time_msec
+			GameState.match_start_time_msec,
+			moon
 		)
 	_finish_match_layout()
 

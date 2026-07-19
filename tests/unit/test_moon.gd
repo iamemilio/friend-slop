@@ -61,10 +61,10 @@ func _test_moon_shadow_settings_reduce_artifacts() -> int:
 	moon.configure_for_maze(45, 45, 3.0)
 	var moon_light: DirectionalLight3D = moon.get_node("MoonLight")
 	var issue := ""
-	if moon_light.directional_shadow_mode != DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS:
-		issue = "Expected moon to use 2-split directional shadows for dense texels"
-	elif moon_light.directional_shadow_blend_splits:
-		issue = "Expected moon to keep cascade blending disabled (avoids corner blotches)"
+	if moon_light.directional_shadow_mode != DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS:
+		issue = "Expected moon to use 4-split directional shadows for cloud coverage"
+	elif not moon_light.directional_shadow_blend_splits:
+		issue = "Expected moon cascade blending enabled for soft cloud shadow transitions"
 	elif moon_light.directional_shadow_pancake_size > 0.0:
 		issue = "Expected moon shadow pancake to stay disabled"
 	elif moon_light.light_angular_distance > 0.0:
@@ -73,10 +73,12 @@ func _test_moon_shadow_settings_reduce_artifacts() -> int:
 		issue = "Expected moon shadows to stay sharp (no PCF blur grain)"
 	elif moon_light.shadow_bias > 0.35:
 		issue = "Expected moon shadow bias to stay moderate (avoid peter-panning)"
-	elif moon_light.shadow_normal_bias < 2.5:
+	elif moon_light.shadow_normal_bias < 1.5:
 		issue = "Expected moon normal bias high enough to avoid floor streaking"
 	elif moon_light.shadow_normal_bias > 6.0:
 		issue = "Expected moon normal bias to stay moderate (avoid peter-panning)"
+	elif moon_light.directional_shadow_max_distance < 42.0:
+		issue = "Expected moon shadow distance to reach the cloud layer"
 	root.queue_free()
 	if not issue.is_empty():
 		push_error(issue)

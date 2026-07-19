@@ -7,7 +7,7 @@ var _paused := false
 var _spellbook_was_open := false
 
 @onready var _menu_panel: Control = $MenuPanel
-@onready var _settings_panel = $SettingsPanel
+@onready var _settings_panel: SettingsPanel = $SettingsPanel
 @onready var _resume_button: Button = $MenuPanel/CenterContainer/VBox/ResumeButton
 @onready var _settings_button: Button = $MenuPanel/CenterContainer/VBox/SettingsButton
 @onready var _end_game_button: Button = $MenuPanel/CenterContainer/VBox/EndGameButton

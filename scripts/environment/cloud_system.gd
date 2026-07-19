@@ -5,23 +5,30 @@ extends Node3D
 
 const CloudStateScript := preload("res://scripts/environment/cloud_state.gd")
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+const CloudMoonShader := preload("res://shaders/cloud_moon_proximity.gdshader")
 
 const CLOUD_SALT := "clouds"
 const PUFFS_MIN := 4
 const PUFFS_MAX := 8
+## Per-cloud mesh size (puff cluster radius). Does NOT control how many clouds spawn.
 const BASE_CLOUD_RADIUS := 11.0
 const MIN_CLOUD_RADIUS := 8.0
 const MAX_CLOUD_RADIUS := 32.0
 const TRAVEL_SPAN_FACTOR := 2.5
-const CLOUD_DENSITY_SCALE := 1.15
+## Multiplier for spawn *count* only (how often clouds appear). Never scales radius/size.
+## 1.24 ≈ +8% more cloud instances vs the original 1.15 baseline.
+const CLOUD_SPAWN_COUNT_SCALE := 1.24
+## Heights in cell_size units — low enough for near/mid shadow cascades to hit the maze.
+const CLOUD_HEIGHT_MIN_CELLS := 8.0
+const CLOUD_HEIGHT_MAX_CELLS := 16.0
 
+## Base number of cloud instances before span scaling. Raise this for more frequent spawns.
 @export var cloud_count_base: int = 7
-@export var cloud_density_divisor: float = 55.0
+## Larger value → fewer extra clouds from maze span (spawn frequency, not size).
+@export var cloud_span_count_divisor: float = 55.0
 @export var cloud_count_max: int = 36
 @export var drift_speed_min: float = 2.0
 @export var drift_speed_max: float = 7.0
-@export var cloud_height_min_ratio: float = 0.45
-@export var cloud_height_max_ratio: float = 0.72
 
 var _clouds: Array[CloudState] = []
 var _bounds_min: Vector3 = Vector3.ZERO
@@ -30,6 +37,8 @@ var _travel_span: float = 0.0
 var _match_start_time_msec: int = 0
 var _configured: bool = false
 var _cloud_holder: Node3D = _create_cloud_holder()
+var _shared_cloud_material: ShaderMaterial = null
+var _light_source: Node3D = null
 
 
 func _create_cloud_holder() -> Node3D:
@@ -49,21 +58,30 @@ func _ensure_holder_in_tree() -> void:
 		add_child(_cloud_holder)
 
 
+func set_light_source(light_source: Node3D) -> void:
+	_light_source = light_source
+
+
 func configure_for_maze(
 	maze_width: int,
 	maze_height: int,
 	cell_size: float,
 	moon_height: float,
 	run_seed: int = -1,
-	start_time_msec: int = 0
+	start_time_msec: int = 0,
+	light_source: Node3D = null
 ) -> void:
+	if light_source != null:
+		_light_source = light_source
 	var grid_w := float(maze_width * 2 + 1)
 	var grid_h := float(maze_height * 2 + 1)
 	var maze_span := maxf(grid_w, grid_h) * cell_size
 	var travel_span := maze_span * TRAVEL_SPAN_FACTOR
 	var half := travel_span * 0.5
-	var height_min := moon_height * cloud_height_min_ratio
-	var height_max := moon_height * cloud_height_max_ratio
+	# Absolute low altitude (not moon-relative) so PSSM near cascades include cloud casters.
+	var height_min := maxf(cell_size * CLOUD_HEIGHT_MIN_CELLS, 20.0)
+	var height_max := maxf(cell_size * CLOUD_HEIGHT_MAX_CELLS, 42.0)
+	height_max = minf(height_max, maxf(moon_height * 0.35, height_min + 4.0))
 
 	var bounds_min := Vector3(-half, height_min, -half)
 	var bounds_max := Vector3(half, height_max, half)
@@ -87,14 +105,18 @@ func configure(
 	)
 	_match_start_time_msec = start_time_msec if start_time_msec > 0 else Time.get_ticks_msec()
 	_configured = true
+	_shared_cloud_material = null
 
 	var cloud_seed := _derive_seed(run_seed)
 	seed(cloud_seed)
 
 	var scaled_count := int(
-		round((float(cloud_count_base) + _travel_span / cloud_density_divisor) * CLOUD_DENSITY_SCALE)
+		round(
+			(float(cloud_count_base) + _travel_span / cloud_span_count_divisor)
+			* CLOUD_SPAWN_COUNT_SCALE
+		)
 	)
-	var scaled_max := int(round(float(cloud_count_max) * CLOUD_DENSITY_SCALE))
+	var scaled_max := int(round(float(cloud_count_max) * CLOUD_SPAWN_COUNT_SCALE))
 	var cloud_count := mini(scaled_max, scaled_count)
 
 	_clouds = _generate_cloud_states(cloud_count)
@@ -185,17 +207,32 @@ func _create_mesh_instance(mesh: ArrayMesh) -> MeshInstance3D:
 	instance.material_override = _cloud_material()
 	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	instance.layers = WorldVisualLayersScript.WORLD
+	# Large drifting volumes — expand cull margin so shadow cascades keep them.
+	instance.extra_cull_margin = MAX_CLOUD_RADIUS * 2.0
 	return instance
 
 
-func _cloud_material() -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.84, 0.87, 0.91, 1.0)
-	material.emission_enabled = true
-	material.emission = Color(0.25, 0.28, 0.32)
-	material.emission_energy_multiplier = 0.6
-	material.roughness = 1.0
+func _cloud_material() -> ShaderMaterial:
+	# One shared shader: per-fragment moon proximity fades white→grey inside a cloud.
+	if _shared_cloud_material != null:
+		return _shared_cloud_material
+
+	var material := ShaderMaterial.new()
+	material.shader = CloudMoonShader
+	_shared_cloud_material = material
+	_sync_moon_to_shader()
 	return material
+
+
+func _sync_moon_to_shader() -> void:
+	if _shared_cloud_material == null:
+		return
+	if _light_source == null or not is_instance_valid(_light_source):
+		return
+	_shared_cloud_material.set_shader_parameter(
+		"moon_world_pos",
+		_light_source.global_position
+	)
 
 
 func _append_box(st: SurfaceTool, offset: Vector3, size: Vector3) -> void:
@@ -229,7 +266,6 @@ func _append_box(st: SurfaceTool, offset: Vector3, size: Vector3) -> void:
 	st.add_vertex(v[4]); st.add_vertex(v[7]); st.add_vertex(v[3])
 	st.add_vertex(v[4]); st.add_vertex(v[3]); st.add_vertex(v[0])
 
-
 func _process(_delta: float) -> void:
 	if not _configured:
 		return
@@ -243,6 +279,7 @@ func _elapsed_seconds() -> float:
 
 
 func _update_cloud_transforms(elapsed_sec: float) -> void:
+	_sync_moon_to_shader()
 	var children := _cloud_holder.get_children()
 	for i in _clouds.size():
 		if i >= children.size():
