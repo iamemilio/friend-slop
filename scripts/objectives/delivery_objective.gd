@@ -15,6 +15,14 @@ const FLOAT_HEIGHT := 1.1
 const BOB_SPEED := 2.2
 const BOB_AMPLITUDE := 0.12
 const CARRY_OFFSET := Vector3(0.35, -0.15, -0.55)
+const BEACON_HEIGHT := 140.0
+const BEACON_RADIUS := 0.72
+const BEACON_CORE_RADIUS := 0.22
+const BEACON_COLOR := Color(0.22, 1.0, 0.48, 0.28)
+const BEACON_CORE_COLOR := Color(0.75, 1.0, 0.85, 0.72)
+const BEACON_LIGHT_ENERGY := 14.0
+const BEACON_IGNITE_SEC := 0.9
+const BEACON_RETRACT_SEC := 0.32
 
 var state: DeliveryObjectiveState = DeliveryObjectiveState.new()
 
@@ -25,6 +33,12 @@ var _item_mesh: MeshInstance3D
 var _item_audio: AudioStreamPlayer3D
 var _turn_in_root: Node3D
 var _turn_in_mesh: MeshInstance3D
+var _beacon_beam: MeshInstance3D
+var _beacon_core: MeshInstance3D
+var _beacon_light: SpotLight3D
+var _beacon_base_light: OmniLight3D
+var _beacon_tween: Tween
+var _beacon_active: bool = false
 var _item_world_pos: Vector3 = Vector3.ZERO
 var _turn_in_pos: Vector3 = Vector3.ZERO
 var _carrier_peer_id: int = -1
@@ -274,6 +288,7 @@ func _apply_visuals_for_phase() -> void:
 				_attach_to_carrier(state.carrier as Node3D)
 		DeliveryObjectiveState.Phase.COMPLETE:
 			_detach_item_to_turn_in()
+	_set_shrine_beacon_active(state.phase == DeliveryObjectiveState.Phase.CARRIED)
 
 
 func _peer_id_for_player(player: Node) -> int:
@@ -380,6 +395,140 @@ func _build_visuals() -> void:
 		ring_mat.emission = Color(0.35, 0.85, 0.45) * 0.35
 		ring.material_override = ring_mat
 		_turn_in_root.add_child(ring)
+
+		_build_shrine_beacon()
+
+
+func _build_shrine_beacon() -> void:
+	_beacon_beam = _make_beacon_cylinder(
+		"DeliveryBeaconBeam",
+		BEACON_RADIUS,
+		BEACON_RADIUS * 0.55,
+		BEACON_COLOR,
+		1.8
+	)
+	_beacon_core = _make_beacon_cylinder(
+		"DeliveryBeaconCore",
+		BEACON_CORE_RADIUS,
+		BEACON_CORE_RADIUS * 0.7,
+		BEACON_CORE_COLOR,
+		4.5
+	)
+	_turn_in_root.add_child(_beacon_beam)
+	_turn_in_root.add_child(_beacon_core)
+
+	_beacon_light = SpotLight3D.new()
+	_beacon_light.name = "DeliveryBeaconLight"
+	_beacon_light.light_color = Color(0.3, 1.0, 0.5)
+	_beacon_light.light_energy = 0.0
+	_beacon_light.spot_range = BEACON_HEIGHT
+	_beacon_light.spot_attenuation = 0.45
+	_beacon_light.spot_angle = 9.0
+	_beacon_light.shadow_enabled = false
+	_beacon_light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	_beacon_light.position = Vector3(0.0, 0.35, 0.0)
+	# SpotLight aims along -Z; tip it so the cone points skyward.
+	_beacon_light.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
+	_turn_in_root.add_child(_beacon_light)
+
+	_beacon_base_light = OmniLight3D.new()
+	_beacon_base_light.name = "DeliveryBeaconBaseLight"
+	_beacon_base_light.light_color = Color(0.35, 1.0, 0.55)
+	_beacon_base_light.light_energy = 0.0
+	_beacon_base_light.omni_range = 14.0
+	_beacon_base_light.omni_attenuation = 1.1
+	_beacon_base_light.shadow_enabled = false
+	_beacon_base_light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	_beacon_base_light.position = Vector3(0.0, 1.2, 0.0)
+	_turn_in_root.add_child(_beacon_base_light)
+
+	_set_beacon_extend(0.0)
+	_beacon_active = false
+
+
+func _make_beacon_cylinder(
+	node_name: String,
+	bottom_radius: float,
+	top_radius: float,
+	color: Color,
+	emission_energy: float
+) -> MeshInstance3D:
+	var cylinder := CylinderMesh.new()
+	cylinder.top_radius = top_radius
+	cylinder.bottom_radius = bottom_radius
+	cylinder.height = BEACON_HEIGHT
+
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = node_name
+	mesh_instance.mesh = cylinder
+	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mesh_instance.layers = WorldVisualLayersScript.WORLD
+
+	var beam_mat := StandardMaterial3D.new()
+	beam_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	beam_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	beam_mat.albedo_color = color
+	beam_mat.emission_enabled = true
+	beam_mat.emission = Color(color.r, color.g, color.b)
+	beam_mat.emission_energy_multiplier = emission_energy
+	beam_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	beam_mat.disable_receive_shadows = true
+	mesh_instance.material_override = beam_mat
+	return mesh_instance
+
+
+func _set_beacon_extend(amount: float) -> void:
+	var extend := clampf(amount, 0.0, 1.0)
+	# Grow from the shrine base upward (lightsaber ignition).
+	var mid_y := BEACON_HEIGHT * 0.5 * extend
+	var scale := Vector3(1.0, maxf(extend, 0.001), 1.0)
+	if _beacon_beam != null and is_instance_valid(_beacon_beam):
+		_beacon_beam.visible = extend > 0.001
+		_beacon_beam.scale = scale
+		_beacon_beam.position.y = mid_y
+	if _beacon_core != null and is_instance_valid(_beacon_core):
+		_beacon_core.visible = extend > 0.001
+		_beacon_core.scale = scale
+		_beacon_core.position.y = mid_y
+	if _beacon_light != null and is_instance_valid(_beacon_light):
+		_beacon_light.visible = extend > 0.001
+		_beacon_light.light_energy = BEACON_LIGHT_ENERGY * extend
+		_beacon_light.spot_range = BEACON_HEIGHT * extend
+	if _beacon_base_light != null and is_instance_valid(_beacon_base_light):
+		_beacon_base_light.visible = extend > 0.001
+		_beacon_base_light.light_energy = 5.5 * extend
+
+
+func _set_shrine_beacon_active(active: bool) -> void:
+	if _beacon_beam == null:
+		return
+	if active == _beacon_active and _beacon_tween == null:
+		return
+	_beacon_active = active
+	if _beacon_tween != null and is_instance_valid(_beacon_tween):
+		_beacon_tween.kill()
+		_beacon_tween = null
+
+	var from_extend := 0.0
+	if _beacon_beam != null:
+		from_extend = _beacon_beam.scale.y
+	var to_extend := 1.0 if active else 0.0
+	var duration := BEACON_IGNITE_SEC if active else BEACON_RETRACT_SEC
+
+	if _turn_in_mesh != null:
+		var shrine_mat := _turn_in_mesh.material_override as StandardMaterial3D
+		if shrine_mat != null:
+			shrine_mat.emission = (
+				Color(0.55, 1.0, 0.65) * 1.15 if active else Color(0.25, 0.65, 0.35) * 0.5
+			)
+
+	_beacon_tween = create_tween()
+	_beacon_tween.set_trans(Tween.TRANS_CUBIC)
+	_beacon_tween.set_ease(Tween.EASE_OUT if active else Tween.EASE_IN)
+	_beacon_tween.tween_method(_set_beacon_extend, from_extend, to_extend, duration)
+	_beacon_tween.finished.connect(func() -> void:
+		_beacon_tween = null
+	)
 
 
 func _sync_item_transform() -> void:
