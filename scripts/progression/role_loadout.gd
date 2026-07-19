@@ -6,10 +6,9 @@ extends RefCounted
 const APPRENTICE_SPELLS: Array[String] = [
 	"show_me",
 	"fireball",
-	"flame_on",
 	"haste",
-	"light_on",
-	"light_off",
+	"light",
+	"light_ball",
 ]
 
 const WARDEN_SPELLS: Array[String] = [

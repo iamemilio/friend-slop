@@ -52,12 +52,12 @@ static func phase_to_string(value: Phase) -> String:
 			return "LOBBY"
 
 
-static func is_gameplay_phase(phase: Phase) -> bool:
-	return phase == Phase.ACTIVE
+static func is_gameplay_phase(value: Phase) -> bool:
+	return value == Phase.ACTIVE
 
 
-static func is_teardown_phase(phase: Phase) -> bool:
-	return phase == Phase.RESOLVING or phase == Phase.ENDED
+static func is_teardown_phase(value: Phase) -> bool:
+	return value == Phase.RESOLVING or value == Phase.ENDED
 
 
 func can_transition_to(next: Phase) -> bool:

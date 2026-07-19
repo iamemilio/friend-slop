@@ -26,9 +26,8 @@
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_shift.tres" id="22_shift"]
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_seal.tres" id="23_seal"]
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_forge.tres" id="24_forge"]
-[ext_resource type="Resource" path="res://resources/spells/light_on.tres" id="25_light_on"]
-[ext_resource type="Resource" path="res://resources/spells/light_off.tres" id="26_light_off"]
-[ext_resource type="Resource" path="res://resources/spells/flame_on.tres" id="27_flame_on"]
+[ext_resource type="Resource" path="res://resources/spells/light.tres" id="25_light"]
+[ext_resource type="Resource" path="res://resources/spells/light_ball.tres" id="26_light_ball"]
 [ext_resource type="Script" uid="uid://cjpjlfd2a3wsx" path="res://scripts/player_spawn_slot.gd" id="28_spawn_slot"]
 
 [sub_resource type="Environment" id="Environment_main"]
@@ -46,12 +45,13 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_main")
 
 [node name="Moon" parent="." unique_id=2089265695 instance=ExtResource("1_moon")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44.327625, 259.35, 56.736774)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 700, 5)
+show_light_arrow = false
 
 [node name="CloudSystem" type="Node3D" parent="." unique_id=1526258183]
 script = ExtResource("2_clouds")
 spawn_size = Vector3(1500, 40, 1500)
-sky_coverage = 0.22
+sky_coverage = 0.14
 wind_speed = 1.0
 wind_direction = 40.0
 
@@ -69,7 +69,7 @@ run_config = ExtResource("5_run_cfg")
 
 [node name="SpellRegistry" type="Node" parent="." unique_id=1904759634]
 script = ExtResource("6_registry")
-spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("27_flame_on"), ExtResource("25_light_on"), ExtResource("26_light_off"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
+spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("25_light"), ExtResource("26_light_ball"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
 
 [node name="VoiceSpellValidator" type="Node" parent="." unique_id=1384260685]
 script = ExtResource("10_validator")

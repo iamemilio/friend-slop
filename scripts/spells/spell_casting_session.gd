@@ -57,10 +57,29 @@ var _capture_worker: VoiceCaptureWorker
 
 
 func _ready() -> void:
+	## Nested spawn-slot / gallery placeholders must not touch mic or worker threads.
+	if _is_character_preview_placeholder():
+		set_process(false)
+		set_physics_process(false)
+		return
 	_capture_worker = VoiceCaptureWorkerScript.new()
 	_ensure_validation_runner()
 	if _is_local_simulation():
 		_setup_microphone()
+
+
+func _is_character_preview_placeholder() -> bool:
+	## Nested under spawn slots or gallery/workspace — not a live player.
+	var node: Node = get_parent()
+	while node != null:
+		if node.is_in_group("player_spawn_slot"):
+			return true
+		node = node.get_parent()
+	if is_inside_tree():
+		var scene := get_tree().current_scene
+		if scene != null and scene.has_meta("character_preview_scene"):
+			return true
+	return false
 
 
 func _ensure_validation_runner() -> void:
@@ -248,6 +267,13 @@ func release_wand_hold() -> void:
 			_begin_validation()
 		_:
 			pass
+
+
+func _exit_tree() -> void:
+	if _capture_worker != null:
+		_capture_worker.stop()
+		_capture_worker = null
+	_stop_mic()
 
 
 func _setup_microphone() -> void:

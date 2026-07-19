@@ -13,7 +13,12 @@ enum Role {
 
 const GIZMO_NAME := "SlotGizmo"
 const RING_NAME := "SlotSelectRing"
+const PREVIEW_NAME := "RolePreview"
+const SPAWN_SLOT_GROUP := "player_spawn_slot"
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
+## Runtime load() — avoid preload() of apprentice/warden (circular with PlayableCharacter).
+const APPRENTICE_SCENE_PATH := "res://scenes/characters/apprentice.tscn"
+const WARDEN_SCENE_PATH := "res://scenes/characters/warden.tscn"
 
 @export var role: Role = Role.APPRENTICE:
 	set(value):
@@ -53,13 +58,19 @@ var _syncing_pose: bool = false
 var _last_synced_origin: Vector3 = Vector3(INF, INF, INF)
 
 
+func _enter_tree() -> void:
+	add_to_group(SPAWN_SLOT_GROUP)
+
+
 func _ready() -> void:
 	set_notify_transform(true)
 	if Engine.is_editor_hint():
 		set_process(true)
+		_ensure_role_preview()
 		_refresh_visuals()
 	else:
 		set_process(false)
+		_free_role_preview()
 		_free_editor_meshes()
 
 
@@ -203,12 +214,42 @@ func _free_editor_meshes() -> void:
 			existing.free()
 
 
+func _ensure_role_preview() -> void:
+	## Editor-only Apprentice/Warden stand-in. Never present during match play.
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	var existing := get_node_or_null(PREVIEW_NAME)
+	if existing != null and int(existing.get_meta("spawn_preview_role", -1)) == int(role):
+		return
+	if existing != null:
+		existing.free()
+	var packed: PackedScene = (
+		load(WARDEN_SCENE_PATH) if role == Role.WARDEN else load(APPRENTICE_SCENE_PATH)
+	) as PackedScene
+	if packed == null:
+		push_warning("PlayerSpawnSlot: missing preview scene for role %s" % role)
+		return
+	var preview := packed.instantiate() as Node3D
+	preview.name = PREVIEW_NAME
+	preview.set_meta("spawn_preview_role", int(role))
+	preview.set_meta("_edit_lock_", true)
+	add_child(preview)
+
+
+func _free_role_preview() -> void:
+	var existing := get_node_or_null(PREVIEW_NAME)
+	if existing != null:
+		existing.free()
+
+
 func _refresh_visuals() -> void:
 	if not Engine.is_editor_hint():
 		_free_editor_meshes()
+		_free_role_preview()
 		return
 	if not is_inside_tree():
 		return
+	_ensure_role_preview()
 	_update_pillar_gizmo()
 	_update_select_ring()
 
@@ -318,10 +359,7 @@ func _is_selected_in_editor() -> bool:
 
 
 func _has_character_preview() -> bool:
-	for child in get_children():
-		if child is Character:
-			return true
-	return false
+	return get_node_or_null(PREVIEW_NAME) != null
 
 
 func _editor_selection():

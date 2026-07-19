@@ -142,6 +142,7 @@ func host_session(options: Dictionary = {}) -> Error:
 		return ERR_UNCONFIGURED
 	disconnect_session()
 
+	@warning_ignore("redundant_await")
 	var err: Error = await transport.host(options)
 	if err != OK:
 		# Solo / offline preview: local OfflineMultiplayerPeer lobby (no Steam required).
@@ -184,6 +185,7 @@ func join_session(room_code: String, options: Dictionary = {}) -> Error:
 	var join_options := options.duplicate()
 	join_options["room_code"] = room_code
 
+	@warning_ignore("redundant_await")
 	var err: Error = await transport.join(join_options)
 	if err != OK:
 		connection_failed.emit("Join failed.")
@@ -255,7 +257,7 @@ func _clear_player_nodes(players_root: Node3D) -> void:
 			continue
 		to_free.append(child)
 	for child in to_free:
-		disable_player_sync(child)
+		set_player_sync_enabled(child, false)
 		players_root.remove_child(child)
 		child.queue_free()
 
@@ -388,6 +390,8 @@ func _execute_spell_cast(caster_peer_id: int, spell_id: String, params: Dictiona
 
 func request_match_victory(winner_peer_id: int) -> void:
 	if not MatchStateManager.allows_gameplay_actions():
+		TomeDebug.log("NetworkManager", "Victory blocked — gameplay actions not allowed")
+		_forward_to_main("reset_maze_exit_trigger_from_network", [])
 		return
 	if multiplayer.is_server():
 		_rpc_match_victory.rpc(winner_peer_id)
@@ -617,7 +621,12 @@ static func disable_player_sync(player_root: Node) -> void:
 
 
 func _forward_to_main(method: StringName, args: Array = []) -> void:
-	if not MatchStateManager.allows_gameplay_actions():
+	# Victory / exit-reset must still reach Main even if the match is leaving ACTIVE.
+	var always_forward := (
+		method == &"trigger_match_victory"
+		or method == &"reset_maze_exit_trigger_from_network"
+	)
+	if not always_forward and not MatchStateManager.allows_gameplay_actions():
 		return
 	var main := get_tree().current_scene
 	if main != null and main.has_method(method):

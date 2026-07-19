@@ -1,4 +1,4 @@
-[gd_scene format=3 uid="uid://bplayable001"]
+[gd_scene load_steps=8 format=3 uid="uid://bplayable001"]
 
 [ext_resource type="PackedScene" uid="uid://bcharacter01" path="res://scenes/characters/character.tscn" id="1_character"]
 [ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="2_playable"]

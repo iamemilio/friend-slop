@@ -3,6 +3,16 @@ extends RefCounted
 
 ## Matches speech-to-text transcripts against spell incantations.
 
+## Common STT near-misses keyed by the expected spell word.
+## Keep these tight — only pairs that players actually hit in-game.
+const STT_CONFUSABLES := {
+	"light": ["like", "lite", "lights"],
+	"ball": ["bowl", "bald", "boll"],
+	"show": ["sho", "shaw", "shoe"],
+	"speed": ["speak", "steed"],
+	"fireball": ["firebal", "firball"],
+}
+
 
 static func matches(
 	transcript_words: PackedStringArray,
@@ -130,12 +140,42 @@ static func _fuzzy_word_sequence(
 static func _word_similar(detected: String, expected: String) -> bool:
 	if detected.is_empty() or expected.is_empty():
 		return false
-	if detected == expected:
+	var left := detected.to_lower().strip_edges()
+	var right := expected.to_lower().strip_edges()
+	if left.is_empty() or right.is_empty():
+		return false
+	if left == right:
 		return true
-	if detected.contains(expected) or expected.contains(detected):
+	if _is_stt_confusable(left, right):
 		return true
-	var max_distance: int = maxi(1, int(round(float(expected.length()) / 4.0)))
-	return _edit_distance(detected, expected) <= max_distance
+
+	# Substring only when both sides are substantial (avoid "li" ⊂ "light").
+	var min_len := mini(left.length(), right.length())
+	var max_len := maxi(left.length(), right.length())
+	if (
+		min_len >= 3
+		and float(min_len) / float(max_len) >= 0.75
+		and (left.contains(right) or right.contains(left))
+	):
+		return true
+
+	# Reject wildly different lengths before edit-distance forgiveness.
+	if absi(left.length() - right.length()) > 2:
+		return false
+	# Slightly looser than before (len/3 vs len/4) for short STT typos.
+	var max_distance: int = maxi(1, int(ceil(float(right.length()) / 3.0)))
+	max_distance = mini(max_distance, 3)
+	return _edit_distance(left, right) <= max_distance
+
+
+static func _is_stt_confusable(detected: String, expected: String) -> bool:
+	if STT_CONFUSABLES.has(expected):
+		if detected in STT_CONFUSABLES[expected]:
+			return true
+	if STT_CONFUSABLES.has(detected):
+		if expected in STT_CONFUSABLES[detected]:
+			return true
+	return false
 
 
 static func _edit_distance(a: String, b: String) -> int:

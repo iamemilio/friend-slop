@@ -83,22 +83,22 @@ func _deferred_apply_window_size(target: Vector2i) -> void:
 func _configure_root_window(window: Window) -> void:
 	window.borderless = false
 	window.unresizable = false
-	window.popup_window = false
+	## Avoid popup_window / WINDOW_FLAG_POPUP — setting either on the main window errors.
 	window.extend_to_title = false
 	window.exclusive = false
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_POPUP, false)
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_EXTEND_TO_TITLE, false)
 
 
-func _center_window(size: Vector2i) -> void:
+func _center_window(window_size: Vector2i) -> void:
 	var screen_id := DisplayServer.window_get_current_screen()
 	if screen_id < 0:
 		screen_id = DisplayServer.get_primary_screen()
 	var screen_origin := DisplayServer.screen_get_position(screen_id)
 	var screen_size := DisplayServer.screen_get_size(screen_id)
-	var window_pos := screen_origin + (screen_size - size) / 2
+	var delta := screen_size - window_size
+	var window_pos := screen_origin + Vector2i(int(delta.x * 0.5), int(delta.y * 0.5))
 	DisplayServer.window_set_position(window_pos)
 
 

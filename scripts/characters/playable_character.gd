@@ -12,6 +12,7 @@ const PLAYER_MIN_SEPARATION := 0.55
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
+const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -38,6 +39,7 @@ func _ready() -> void:
 		return
 
 	add_to_group("player")
+	collision_layer = 1
 	floor_block_on_wall = false
 	floor_snap_length = 0.15
 	safe_margin = 0.04
@@ -51,7 +53,7 @@ func _ready() -> void:
 
 
 func _should_use_preview_mode() -> bool:
-	if get_parent() is PlayerSpawnSlot:
+	if _is_under_spawn_slot():
 		return true
 	if not is_inside_tree():
 		return false
@@ -59,8 +61,19 @@ func _should_use_preview_mode() -> bool:
 	return scene != null and scene.has_meta("character_preview_scene")
 
 
+func _is_under_spawn_slot() -> bool:
+	var node := get_parent()
+	while node != null:
+		if node.is_in_group("player_spawn_slot"):
+			return true
+		node = node.get_parent()
+	return false
+
+
 func _enter_editor_preview_mode() -> void:
-	## Spawn-slot or gallery preview: show meshes, never act as a live player.
+	## Spawn-slot or gallery preview: never act as a live player.
+	## Visible in the editor only — hide (and free) at runtime so placeholders
+	## do not show up as extra characters or initialize mic/voice systems.
 	process_mode = Node.PROCESS_MODE_DISABLED
 	collision_layer = 0
 	collision_mask = 0
@@ -70,15 +83,23 @@ func _enter_editor_preview_mode() -> void:
 	var cam := get_node_or_null("%FirstPersonCamera") as Camera3D
 	if cam != null:
 		cam.current = false
-	visible = true
-	_apply_character_color(_preview_tint())
+	if Engine.is_editor_hint():
+		visible = true
+		_apply_character_color(_preview_tint())
+	else:
+		visible = false
+		queue_free()
 
 
 func _preview_tint() -> Color:
-	if get_parent() is PlayerSpawnSlot:
-		var slot := get_parent() as PlayerSpawnSlot
-		if slot.role == PlayerSpawnSlot.Role.WARDEN:
-			return Color(0.55, 0.2, 0.7)
+	var parent := get_parent()
+	if (
+		parent != null
+		and parent.is_in_group("player_spawn_slot")
+		and parent.has_method("get_game_role")
+		and int(parent.call("get_game_role")) == 1
+	):
+		return Color(0.55, 0.2, 0.7)
 	var scr := get_script() as Script
 	if scr != null and scr.resource_path.ends_with("warden.gd"):
 		return Color(0.55, 0.2, 0.7)
@@ -86,7 +107,7 @@ func _preview_tint() -> Color:
 
 
 func _exit_tree() -> void:
-	NetworkManager.disable_player_sync(self)
+	NetworkManagerScript.disable_player_sync(self)
 
 
 func _setup_view_camera() -> void:
@@ -155,6 +176,16 @@ func apply_speed_boost(duration: float, multiplier: float) -> void:
 func set_flashlight_enabled(active: bool) -> void:
 	if _wand != null:
 		_wand.set_flashlight_enabled(active)
+
+
+func is_flashlight_enabled() -> bool:
+	if _wand == null:
+		return false
+	return _wand.is_flashlight_active()
+
+
+func toggle_flashlight() -> void:
+	set_flashlight_enabled(not is_flashlight_enabled())
 
 
 func set_flame_glow_enabled(active: bool) -> void:
@@ -429,6 +460,14 @@ func _update_interaction_prompt() -> void:
 		var objective_prompt := objective.get_interaction_prompt(self)
 		if not objective_prompt.is_empty():
 			_game_hud.set_interaction_prompt(objective_prompt)
+			return
+	var maze: Node = null
+	if get_tree().current_scene != null:
+		maze = get_tree().current_scene.get_node_or_null("MazeGenerator")
+	if maze != null and maze.has_method("get_exit_approach_prompt"):
+		var exit_prompt: String = maze.call("get_exit_approach_prompt", self)
+		if not exit_prompt.is_empty():
+			_game_hud.set_interaction_prompt(exit_prompt)
 			return
 	var interactable: Interactable = _find_nearest_interactable()
 	if interactable != null:

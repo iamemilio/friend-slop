@@ -122,12 +122,10 @@ func get_cast_success_text() -> String:
 			text = "You surge forward — movement speed increased!"
 		"fireball":
 			text = "A blazing fireball launches from your wand!"
-		"flame_on":
-			text = "Your wand tip flares with a deep red glow!"
-		"flashlight_on":
-			text = "A steady beam of light shines from your wand."
-		"flashlight_off":
-			text = "The wand light clicks off."
+		"flashlight_toggle":
+			text = "Your wand light toggles."
+		"light_ball":
+			text = "An orb of light hangs in the air, then slowly fades."
 	return text
 
 
@@ -152,15 +150,17 @@ func get_codex_effect_detail() -> String:
 				"Launches a blazing fireball from your wand. "
 				+ "Shots explode on impact with sparks and smoke."
 			)
-		"flame_on":
-			text = "Ignites the wand tip with a steady deep-red glow."
-		"flashlight_on":
+		"flashlight_toggle":
 			text = (
-				"Projects a focused beam from your wand until you cast Light Off. "
-				+ "Illuminates the maze ahead of you."
+				"Say \"light\" to turn your wand beam on or off. "
+				+ "Cast again to flip the current state."
 			)
-		"flashlight_off":
-			text = "Extinguishes your wand flashlight beam."
+		"light_ball":
+			text = (
+				"Say \"light ball\" to leave a glowing orb ahead of you. "
+				+ "It fades away after %.0f seconds."
+				% SpellEffectSyncScript.DEFAULT_LIGHT_BALL_DURATION
+			)
 	return text
 
 

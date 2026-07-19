@@ -145,8 +145,10 @@ func _populate_from_settings() -> void:
 
 func _populate_resolution_options() -> void:
 	_resolution_option.clear()
-	for size in SettingsManager.get_resolution_presets():
-		_resolution_option.add_item(DisplayResolutionPresetsScript.format_label(size))
+	for resolution_size in SettingsManager.get_resolution_presets():
+		_resolution_option.add_item(
+			DisplayResolutionPresetsScript.format_label(resolution_size)
+		)
 	_update_resolution_hint()
 
 

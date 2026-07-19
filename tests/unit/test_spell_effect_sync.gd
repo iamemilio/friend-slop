@@ -6,9 +6,8 @@ const FireballProjectileScript := preload("res://scripts/spells/fireball_project
 const FireballSpell := preload("res://resources/spells/fireball.tres")
 const HasteSpell := preload("res://resources/spells/haste.tres")
 const ShowMeSpell := preload("res://resources/spells/show_me.tres")
-const LightOnSpell := preload("res://resources/spells/light_on.tres")
-const LightOffSpell := preload("res://resources/spells/light_off.tres")
-const FlameOnSpell := preload("res://resources/spells/flame_on.tres")
+const LightSpell := preload("res://resources/spells/light.tres")
+const LightBallSpell := preload("res://resources/spells/light_ball.tres")
 
 
 func run() -> int:
@@ -24,7 +23,7 @@ func run() -> int:
 	failures += _test_fireball_network_round_trip()
 	failures += _test_fireball_wire_params_spawn_projectile()
 	failures += _test_apply_flashlight_toggle()
-	failures += _test_apply_flame_glow()
+	failures += _test_build_light_ball_params()
 	return failures
 
 
@@ -85,7 +84,7 @@ func _make_player_stub() -> CharacterBody3D:
 
 
 func _test_all_spells_are_supported() -> int:
-	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightOnSpell, LightOffSpell, FlameOnSpell]:
+	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightSpell, LightBallSpell]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
 			return 1
@@ -218,43 +217,44 @@ func _test_fireball_wire_params_spawn_projectile() -> int:
 
 func _test_apply_flashlight_toggle() -> int:
 	var player := _make_tracking_player()
-	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_ON})
-	if player.flashlight_calls.size() != 1 or not player.flashlight_calls[0]:
+	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_TOGGLE})
+	if player.toggle_calls != 1 or not player.flashlight_on:
 		player.queue_free()
-		push_error("Expected flashlight_on to enable wand beam")
+		push_error("Expected flashlight_toggle to turn wand beam on")
 		return 1
-	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_OFF})
-	if player.flashlight_calls.size() != 2 or player.flashlight_calls[1]:
+	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLASHLIGHT_TOGGLE})
+	if player.toggle_calls != 2 or player.flashlight_on:
 		player.queue_free()
-		push_error("Expected flashlight_off to disable wand beam")
+		push_error("Expected second flashlight_toggle to turn wand beam off")
 		return 1
-	var on_params := SyncScript.build_params(LightOnSpell, player)
+	var params := SyncScript.build_params(LightSpell, player)
 	player.queue_free()
-	if str(on_params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLASHLIGHT_ON:
-		push_error("Expected light_on to build flashlight_on params")
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLASHLIGHT_TOGGLE:
+		push_error("Expected light to build flashlight_toggle params")
 		return 1
 	return 0
 
 
-func _test_apply_flame_glow() -> int:
-	var player := _make_tracking_player()
-	SyncScript.apply(player, {SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLAME_ON})
-	if player.flame_glow_calls.size() != 1 or not player.flame_glow_calls[0]:
-		player.queue_free()
-		push_error("Expected flame_on to enable wand tip glow")
-		return 1
-	var params := SyncScript.build_params(FlameOnSpell, player)
+func _test_build_light_ball_params() -> int:
+	var player := _make_player_stub()
+	var params := SyncScript.build_params(LightBallSpell, player)
 	player.queue_free()
-	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLAME_ON:
-		push_error("Expected flame_on to build flame_on params")
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_LIGHT_BALL:
+		push_error("Expected light_ball effect id in params")
+		return 1
+	if not params.has(SyncScript.KEY_ORIGIN):
+		push_error("Expected light_ball origin in params")
+		return 1
+	if float(params.get(SyncScript.KEY_DURATION, 0.0)) != SyncScript.DEFAULT_LIGHT_BALL_DURATION:
+		push_error("Expected light_ball duration to be 30 seconds")
 		return 1
 	return 0
 
 
 class _EffectTrackingPlayer extends CharacterBody3D:
 	var speed_boost_calls: Array[Dictionary] = []
-	var flashlight_calls: Array[bool] = []
-	var flame_glow_calls: Array[bool] = []
+	var toggle_calls := 0
+	var flashlight_on := false
 
 
 	func apply_speed_boost(duration: float, multiplier: float) -> void:
@@ -264,9 +264,14 @@ class _EffectTrackingPlayer extends CharacterBody3D:
 		})
 
 
+	func is_flashlight_enabled() -> bool:
+		return flashlight_on
+
+
 	func set_flashlight_enabled(active: bool) -> void:
-		flashlight_calls.append(active)
+		flashlight_on = active
 
 
-	func set_flame_glow_enabled(active: bool) -> void:
-		flame_glow_calls.append(active)
+	func toggle_flashlight() -> void:
+		toggle_calls += 1
+		flashlight_on = not flashlight_on

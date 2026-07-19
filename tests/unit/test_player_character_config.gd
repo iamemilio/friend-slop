@@ -62,7 +62,7 @@ func _test_apprentice_starting_spells() -> int:
 	if spell_ids.size() != RoleLoadoutScript.APPRENTICE_SPELLS.size():
 		push_error("Expected apprentice config to expose all apprentice starting spells")
 		return 1
-	if not spell_ids.has("fireball") or not spell_ids.has("light_on"):
-		push_error("Expected apprentice loadout to include fireball and light_on")
+	if not spell_ids.has("fireball") or not spell_ids.has("light"):
+		push_error("Expected apprentice loadout to include fireball and light")
 		return 1
 	return 0

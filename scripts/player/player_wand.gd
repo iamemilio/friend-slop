@@ -315,18 +315,16 @@ func _success_color_for_spell(spell: SpellDefinition) -> Color:
 	match spell.effect_id:
 		"fireball":
 			color = Color(1.0, 0.55, 0.15)
-		"flame_on":
-			color = Color(0.95, 0.22, 0.08)
 		"light":
 			color = Color(1.0, 0.92, 0.55)
 		"haste":
 			color = Color(0.55, 0.82, 1.0)
-		"flashlight_on", "flashlight_off":
+		"flashlight_toggle", "light_ball":
 			color = FLASHLIGHT_COLOR
 	return color
 
 
 func _success_pulse_color_for_spell(spell: SpellDefinition) -> Color:
-	if spell != null and spell.effect_id == "flame_on":
-		return FLAME_GLOW_COLOR.lightened(0.35)
+	if spell != null and spell.effect_id == "light_ball":
+		return FLASHLIGHT_COLOR.lightened(0.25)
 	return Color(1.0, 0.98, 0.92)

@@ -69,7 +69,10 @@ func _worker_loop() -> void:
 	while true:
 		_mutex.lock()
 		var should_stop := _stop_requested
-		var chunks: Array = _pending_chunks.duplicate()
+		## Copy into an untyped Array — typed Array.duplicate() is unsafe off-thread.
+		var chunks: Array = []
+		for chunk in _pending_chunks:
+			chunks.append(chunk)
 		_pending_chunks.clear()
 		_mutex.unlock()
 		if should_stop:

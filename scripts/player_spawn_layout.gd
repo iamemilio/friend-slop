@@ -67,7 +67,7 @@ static func resolve_warden_cell(
 	maze_width: int,
 	maze_height: int
 ) -> Vector2i:
-	var center := Vector2i(maze_width / 2, maze_height / 2)
+	var center := Vector2i(int(maze_width * 0.5), int(maze_height * 0.5))
 	return _nearest_open_cell(wall_grid, maze_width, maze_height, center)
 
 

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SpellDefinition" load_steps=2 format=3 uid="uid://spell_light_ball"]
+
+[ext_resource type="Script" path="res://scripts/spells/spell_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "light_ball"
+display_name = "Light Ball"
+incantation_words = PackedStringArray("light", "ball")
+syllable_cadence_ms = PackedInt32Array(0, 320)
+cooldown_sec = 4.0
+effect_id = "light_ball"

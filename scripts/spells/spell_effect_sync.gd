@@ -4,6 +4,7 @@ extends RefCounted
 ## Generic spell effect params for solo play and multiplayer RPC payloads.
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
+const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
@@ -14,14 +15,14 @@ const KEY_MULTIPLIER := "multiplier"
 const EFFECT_HASTE := "haste"
 const EFFECT_LIGHT := "light"
 const EFFECT_FIREBALL := "fireball"
-const EFFECT_FLASHLIGHT_ON := "flashlight_on"
-const EFFECT_FLASHLIGHT_OFF := "flashlight_off"
-const EFFECT_FLAME_ON := "flame_on"
+const EFFECT_FLASHLIGHT_TOGGLE := "flashlight_toggle"
+const EFFECT_LIGHT_BALL := "light_ball"
 
 const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
 const DEFAULT_HASTE_MULTIPLIER := 1.65
 const DEFAULT_FIREBALL_CAST_DURATION := 0.0
+const DEFAULT_LIGHT_BALL_DURATION := 30.0
 
 
 static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary = {}) -> float:
@@ -34,7 +35,9 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 			return float(params.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 		EFFECT_FIREBALL:
 			return DEFAULT_FIREBALL_CAST_DURATION
-		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF, EFFECT_FLAME_ON:
+		EFFECT_LIGHT_BALL:
+			return float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+		EFFECT_FLASHLIGHT_TOGGLE:
 			return 0.0
 		_:
 			return 0.0
@@ -53,7 +56,10 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 		EFFECT_HASTE:
 			params[KEY_DURATION] = DEFAULT_HASTE_DURATION
 			params[KEY_MULTIPLIER] = DEFAULT_HASTE_MULTIPLIER
-		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF, EFFECT_FLAME_ON:
+		EFFECT_LIGHT_BALL:
+			params[KEY_ORIGIN] = _light_ball_origin(player)
+			params[KEY_DURATION] = DEFAULT_LIGHT_BALL_DURATION
+		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
 		_:
 			return {}
@@ -80,7 +86,13 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
-		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF, EFFECT_FLAME_ON:
+		EFFECT_LIGHT_BALL:
+			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			wire["origin_x"] = origin.x
+			wire["origin_y"] = origin.y
+			wire["origin_z"] = origin.z
+			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
 		_:
 			return {}
@@ -109,7 +121,14 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
-		EFFECT_FLASHLIGHT_ON, EFFECT_FLASHLIGHT_OFF, EFFECT_FLAME_ON:
+		EFFECT_LIGHT_BALL:
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
 		_:
 			return {}
@@ -125,9 +144,12 @@ static func normalize_params(params: Dictionary) -> Dictionary:
 
 
 static func is_network_format(params: Dictionary) -> bool:
-	return str(params.get(KEY_EFFECT_ID, "")) == EFFECT_FIREBALL \
-		and params.has("origin_x") \
-		and params.has("dir_x")
+	var effect_id := str(params.get(KEY_EFFECT_ID, ""))
+	if effect_id == EFFECT_FIREBALL and params.has("origin_x") and params.has("dir_x"):
+		return true
+	if effect_id == EFFECT_LIGHT_BALL and params.has("origin_x") and not params.has(KEY_ORIGIN):
+		return true
+	return false
 
 
 static func resolve_network_params(
@@ -183,12 +205,10 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			_reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 		EFFECT_FIREBALL:
 			_apply_fireball(player, params)
-		EFFECT_FLASHLIGHT_ON:
-			player.set_flashlight_enabled(true)
-		EFFECT_FLASHLIGHT_OFF:
-			player.set_flashlight_enabled(false)
-		EFFECT_FLAME_ON:
-			player.set_flame_glow_enabled(true)
+		EFFECT_FLASHLIGHT_TOGGLE:
+			_toggle_flashlight(player)
+		EFFECT_LIGHT_BALL:
+			_apply_light_ball(player, params)
 		_:
 			push_warning(
 				"SpellEffectSync: unknown effect '%s'" % str(params.get(KEY_EFFECT_ID, ""))
@@ -209,9 +229,8 @@ static func is_supported_effect(effect_id: String) -> bool:
 		EFFECT_HASTE,
 		EFFECT_LIGHT,
 		EFFECT_FIREBALL,
-		EFFECT_FLASHLIGHT_ON,
-		EFFECT_FLASHLIGHT_OFF,
-		EFFECT_FLAME_ON,
+		EFFECT_FLASHLIGHT_TOGGLE,
+		EFFECT_LIGHT_BALL,
 	]
 
 
@@ -249,6 +268,47 @@ static func _apply_fireball(player: CharacterBody3D, params: Dictionary) -> void
 	if world == null:
 		return
 	FireballProjectileScript.spawn(world, origin, direction.normalized())
+
+
+static func _toggle_flashlight(player: CharacterBody3D) -> void:
+	if player.has_method("toggle_flashlight"):
+		player.call("toggle_flashlight")
+		return
+	if not player.has_method("set_flashlight_enabled"):
+		return
+	var active := false
+	if player.has_method("is_flashlight_enabled"):
+		active = bool(player.call("is_flashlight_enabled"))
+	player.call("set_flashlight_enabled", not active)
+
+
+static func _light_ball_origin(player: CharacterBody3D) -> Vector3:
+	var origin := _fireball_origin(player)
+	var forward := _fireball_direction(player)
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = -player.transform.basis.z
+		forward.y = 0.0
+	forward = forward.normalized()
+	var pos := origin + forward * LightBallOrbScript.PLACE_FORWARD
+	pos.y = player.global_position.y + LightBallOrbScript.PLACE_HEIGHT
+	return pos
+
+
+static func _apply_light_ball(player: CharacterBody3D, params: Dictionary) -> void:
+	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	if origin == Vector3.ZERO:
+		origin = _light_ball_origin(player)
+	var world: Node = player.get_tree().current_scene if player.is_inside_tree() else null
+	if world == null:
+		world = player.get_parent()
+	if world == null:
+		return
+	LightBallOrbScript.spawn(
+		world,
+		origin,
+		float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+	)
 
 
 static func _fireball_origin_plausible(params: Dictionary, player: CharacterBody3D) -> bool:
