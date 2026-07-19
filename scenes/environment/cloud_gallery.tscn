@@ -1,0 +1,61 @@
+[gd_scene load_steps=11 format=3 uid="uid://ccloudgallery1"]
+
+[ext_resource type="Material" path="res://materials/environment/cloud.tres" id="mat"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_01.res" id="m1"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_02.res" id="m2"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_03.res" id="m3"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_04.res" id="m4"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_05.res" id="m5"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_06.res" id="m6"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_07.res" id="m7"]
+[ext_resource type="ArrayMesh" path="res://assets/environment/clouds/cloud_08.res" id="m8"]
+
+[node name="CloudGallery" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 45, 100)
+current = true
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 50, 0)
+light_energy = 1.1
+
+[node name="Cloud_01" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70, 0, 0)
+mesh = ExtResource("m1")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_02" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 0)
+mesh = ExtResource("m2")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_03" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 0)
+mesh = ExtResource("m3")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_04" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65, 0, 0)
+mesh = ExtResource("m4")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_05" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -70, 0, 55)
+mesh = ExtResource("m5")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_06" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, 55)
+mesh = ExtResource("m6")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_07" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 0, 55)
+mesh = ExtResource("m7")
+surface_material_override/0 = ExtResource("mat")
+
+[node name="Cloud_08" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65, 0, 55)
+mesh = ExtResource("m8")
+surface_material_override/0 = ExtResource("mat")

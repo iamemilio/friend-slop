@@ -1,3 +1,4 @@
+@tool
 class_name Moon
 extends Node3D
 
@@ -23,6 +24,9 @@ func _get_moon_light() -> DirectionalLight3D:
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		# Main / MazeGenerator drive configure_for_maze for editor preview.
+		return
 	_place_moon_for_span(MIN_HEIGHT / HEIGHT_FACTOR)
 	_configure_moon_light()
 
@@ -82,6 +86,13 @@ func configure_for_maze(maze_width: int, maze_height: int, cell_size: float) -> 
 	_configure_moon_light()
 	var light := _get_moon_light()
 	if light != null:
-		# Match CloudSystem low ceiling (cell_size * CLOUD_HEIGHT_MAX_CELLS).
-		var cloud_ceiling := maxf(cell_size * 16.0, 42.0)
-		light.directional_shadow_max_distance = maxf(span * 0.95, cloud_ceiling + span * 0.4)
+		# Cover sky-band cloud casters down to the maze floor.
+		var cloud_ceiling := maxf(cell_size * 52.0, 120.0)
+		light.directional_shadow_max_distance = maxf(
+			span * 1.25,
+			cloud_ceiling + span * 0.75
+		)
+		# Spread cascades so high cloud casters and floor share usable splits.
+		light.directional_shadow_split_1 = 0.12
+		light.directional_shadow_split_2 = 0.35
+		light.directional_shadow_split_3 = 0.65

@@ -54,14 +54,14 @@ func open_host() -> void:
 	_reset_panel_state()
 	_host_mode = true
 	visible = true
-	_title_label.text = "Host Game"
+	_title_label.text = "Play"
 	_room_code_host_row.visible = true
 	_room_code_edit.visible = false
 	_room_code_display.text = ""
 	_room_code_display.placeholder_text = "Connecting…"
 	_copy_room_code_button.disabled = true
 	_invite_friends_button.disabled = true
-	_status_label.text = "Starting host session…"
+	_status_label.text = "Starting lobby…"
 	_primary_button.text = "Start Game"
 	_primary_button.visible = true
 	_primary_button.disabled = true
@@ -71,7 +71,7 @@ func open_host() -> void:
 	var err := await NetworkManager.host_session({})
 	_set_busy(false)
 	if err != OK:
-		if _status_label.text == "Starting host session…":
+		if _status_label.text == "Starting lobby…":
 			_status_label.text = _host_failure_message()
 		_primary_button.disabled = true
 		return
@@ -151,10 +151,12 @@ func _on_connection_failed(message: String) -> void:
 func _on_became_host(room_code: String) -> void:
 	_room_code_display.text = room_code
 	_room_code_display.placeholder_text = ""
-	_copy_room_code_button.disabled = room_code.is_empty()
-	_invite_friends_button.disabled = room_code.is_empty()
-	_room_code_display.grab_focus()
-	_room_code_display.select_all()
+	var is_local := room_code.is_empty() or room_code == "local"
+	_copy_room_code_button.disabled = is_local
+	_invite_friends_button.disabled = is_local
+	if not is_local:
+		_room_code_display.grab_focus()
+		_room_code_display.select_all()
 	_status_label.text = _host_ready_message()
 
 
@@ -319,8 +321,8 @@ func _host_ready_message() -> String:
 			+ "Invite friends with Steam or share the lobby ID."
 		)
 	return (
-		"Invite friends with Steam or share the lobby ID. "
-		+ "Need 3 players (1 Warden, 2 Apprentices) to start."
+		"Start alone to preview, or invite friends. "
+		+ "Full matches need 3 players (1 Warden, 2 Apprentices)."
 	)
 
 

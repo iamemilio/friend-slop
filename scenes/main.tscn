@@ -45,10 +45,13 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_main")
 
 [node name="Moon" parent="." unique_id=2089265695 instance=ExtResource("1_moon")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 44.327625, 259.35, 56.736774)
 
 [node name="CloudSystem" type="Node3D" parent="." unique_id=1526258183]
 script = ExtResource("2_clouds")
-cloud_count_max = 45
+spawn_size = Vector3(1500, 40, 1500)
+sky_coverage = 0.06
+wind_speed = 1.0
 
 [node name="SmokeTrails" type="Node3D" parent="." unique_id=1526258182]
 script = ExtResource("1_smoke_trails")
@@ -73,6 +76,7 @@ script = ExtResource("10_validator")
 script = ExtResource("10_objective")
 
 [node name="Players" type="Node3D" parent="." unique_id=1027486205]
+editor_description = "Empty in the saved scene. NetworkManager spawns apprentice/warden here at match start."
 
 [node name="GameHUD" type="CanvasLayer" parent="." unique_id=1905588477]
 script = ExtResource("9_hud")

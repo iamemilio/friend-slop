@@ -219,7 +219,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
-text = "Pick a role for solo testing. Each role starts with its full spell kit."
+text = "Pick a default role when you Play alone. Lobby role buttons can still change it."
 
 [node name="DevRoleSection" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2
@@ -261,7 +261,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
-text = "Saved locally. Solo Game uses the role above; lobby size override applies to multiplayer host."
+text = "Saved locally. Default role applies when you Play alone; lobby size override softens 3-player start rules."
 
 [node name="CloseButton" type="Button" parent="Panel/MarginContainer/VBox"]
 custom_minimum_size = Vector2(0, 44)

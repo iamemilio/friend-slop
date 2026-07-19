@@ -1,3 +1,4 @@
+@tool
 extends Node3D
 
 ## Generates a random maze and builds floor + wall collision geometry.
@@ -14,9 +15,18 @@ signal exit_reached(player: Node3D)
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 const MazeWallMeshScript := preload("res://scripts/maze_wall_mesh.gd")
 
-@export var maze_width: int = 15
-@export var maze_height: int = 15
-@export var cell_size: float = 3.0
+@export var maze_width: int = 15:
+	set(value):
+		maze_width = maxi(value, 1)
+		_on_editor_dims_changed()
+@export var maze_height: int = 15:
+	set(value):
+		maze_height = maxi(value, 1)
+		_on_editor_dims_changed()
+@export var cell_size: float = 3.0:
+	set(value):
+		cell_size = maxf(value, 0.1)
+		_on_editor_dims_changed()
 @export var wall_height: float = 3.0
 @export var regenerate_on_ready: bool = true
 @export_range(0.0, 1.0, 0.05) var straight_bias: float = 0.4
@@ -27,7 +37,22 @@ var _exit_triggered: bool = false
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		_notify_main_editor_preview()
+		return
 	call_deferred("_deferred_generate")
+
+
+func _on_editor_dims_changed() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	_notify_main_editor_preview()
+
+
+func _notify_main_editor_preview() -> void:
+	var main := get_parent()
+	if main != null and main.has_method("editor_refresh_environment_preview"):
+		main.editor_refresh_environment_preview()
 
 
 func _deferred_generate() -> void:
@@ -79,8 +104,11 @@ func world_to_cell(world_position: Vector3) -> Vector2i:
 
 
 func _clear_maze() -> void:
-	for child in get_children():
-		child.queue_free()
+	# Free immediately so editor rebuilds do not stack duplicate floors/walls.
+	while get_child_count() > 0:
+		var child := get_child(0)
+		remove_child(child)
+		child.free()
 	_wall_grid.clear()
 
 

@@ -1,7 +1,12 @@
+@tool
 extends Node3D
 
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+
+# Fixed seed so opening main.tscn in the editor builds the same maze/clouds
+# as a deterministic match.
+const EDITOR_MATCH_SEED := 4242
 
 var _game_won: bool = false
 var _learn_confirm_pending: bool = false
@@ -12,6 +17,7 @@ var _maze_layout_ready: bool = false
 var _players_spawned: bool = false
 var _discoverables_spawned: bool = false
 var _match_subsystems_active: bool = false
+var _editor_rebuild_queued: bool = false
 
 @onready var maze: Node3D = $MazeGenerator
 @onready var moon: Moon = $Moon
@@ -27,6 +33,10 @@ var _match_subsystems_active: bool = false
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint():
+		call_deferred("editor_refresh_environment_preview")
+		return
+
 	_apply_voice_settings()
 	SettingsManager.settings_applied.connect(_apply_voice_settings)
 	maze.maze_ready.connect(_on_maze_ready)
@@ -56,6 +66,62 @@ func _ready() -> void:
 	await NetworkManager.players_spawned
 	_players_spawned = true
 	_finish_match_layout()
+
+
+func editor_refresh_environment_preview() -> void:
+	# Rebuild using the same generate_maze / configure_for_maze path as a real match.
+	if not Engine.is_editor_hint():
+		return
+	if _editor_rebuild_queued:
+		return
+	_editor_rebuild_queued = true
+	call_deferred("_editor_build_match_world")
+
+
+func _editor_build_match_world() -> void:
+	_editor_rebuild_queued = false
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	var maze_node := get_node_or_null("MazeGenerator")
+	if maze_node == null or not maze_node.has_method("generate_maze"):
+		return
+	if not maze_node.maze_ready.is_connected(_on_editor_maze_ready):
+		maze_node.maze_ready.connect(_on_editor_maze_ready)
+	maze_node.generate_maze(EDITOR_MATCH_SEED)
+
+
+func _on_editor_maze_ready(
+	_spawn_position: Vector3,
+	_exit_position: Vector3,
+	_spawn_cell: Vector2i,
+	_exit_cell: Vector2i
+) -> void:
+	if not Engine.is_editor_hint():
+		return
+	_configure_sky_for_maze(EDITOR_MATCH_SEED, 1)
+
+
+func _configure_sky_for_maze(run_seed: int, start_time_msec: int) -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	var moon_node := get_node_or_null("Moon") as Moon
+	var clouds := get_node_or_null("CloudSystem") as CloudSystem
+	if maze_node == null:
+		return
+	if moon_node != null:
+		moon_node.configure_for_maze(
+			maze_node.maze_width,
+			maze_node.maze_height,
+			maze_node.cell_size
+		)
+	if clouds != null:
+		clouds.configure_for_maze(
+			maze_node.maze_width,
+			maze_node.maze_height,
+			maze_node.cell_size,
+			moon_node.position.y if moon_node != null else 200.0,
+			run_seed,
+			start_time_msec
+		)
 
 
 func _on_match_snapshot_changed(_snapshot: Dictionary) -> void:
@@ -152,18 +218,7 @@ func _on_maze_ready(
 	_maze_spawn_cell = spawn_cell
 	_maze_exit_cell = exit_cell
 	_maze_layout_ready = true
-	if moon != null:
-		moon.configure_for_maze(maze.maze_width, maze.maze_height, maze.cell_size)
-	if cloud_system != null:
-		cloud_system.configure_for_maze(
-			maze.maze_width,
-			maze.maze_height,
-			maze.cell_size,
-			moon.position.y,
-			GameState.run_seed,
-			GameState.match_start_time_msec,
-			moon
-		)
+	_configure_sky_for_maze(GameState.run_seed, GameState.match_start_time_msec)
 	_finish_match_layout()
 
 

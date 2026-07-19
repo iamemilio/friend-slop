@@ -144,8 +144,12 @@ func host_session(options: Dictionary = {}) -> Error:
 
 	var err: Error = await transport.host(options)
 	if err != OK:
-		connection_failed.emit("Hosting failed.")
-		return err
+		# Solo / offline preview: local OfflineMultiplayerPeer lobby (no Steam required).
+		err = _host_offline_local_session()
+		if err != OK:
+			connection_failed.emit("Hosting failed.")
+			return err
+		return OK
 
 	is_session_active = true
 	lobby.reset()
@@ -153,6 +157,22 @@ func host_session(options: Dictionary = {}) -> Error:
 	_broadcast_lobby_state()
 	became_host.emit(get_room_code())
 	_notify_lobby_roster_changed()
+	return OK
+
+
+func _host_offline_local_session() -> Error:
+	# One-player lobby without Steam — same start_game path as multiplayer.
+	disconnect_session()
+	var peer := OfflineMultiplayerPeer.new()
+	multiplayer.multiplayer_peer = peer
+	is_session_active = true
+	lobby.reset()
+	lobby.set_default_roles([1])
+	lobby.apply_role(1, SettingsManager.dev_solo_role)
+	_broadcast_lobby_state()
+	became_host.emit("local")
+	_notify_lobby_roster_changed()
+	status_changed.emit("Local lobby ready. Start alone, or host online to invite friends.")
 	return OK
 
 
