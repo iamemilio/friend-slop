@@ -19,7 +19,7 @@ func apply_effect(player: CharacterBody3D, spell: SpellDefinition) -> void:
 func cast_spell(player: CharacterBody3D, spell: SpellDefinition) -> void:
 	if spell == null or player == null:
 		return
-	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
+	if player is Player and (player as Player).is_carrying_relic():
 		return
 	var params := SyncScript.build_params(spell, player)
 	if params.is_empty():
@@ -46,7 +46,7 @@ func apply_synced_cast(
 ) -> void:
 	if player == null or spell == null:
 		return
-	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
+	if player is Player and (player as Player).is_carrying_relic():
 		return
 	var resolved := SyncScript.resolve_network_params(spell, player, params)
 	if resolved.is_empty():

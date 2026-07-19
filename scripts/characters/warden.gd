@@ -1,4 +1,4 @@
-extends PlayableCharacter
+extends Player
 
 ## Maze Warden — larger silhouette, no wand; voice and spells use head aim.
 

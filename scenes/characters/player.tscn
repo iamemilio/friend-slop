@@ -1,6 +1,6 @@
-[gd_scene load_steps=11 format=3 uid="uid://bplayable001"]
+[gd_scene format=3 uid="uid://bplayable001"]
 
-[ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="1_playable"]
+[ext_resource type="Script" path="res://scripts/characters/player.gd" id="1_playable"]
 [ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="2_loadout"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="3_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="4_effects"]
@@ -29,7 +29,7 @@ properties/2/path = NodePath("Head:rotation")
 properties/2/spawn = true
 properties/2/replication_mode = 1
 
-[node name="PlayableCharacter" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D"]
 script = ExtResource("1_playable")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

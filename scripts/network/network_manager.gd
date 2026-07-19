@@ -248,7 +248,13 @@ func spawn_players(
 
 
 func _clear_player_nodes(players_root: Node3D) -> void:
+	## Keep PlayerSpawnSlot roster markers; only remove live character instances.
+	var to_free: Array[Node] = []
 	for child in players_root.get_children():
+		if child is PlayerSpawnSlot:
+			continue
+		to_free.append(child)
+	for child in to_free:
 		disable_player_sync(child)
 		players_root.remove_child(child)
 		child.queue_free()

@@ -1,4 +1,4 @@
-extends PlayableCharacter
+extends Player
 
 ## Snail-cursed apprentice — smoke trail footprint and wand casting UX.
 

@@ -1,7 +1,7 @@
-class_name PlayableCharacter
+class_name Player
 extends CharacterBody3D
 
-## Base playable character: movement, camera, spells, and optional wand/trail in derived scenes.
+## Base player: movement, camera, spells, and optional wand/trail in derived scenes.
 
 ## Player body/head render layer — wand lights use a world-only mask and skip this layer.
 const PLAYER_SELF_VISUAL_LAYER := WorldVisualLayers.PLAYER_SELF
