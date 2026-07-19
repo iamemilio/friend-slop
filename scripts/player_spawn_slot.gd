@@ -214,6 +214,13 @@ func _refresh_visuals() -> void:
 
 
 func _update_pillar_gizmo() -> void:
+	## Prefer the nested character scene as the 3D stand-in; keep a thin pole only if missing.
+	if _has_character_preview():
+		var existing := get_node_or_null(GIZMO_NAME)
+		if existing != null:
+			existing.free()
+		return
+
 	var gizmo := get_node_or_null(GIZMO_NAME) as MeshInstance3D
 	if gizmo == null:
 		gizmo = MeshInstance3D.new()
@@ -299,9 +306,20 @@ func _is_selected_in_editor() -> bool:
 		if node == self:
 			return true
 		if node is Node and (self as Node).is_ancestor_of(node):
-			if not selected.has(self):
-				selection.clear()
-				selection.add_node(self)
+			## Gizmo meshes should select the slot; nested character previews may stay selected.
+			if node is MeshInstance3D and (
+				node.name == GIZMO_NAME or node.name == RING_NAME
+			):
+				if not selected.has(self):
+					selection.clear()
+					selection.add_node(self)
+			return true
+	return false
+
+
+func _has_character_preview() -> bool:
+	for child in get_children():
+		if child is Character:
 			return true
 	return false
 

@@ -1,10 +1,7 @@
-class_name Player
-extends CharacterBody3D
+class_name PlayableCharacter
+extends Character
 
-## Base player: movement, camera, spells, and optional wand/trail in derived scenes.
-
-## Player body/head render layer — wand lights use a world-only mask and skip this layer.
-const PLAYER_SELF_VISUAL_LAYER := WorldVisualLayers.PLAYER_SELF
+## Playable character: movement, camera, spells, and optional wand/trail in derived scenes.
 
 const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
@@ -12,12 +9,6 @@ const JUMP_VELOCITY := 2.5
 const MOUSE_SENSITIVITY := 0.002
 const INTERACT_RANGE_SQ := 9.0
 const PLAYER_MIN_SEPARATION := 0.55
-const BODY_RADIUS := 0.20
-const HEAD_RADIUS := 0.16
-const BODY_CENTER_Y := BODY_RADIUS
-const HEAD_CENTER_Y := BODY_RADIUS * 2.0 + HEAD_RADIUS
-const COLLISION_WALL_PADDING := 0.08
-const BODY_COLLISION_RADIUS := BODY_RADIUS + COLLISION_WALL_PADDING
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
@@ -25,7 +16,6 @@ const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
-var _character_color: Color = Color.WHITE
 var _spell_loadout: Node
 var _casting_session: SpellCastingSession
 var _game_hud: CanvasLayer
@@ -35,18 +25,18 @@ var _speed_boost_timer: float = 0.0
 var _wand: PlayerWand
 var _casting_lmb_held := false
 
-@onready var head: Node3D = %Head
 @onready var camera_pivot: Node3D = %CameraPivot
 @onready var spell_loadout: Node = %CharacterSpellLoadout
 @onready var casting_session: SpellCastingSession = %SpellCastingSession
 @onready var effect_applier: Node = %SpellEffectApplier
 @onready var _view_camera: Camera3D = %FirstPersonCamera
-@onready var _body_mesh: MeshInstance3D = %Body
-@onready var _head_mesh: MeshInstance3D = %HeadMesh
-@onready var _body_collision: CollisionShape3D = %CollisionShape3D
 
 
 func _ready() -> void:
+	if _should_use_preview_mode():
+		_enter_editor_preview_mode()
+		return
+
 	add_to_group("player")
 	floor_block_on_wall = false
 	floor_snap_length = 0.15
@@ -58,6 +48,41 @@ func _ready() -> void:
 	_character_color = GameState.get_snail_color(player_index)
 	_apply_character_color(_character_color)
 	_setup_view_camera()
+
+
+func _should_use_preview_mode() -> bool:
+	if get_parent() is PlayerSpawnSlot:
+		return true
+	if not is_inside_tree():
+		return false
+	var scene := get_tree().current_scene
+	return scene != null and scene.has_meta("character_preview_scene")
+
+
+func _enter_editor_preview_mode() -> void:
+	## Spawn-slot or gallery preview: show meshes, never act as a live player.
+	process_mode = Node.PROCESS_MODE_DISABLED
+	collision_layer = 0
+	collision_mask = 0
+	var sync := get_node_or_null("MultiplayerSynchronizer")
+	if sync != null:
+		sync.process_mode = Node.PROCESS_MODE_DISABLED
+	var cam := get_node_or_null("%FirstPersonCamera") as Camera3D
+	if cam != null:
+		cam.current = false
+	visible = true
+	_apply_character_color(_preview_tint())
+
+
+func _preview_tint() -> Color:
+	if get_parent() is PlayerSpawnSlot:
+		var slot := get_parent() as PlayerSpawnSlot
+		if slot.role == PlayerSpawnSlot.Role.WARDEN:
+			return Color(0.55, 0.2, 0.7)
+	var scr := get_script() as Script
+	if scr != null and scr.resource_path.ends_with("warden.gd"):
+		return Color(0.55, 0.2, 0.7)
+	return Color(0.25, 0.65, 0.95)
 
 
 func _exit_tree() -> void:
@@ -76,17 +101,6 @@ func _uses_local_view() -> bool:
 	if not multiplayer.has_multiplayer_peer():
 		return true
 	return is_multiplayer_authority()
-
-
-func _configure_collision() -> void:
-	var body_capsule := CapsuleShape3D.new()
-	body_capsule.radius = BODY_COLLISION_RADIUS
-	var bottom_y := BODY_CENTER_Y - BODY_RADIUS
-	var top_y := HEAD_CENTER_Y + HEAD_RADIUS
-	var total_height := top_y - bottom_y
-	body_capsule.height = maxf(0.08, total_height - body_capsule.radius * 2.0)
-	_body_collision.shape = body_capsule
-	_body_collision.position.y = bottom_y + body_capsule.radius + body_capsule.height * 0.5
 
 
 func initialize_player(index: int) -> void:
@@ -169,10 +183,6 @@ func get_wand_cast_direction() -> Vector3:
 	if _wand != null:
 		return _wand.get_cast_direction()
 	return _camera_aim_direction()
-
-
-func get_snail_color() -> Color:
-	return _character_color
 
 
 func _camera_aim_direction() -> Vector3:
@@ -259,7 +269,6 @@ func _on_wand_cast_failed(
 	_wand.play_fizzle()
 
 
-
 func _separate_from_players() -> void:
 	for node in get_tree().get_nodes_in_group("player"):
 		if node == self or not node is CharacterBody3D:
@@ -276,27 +285,8 @@ func _separate_from_players() -> void:
 		global_position += away.normalized() * (PLAYER_MIN_SEPARATION - distance)
 
 
-func _apply_character_color(color: Color) -> void:
-	# Lit materials (no constant emission) so moonlight / world lights shade the mesh.
-	# Layer PLAYER_SELF: moon uses SCENE_LIGHT_MASK; wand flashlight stays WORLD-only.
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
-	material.albedo_color = color
-	material.roughness = 0.62
-	material.metallic = 0.05
-	material.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
-	_body_mesh.material_override = material
-	_body_mesh.layers = PLAYER_SELF_VISUAL_LAYER
-	_body_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	var head_material := material.duplicate() as StandardMaterial3D
-	head_material.albedo_color = color.lightened(0.08)
-	_head_mesh.material_override = head_material
-	_head_mesh.layers = PLAYER_SELF_VISUAL_LAYER
-	_head_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-
-
 func _try_interact() -> void:
-	TomeDebug.log("Player", "F pressed — try_interact")
+	TomeDebug.log("PlayableCharacter", "F pressed — try_interact")
 	if _casting_session != null and _casting_session.is_active():
 		return
 
@@ -312,7 +302,7 @@ func _try_interact() -> void:
 		interactable.interact(self)
 		return
 
-	TomeDebug.log("Player", "no interactable in range")
+	TomeDebug.log("PlayableCharacter", "no interactable in range")
 
 
 func is_carrying_relic() -> bool:

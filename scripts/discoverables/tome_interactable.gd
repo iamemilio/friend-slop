@@ -88,7 +88,7 @@ func is_teaching() -> bool:
 
 
 func can_interact(player: Node) -> bool:
-	if player is Player and (player as Player).is_carrying_relic():
+	if player is PlayableCharacter and (player as PlayableCharacter).is_carrying_relic():
 		return false
 	if _spell == null:
 		return false

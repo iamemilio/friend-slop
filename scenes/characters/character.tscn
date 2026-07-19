@@ -1,0 +1,52 @@
+[gd_scene format=3 uid="uid://bcharacter01"]
+
+[ext_resource type="Script" uid="uid://bolwxtj4omh65" path="res://scripts/characters/character.gd" id="1_character"]
+[ext_resource type="PackedScene" uid="uid://dkt0eajkrjmu5" path="res://scenes/characters/character_editor_studio.tscn" id="2_studio"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_character"]
+radius = 0.2
+height = 0.57
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.2
+height = 0.4
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.25, 0.65, 0.95, 1)
+metallic = 0.05
+roughness = 0.62
+
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.16
+height = 0.32
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_head"]
+albedo_color = Color(0.32, 0.7, 0.97, 1)
+metallic = 0.05
+roughness = 0.62
+
+[node name="Character" type="CharacterBody3D" unique_id=1969475288]
+editor_description = "3D character shell: Body + Head. Open this scene to edit the shared base in the Inspector (EditorStudio lights the viewport)."
+script = ExtResource("1_character")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=294740946]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, 0)
+shape = SubResource("CapsuleShape3D_character")
+
+[node name="Body" type="MeshInstance3D" parent="." unique_id=73058391]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.2, 0)
+mesh = SubResource("SphereMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
+
+[node name="Head" type="Node3D" parent="." unique_id=1186111743]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.56, 0)
+
+[node name="HeadMesh" type="MeshInstance3D" parent="Head" unique_id=1294118041]
+unique_name_in_owner = true
+mesh = SubResource("SphereMesh_head")
+surface_material_override/0 = SubResource("StandardMaterial3D_head")
+
+[node name="EditorStudio" parent="." unique_id=1062825711 instance=ExtResource("2_studio")]

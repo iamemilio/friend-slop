@@ -1,7 +1,7 @@
-extends Player
+class_name Warden
+extends PlayableCharacter
 
 ## Maze Warden — larger silhouette, no wand; voice and spells use head aim.
-
 
 const WARDEN_BODY_SCALE := 1.18
 const WARDEN_COLLISION_SCALE := 1.12

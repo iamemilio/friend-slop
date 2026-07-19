@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://bplayable001"]
+
+[ext_resource type="PackedScene" uid="uid://bcharacter01" path="res://scenes/characters/character.tscn" id="1_character"]
+[ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="2_playable"]
+[ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="3_loadout"]
+[ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="4_session"]
+[ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="5_effects"]
+[ext_resource type="Script" path="res://scripts/voice/steam_proximity_voice.gd" id="6_voice"]
+
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_playable"]
+properties/0/path = NodePath(".:position")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:velocity")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath("Head:rotation")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+
+[node name="PlayableCharacter" instance=ExtResource("1_character")]
+editor_description = "PlayableCharacter = Character + camera, spells, sync. Open THIS scene to edit playable systems in the Inspector."
+script = ExtResource("2_playable")
+
+[node name="CameraPivot" type="Node3D" parent="Head" index="1"]
+unique_name_in_owner = true
+
+[node name="FirstPersonCamera" type="Camera3D" parent="Head/CameraPivot"]
+unique_name_in_owner = true
+fov = 75.0
+
+[node name="SteamProximityVoice" type="Node" parent="Head" index="2"]
+script = ExtResource("6_voice")
+head_path = NodePath("..")
+
+[node name="CharacterSpellLoadout" type="Node" parent="." index="3"]
+unique_name_in_owner = true
+script = ExtResource("3_loadout")
+
+[node name="SpellCastingSession" type="Node" parent="." index="4"]
+unique_name_in_owner = true
+script = ExtResource("4_session")
+
+[node name="SpellEffectApplier" type="Node" parent="." index="5"]
+unique_name_in_owner = true
+script = ExtResource("5_effects")
+
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." index="6"]
+root_path = NodePath("..")
+public_visibility = false
+replication_config = SubResource("SceneReplicationConfig_playable")

@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://bplayerwand1"]
+
+[ext_resource type="Script" path="res://scripts/player/player_wand.gd" id="1_wand"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.007
+bottom_radius = 0.01
+height = 0.28
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shaft"]
+albedo_color = Color(0.18, 0.12, 0.1, 1)
+metallic = 0.35
+roughness = 0.55
+
+[sub_resource type="SphereMesh" id="SphereMesh_tip"]
+radius = 0.012
+height = 0.024
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tip"]
+albedo_color = Color(0.85, 0.88, 0.95, 1)
+metallic = 0.2
+roughness = 0.15
+emission_enabled = true
+emission = Color(1, 1, 1, 1)
+emission_energy_multiplier = 0.0
+
+[node name="Wand" type="Node3D"]
+script = ExtResource("1_wand")
+
+[node name="Shaft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.14)
+mesh = SubResource("CylinderMesh_shaft")
+material_override = SubResource("StandardMaterial3D_shaft")
+
+[node name="Tip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.28)
+mesh = SubResource("SphereMesh_tip")
+material_override = SubResource("StandardMaterial3D_tip")
+
+[node name="CastOrigin" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.305)
+
+[node name="FlashlightBeam" type="SpotLight3D" parent="CastOrigin"]
+visible = false
+light_color = Color(1, 0.86, 0.56, 1)
+light_energy = 0.0
+light_size = 0.65
+spot_range = 12.0
+spot_attenuation = 1.2
+spot_angle = 82.0

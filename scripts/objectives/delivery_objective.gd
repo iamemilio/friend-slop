@@ -422,5 +422,5 @@ func _detach_item_to_turn_in() -> void:
 
 
 func _stop_caster_spells(player: Node) -> void:
-	if player is Player:
-		(player as Player).stop_casting_for_relic_carry()
+	if player is PlayableCharacter:
+		(player as PlayableCharacter).stop_casting_for_relic_carry()
