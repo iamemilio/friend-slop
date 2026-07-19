@@ -1,7 +1,8 @@
 class_name MazeWallMesh
 extends RefCounted
 
-## Solid wall boxes with outward-facing normals for lighting and trimesh collision.
+## Solid wall boxes with outward-facing normals for lighting.
+## Collision uses per-cell BoxShape3Ds in MazeGenerator (not this mesh).
 
 
 static func build(

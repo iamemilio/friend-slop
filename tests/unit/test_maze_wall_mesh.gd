@@ -7,7 +7,7 @@ const MazeWallMeshScript := preload("res://scripts/maze_wall_mesh.gd")
 func run() -> int:
 	var failures := 0
 	failures += _test_solid_wall_normals_point_outward()
-	failures += _test_collision_shape_is_created()
+	failures += _test_single_wall_mesh_builds()
 	return failures
 
 
@@ -42,7 +42,7 @@ func _test_solid_wall_normals_point_outward() -> int:
 	return failures
 
 
-func _test_collision_shape_is_created() -> int:
+func _test_single_wall_mesh_builds() -> int:
 	var grid := [[1]]
 	var mesh := MazeWallMeshScript.build(
 		grid,
@@ -50,8 +50,8 @@ func _test_collision_shape_is_created() -> int:
 		func(_gx: int, _gy: int) -> Vector3:
 			return Vector3.ZERO
 	)
-	if mesh.create_trimesh_shape() == null:
-		push_error("Expected solid wall mesh to produce a trimesh shape")
+	if mesh.get_surface_count() == 0:
+		push_error("Expected solid wall mesh to contain a surface")
 		return 1
 	return 0
 

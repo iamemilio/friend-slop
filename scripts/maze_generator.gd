@@ -17,6 +17,8 @@ const MazeWallMeshScript := preload("res://scripts/maze_wall_mesh.gd")
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 
 const SPAWN_ZONE_PREVIEW_NAME := "SpawnZonePreview"
+const WALL_COLLISION_PREVIEW_NAME := "WallCollisionPreview"
+const WALL_COLLISION_PREVIEW_COLOR := Color(0.1, 0.95, 1.0, 0.32)
 
 @export var maze_width: int = 15:
 	set(value):
@@ -34,6 +36,12 @@ const SPAWN_ZONE_PREVIEW_NAME := "SpawnZonePreview"
 @export var regenerate_on_ready: bool = true
 @export_range(0.0, 1.0, 0.05) var straight_bias: float = 0.4
 @export_range(0.0, 0.5, 0.01) var braid_ratio: float = 0.15
+@export_group("Editor Preview")
+@export var show_wall_collision_shapes: bool = false:
+	set(value):
+		show_wall_collision_shapes = value
+		if is_inside_tree():
+			_sync_wall_collision_preview()
 
 var _wall_grid: Array = []
 var _exit_triggered: bool = false
@@ -246,17 +254,75 @@ func _build_walls() -> void:
 	mesh_instance.material_override = material
 	mesh_instance.layers = WorldVisualLayersScript.WORLD
 	mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-
-	var collision := CollisionShape3D.new()
-	var collision_shape := mesh.create_trimesh_shape()
-	if collision_shape == null:
-		push_error("MazeGenerator: failed to build wall collision shape")
-	else:
-		collision.shape = collision_shape
-
 	body.add_child(mesh_instance)
-	body.add_child(collision)
+
+	# Box colliders (not trimesh) so CharacterBody3D wall contacts stay stable.
+	var shared_shape := BoxShape3D.new()
+	shared_shape.size = wall_size
+	var half_height := wall_height * 0.5
+	for gx in _wall_grid.size():
+		for gy in _wall_grid[gx].size():
+			if _wall_grid[gx][gy] != 1:
+				continue
+			var collision := CollisionShape3D.new()
+			collision.shape = shared_shape
+			collision.debug_color = WALL_COLLISION_PREVIEW_COLOR
+			var center: Vector3 = _grid_to_world(gx, gy)
+			center.y = half_height
+			collision.position = center
+			body.add_child(collision)
+
 	add_child(body)
+	_sync_wall_collision_preview()
+
+
+func _sync_wall_collision_preview() -> void:
+	var existing := get_node_or_null(WALL_COLLISION_PREVIEW_NAME)
+	if existing != null:
+		remove_child(existing)
+		existing.free()
+
+	if not Engine.is_editor_hint() or not show_wall_collision_shapes:
+		return
+	if _wall_grid.is_empty():
+		return
+
+	var transforms: Array[Transform3D] = []
+	var half_height := wall_height * 0.5
+	for gx in _wall_grid.size():
+		for gy in _wall_grid[gx].size():
+			if _wall_grid[gx][gy] != 1:
+				continue
+			var center: Vector3 = _grid_to_world(gx, gy)
+			center.y = half_height
+			transforms.append(Transform3D(Basis.IDENTITY, center))
+
+	if transforms.is_empty():
+		return
+
+	var box := BoxMesh.new()
+	box.size = Vector3(cell_size, wall_height, cell_size)
+
+	var multimesh := MultiMesh.new()
+	multimesh.transform_format = MultiMesh.TRANSFORM_3D
+	multimesh.mesh = box
+	multimesh.instance_count = transforms.size()
+	for i in transforms.size():
+		multimesh.set_instance_transform(i, transforms[i])
+
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_color = WALL_COLLISION_PREVIEW_COLOR
+	material.cull_mode = BaseMaterial3D.CULL_DISABLED
+
+	var preview := MultiMeshInstance3D.new()
+	preview.name = WALL_COLLISION_PREVIEW_NAME
+	preview.multimesh = multimesh
+	preview.material_override = material
+	preview.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	preview.set_meta("_edit_lock_", true)
+	add_child(preview)
 
 
 func _build_exit_marker(exit_position: Vector3) -> void:
