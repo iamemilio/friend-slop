@@ -45,6 +45,7 @@ const WALL_COLLISION_PREVIEW_COLOR := Color(0.1, 0.95, 1.0, 0.32)
 
 var _wall_grid: Array = []
 var _exit_triggered: bool = false
+var _exit_world_pos: Vector3 = Vector3.ZERO
 
 
 func _ready() -> void:
@@ -92,6 +93,7 @@ func generate_maze(seed_value: int = -1) -> void:
 	spawn.y = 0.5
 	var exit := _cell_to_world(maze_width - 1, maze_height - 1)
 	exit.y = 0.5
+	_exit_world_pos = exit
 
 	_build_exit_marker(exit)
 	if Engine.is_editor_hint():
@@ -371,8 +373,8 @@ func _build_exit_marker(exit_position: Vector3) -> void:
 
 	var trigger_shape := CollisionShape3D.new()
 	var shape := CylinderShape3D.new()
-	shape.radius = 1.4
-	shape.height = 3.0
+	shape.radius = 1.8
+	shape.height = 3.5
 	trigger_shape.shape = shape
 	trigger_shape.position = Vector3(0.0, 1.5, 0.0)
 	trigger.add_child(trigger_shape)
@@ -463,5 +465,32 @@ func _on_exit_body_entered(body: Node3D) -> void:
 		return
 	if not body.is_in_group("player"):
 		return
+	if not _is_exit_armed():
+		return
 	_exit_triggered = true
 	exit_reached.emit(body)
+
+
+func _is_exit_armed() -> bool:
+	## Exit only resolves the match after the relic has been delivered.
+	if not is_inside_tree():
+		return false
+	for node in get_tree().get_nodes_in_group("delivery_objective"):
+		if node.has_method("is_complete"):
+			return bool(node.call("is_complete"))
+	# No delivery objective in the scene — keep legacy walk-in victory.
+	return true
+
+
+func reset_exit_trigger() -> void:
+	_exit_triggered = false
+
+
+func get_exit_approach_prompt(player: Node3D) -> String:
+	if player == null or not _is_exit_armed():
+		return ""
+	var dx := player.global_position.x - _exit_world_pos.x
+	var dz := player.global_position.z - _exit_world_pos.z
+	if dx * dx + dz * dz > 9.0:
+		return ""
+	return "Walk into the gate to finish"

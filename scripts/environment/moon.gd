@@ -65,34 +65,42 @@ func _configure_moon_light() -> void:
 	light.shadow_caster_mask = WorldVisualLayers.SCENE_LIGHT_MASK
 	light.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	light.directional_shadow_blend_splits = true
-	# Bias splits toward the maze so low cloud casters land in the same cascades as the floor.
-	light.directional_shadow_split_1 = 0.22
-	light.directional_shadow_split_2 = 0.48
-	light.directional_shadow_split_3 = 0.78
-	light.directional_shadow_pancake_size = 0.0
-	light.directional_shadow_fade_start = 0.98
+	# Near-biased splits: player-in-maze POV needs stable floor coverage first.
+	light.directional_shadow_split_1 = 0.18
+	light.directional_shadow_split_2 = 0.42
+	light.directional_shadow_split_3 = 0.72
+	# Pancake restores depth precision for high cloud → floor rays (0 caused swim/flicker).
+	light.directional_shadow_pancake_size = 28.0
+	light.directional_shadow_fade_start = 0.85
 	light.light_angular_distance = 0.0
-	light.shadow_blur = 0.0
-	# Hard shadows, but enough bias to kill floor/wall moiré streaks at moon angle.
-	light.shadow_bias = 0.14
-	light.shadow_normal_bias = 2.8
+	light.shadow_blur = 0.6
+	# Hard enough for moonlight, soft enough to hide cascade micro-jitter.
+	light.shadow_bias = 0.12
+	light.shadow_normal_bias = 2.2
 
 
-func configure_for_maze(maze_width: int, maze_height: int, cell_size: float) -> void:
+func configure_for_maze(
+	maze_width: int,
+	maze_height: int,
+	cell_size: float,
+	cloud_field_size: Vector3 = Vector3.ZERO
+) -> void:
 	var span_x := float(maze_width * 2 + 1) * cell_size
 	var span_z := float(maze_height * 2 + 1) * cell_size
 	var span := maxf(span_x, span_z)
 	_place_moon_for_span(span)
 	_configure_moon_light()
 	var light := _get_moon_light()
-	if light != null:
-		# Cover sky-band cloud casters down to the maze floor.
-		var cloud_ceiling := maxf(cell_size * 52.0, 120.0)
-		light.directional_shadow_max_distance = maxf(
-			span * 1.25,
-			cloud_ceiling + span * 0.75
-		)
-		# Spread cascades so high cloud casters and floor share usable splits.
-		light.directional_shadow_split_1 = 0.12
-		light.directional_shadow_split_2 = 0.35
-		light.directional_shadow_split_3 = 0.65
+	if light == null:
+		return
+	light.shadow_enabled = true
+	# Reach overhead clouds above the playable maze — not the full 1500-unit field edge.
+	# Oversized max_distance is a common cause of DirectionalLight shadow flicker.
+	var cloud_ceiling := maxf(cell_size * 52.0, 140.0)
+	if cloud_field_size.y > 0.0:
+		cloud_ceiling = maxf(cloud_ceiling, cloud_field_size.y + 40.0)
+	var shadow_distance := maxf(span * 1.25, cloud_ceiling + span * 0.55)
+	light.directional_shadow_max_distance = clampf(shadow_distance, 280.0, 400.0)
+	light.directional_shadow_split_1 = 0.18
+	light.directional_shadow_split_2 = 0.42
+	light.directional_shadow_split_3 = 0.72

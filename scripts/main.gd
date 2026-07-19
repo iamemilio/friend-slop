@@ -3,6 +3,7 @@ extends Node3D
 
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 
 # Fixed seed so opening main.tscn in the editor builds the same maze/clouds
 # as a deterministic match.
@@ -102,28 +103,62 @@ func _on_editor_maze_ready(
 	_maze_exit_cell = _exit_cell
 	_configure_sky_for_maze(EDITOR_MATCH_SEED, 1)
 	_snap_player_spawn_slots()
+	_editor_preview_delivery_objective()
+
+
+func _editor_preview_delivery_objective() -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	var objective := get_node_or_null("DeliveryObjective")
+	if maze_node == null or objective == null:
+		return
+	if not objective.has_method("setup"):
+		return
+	objective.setup(
+		maze_node,
+		_maze_spawn_cell,
+		Callable(maze_node, "cell_to_world"),
+		EDITOR_MATCH_SEED
+	)
 
 
 func _configure_sky_for_maze(run_seed: int, start_time_msec: int) -> void:
 	var maze_node := get_node_or_null("MazeGenerator")
-	var moon_node := get_node_or_null("Moon") as Moon
-	var clouds := get_node_or_null("CloudSystem") as CloudSystem
+	# Duck-type moon/clouds — typed `as Moon`/`as CloudSystem` can fail during
+	# @tool script reloads and silently skip editor preview setup.
+	var moon_node := get_node_or_null("Moon")
+	var clouds := get_node_or_null("CloudSystem")
 	if maze_node == null:
 		return
-	if moon_node != null:
+	var cloud_field := Vector3.ZERO
+	if clouds != null:
+		var size_value = clouds.get("spawn_size")
+		if size_value is Vector3:
+			cloud_field = size_value
+	if moon_node != null and moon_node.has_method("configure_for_maze"):
 		moon_node.configure_for_maze(
 			maze_node.maze_width,
 			maze_node.maze_height,
-			maze_node.cell_size
+			maze_node.cell_size,
+			cloud_field
 		)
-	if clouds != null:
+	if clouds != null and clouds.has_method("configure_for_maze"):
+		# Solo / editor: start the cloud clock now so shadows match a fresh preview.
+		# Multiplayer: keep the shared match clock so peers stay in sync.
+		var cloud_clock := start_time_msec
+		if Engine.is_editor_hint() or cloud_clock <= 0:
+			cloud_clock = Time.get_ticks_msec()
+		elif not GameState.is_multiplayer:
+			cloud_clock = Time.get_ticks_msec()
+		var moon_height := 200.0
+		if moon_node is Node3D:
+			moon_height = (moon_node as Node3D).position.y
 		clouds.configure_for_maze(
 			maze_node.maze_width,
 			maze_node.maze_height,
 			maze_node.cell_size,
-			moon_node.position.y if moon_node != null else 200.0,
+			moon_height,
 			run_seed,
-			start_time_msec
+			cloud_clock
 		)
 
 
@@ -171,7 +206,7 @@ func _apply_match_gameplay_state() -> void:
 	if enable == _match_subsystems_active:
 		return
 	_match_subsystems_active = enable
-	NetworkManager.set_players_sync_enabled(players_root, enable)
+	NetworkManagerScript.set_players_sync_enabled(players_root, enable)
 	if enable:
 		SteamProximityVoiceHub.start_session()
 	else:
@@ -526,11 +561,28 @@ func _consume_tome_for_spell(spell_id: String) -> void:
 func _on_exit_reached(player: Node3D) -> void:
 	if _game_won:
 		return
+	if delivery_objective != null and not delivery_objective.is_complete():
+		_reset_maze_exit_trigger()
+		return
 	if GameState.is_multiplayer:
+		if not MatchStateManager.allows_gameplay_actions():
+			TomeDebug.log("Main", "Exit reached but match is not ACTIVE — ignoring")
+			_reset_maze_exit_trigger()
+			return
 		if player.is_multiplayer_authority():
 			NetworkManager.request_match_victory(multiplayer.get_unique_id())
 		return
 	_trigger_victory()
+
+
+func _reset_maze_exit_trigger() -> void:
+	var maze_node := get_node_or_null("MazeGenerator")
+	if maze_node != null and maze_node.has_method("reset_exit_trigger"):
+		maze_node.reset_exit_trigger()
+
+
+func reset_maze_exit_trigger_from_network() -> void:
+	_reset_maze_exit_trigger()
 
 
 func trigger_match_victory(winner_peer_id: int) -> void:
@@ -551,7 +603,7 @@ func _teardown_match_subsystems() -> void:
 	if not _match_subsystems_active:
 		return
 	_match_subsystems_active = false
-	NetworkManager.set_players_sync_enabled(players_root, false)
+	NetworkManagerScript.set_players_sync_enabled(players_root, false)
 	SteamProximityVoiceHub.stop_session()
 
 

@@ -154,6 +154,10 @@ func test_clouds_cast_shadows() -> void:
 			shadow.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY,
 			"cloud shadow proxy should cast shadows only"
 		)
+		_assert_true(
+			shadow.mesh is BoxMesh or shadow.mesh is SphereMesh,
+			"cloud shadow proxy should use a simple box/sphere mesh"
+		)
 
 	_free_system(system)
 

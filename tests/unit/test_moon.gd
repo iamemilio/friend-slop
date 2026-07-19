@@ -65,12 +65,12 @@ func _test_moon_shadow_settings_reduce_artifacts() -> int:
 		issue = "Expected moon to use 4-split directional shadows for cloud coverage"
 	elif not moon_light.directional_shadow_blend_splits:
 		issue = "Expected moon cascade blending enabled for soft cloud shadow transitions"
-	elif moon_light.directional_shadow_pancake_size > 0.0:
-		issue = "Expected moon shadow pancake to stay disabled"
+	elif moon_light.directional_shadow_pancake_size < 10.0:
+		issue = "Expected moon shadow pancake enabled for high cloud casters"
 	elif moon_light.light_angular_distance > 0.0:
 		issue = "Expected moon light angular distance off (no PCSS dither)"
-	elif moon_light.shadow_blur > 0.0:
-		issue = "Expected moon shadows to stay sharp (no PCF blur grain)"
+	elif moon_light.shadow_blur > 1.5:
+		issue = "Expected moon shadow blur to stay mild"
 	elif moon_light.shadow_bias > 0.35:
 		issue = "Expected moon shadow bias to stay moderate (avoid peter-panning)"
 	elif moon_light.shadow_normal_bias < 1.5:
@@ -79,6 +79,8 @@ func _test_moon_shadow_settings_reduce_artifacts() -> int:
 		issue = "Expected moon normal bias to stay moderate (avoid peter-panning)"
 	elif moon_light.directional_shadow_max_distance < 42.0:
 		issue = "Expected moon shadow distance to reach the cloud layer"
+	elif moon_light.directional_shadow_max_distance > 420.0:
+		issue = "Expected moon shadow distance capped to reduce cascade flicker"
 	root.queue_free()
 	if not issue.is_empty():
 		push_error(issue)

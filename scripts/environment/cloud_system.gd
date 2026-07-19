@@ -26,6 +26,7 @@ const BASE_CLOUD_RADIUS := CloudMeshBuilderScript.REFERENCE_RADIUS
 const MIN_CLOUD_RADIUS := 16.0
 const MAX_CLOUD_RADIUS := 48.0
 const WIND_GIZMO_NAME := "WindDirectionGizmo"
+const EDITOR_PREVIEW_SEED := 4242
 ## Safety cap so huge spawn areas cannot spawn unbounded instances.
 const COUNT_HARD_MAX := 600
 ## Random placement overlaps, so we over-cover the plane to make coverage 1.0 look full.
@@ -85,10 +86,11 @@ var _bounds_max: Vector3 = Vector3.ZERO
 var _travel_span: float = 0.0
 var _match_start_time_msec: int = 0
 var _last_run_seed: int = -1
+var _last_moon_height: float = -1.0
 var _configured: bool = false
 var _editor_rebuild_queued: bool = false
 var _shared_drift_velocity: Vector3 = Vector3.ZERO
-var _cloud_holder: Node3D = _create_cloud_holder()
+var _cloud_holder: Node3D = null
 var _shadow_material: StandardMaterial3D = null
 var _wind_gizmo: MeshInstance3D = null
 
@@ -102,13 +104,23 @@ func _create_cloud_holder() -> Node3D:
 func _ready() -> void:
 	_ensure_holder_in_tree()
 	if Engine.is_editor_hint():
-		call_deferred("_update_wind_gizmo")
+		call_deferred("_editor_ensure_preview_clouds")
 	else:
 		_free_wind_gizmo()
 
 
+func _editor_ensure_preview_clouds() -> void:
+	## Standalone / post-reload safety: show clouds even if Main hasn't configured yet.
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	if _configured and get_cloud_count() > 0:
+		_update_wind_gizmo()
+		return
+	configure_from_spawn_area(EDITOR_PREVIEW_SEED, 0, _last_moon_height)
+
+
 func _request_editor_cloud_rebuild() -> void:
-	if not Engine.is_editor_hint() or not is_inside_tree() or not _configured:
+	if not Engine.is_editor_hint() or not is_inside_tree():
 		return
 	if _editor_rebuild_queued:
 		return
@@ -118,9 +130,9 @@ func _request_editor_cloud_rebuild() -> void:
 
 func _editor_rebuild_clouds() -> void:
 	_editor_rebuild_queued = false
-	if not Engine.is_editor_hint() or not is_inside_tree() or not _configured:
+	if not Engine.is_editor_hint() or not is_inside_tree():
 		return
-	configure_from_spawn_area(_last_run_seed, 0)
+	configure_from_spawn_area(_last_run_seed, 0, _last_moon_height)
 
 
 func _wind_direction_vector() -> Vector3:
@@ -193,10 +205,17 @@ func _update_wind_gizmo() -> void:
 
 
 func _ensure_holder_in_tree() -> void:
-	if _cloud_holder == null:
-		_cloud_holder = _create_cloud_holder()
-	if _cloud_holder.get_parent() == null:
-		add_child(_cloud_holder)
+	if _cloud_holder != null and is_instance_valid(_cloud_holder):
+		if _cloud_holder.get_parent() == null:
+			add_child(_cloud_holder)
+		return
+	# Reclaim a leftover holder after @tool script reload.
+	var existing := get_node_or_null("Clouds") as Node3D
+	if existing != null:
+		_cloud_holder = existing
+		return
+	_cloud_holder = _create_cloud_holder()
+	add_child(_cloud_holder)
 
 
 func configure_for_maze(
@@ -217,10 +236,13 @@ func configure_from_spawn_area(
 	start_time_msec: int = 0,
 	moon_height: float = -1.0
 ) -> void:
+	if moon_height > 0.0:
+		_last_moon_height = moon_height
 	var half := spawn_size * 0.5
 	var center_y := spawn_center_y
-	if moon_height > 0.0:
-		center_y = minf(center_y, maxf(moon_height * 0.5, half.y + 1.0))
+	var height_cap := moon_height if moon_height > 0.0 else _last_moon_height
+	if height_cap > 0.0:
+		center_y = minf(center_y, maxf(height_cap * 0.5, half.y + 1.0))
 	var center := Vector3(0.0, center_y, 0.0)
 	var bounds_min := center - half
 	var bounds_max := center + half
@@ -374,7 +396,11 @@ func _create_cloud_instance(state: CloudState) -> Node3D:
 
 	var shadow_caster := MeshInstance3D.new()
 	shadow_caster.name = "ShadowCaster"
-	shadow_caster.mesh = mesh
+	# AABB box proxy — same rough footprint as the cloud, far fewer shadow-map tris.
+	# Full voxel meshes swimming through CSM cascades are a major flicker source.
+	shadow_caster.mesh = _shadow_proxy_mesh(mesh)
+	if mesh != null:
+		shadow_caster.position = mesh.get_aabb().get_center()
 	shadow_caster.material_override = _opaque_shadow_material()
 	shadow_caster.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	shadow_caster.layers = WorldVisualLayersScript.WORLD
@@ -384,6 +410,19 @@ func _create_cloud_instance(state: CloudState) -> Node3D:
 	var scale_factor := state.radius / CloudMeshBuilderScript.REFERENCE_RADIUS
 	root.scale = Vector3.ONE * scale_factor
 	return root
+
+
+func _shadow_proxy_mesh(source_mesh: Mesh) -> Mesh:
+	if source_mesh == null:
+		var fallback := SphereMesh.new()
+		fallback.radius = 1.0
+		fallback.height = 2.0
+		return fallback
+	var aabb := source_mesh.get_aabb()
+	var box := BoxMesh.new()
+	# Slightly inflate so soft filter still covers the visual silhouette.
+	box.size = aabb.size * 1.05
+	return box
 
 
 func _opaque_shadow_material() -> StandardMaterial3D:
