@@ -84,5 +84,12 @@ jobs:
       - name: Import project assets
         run: bash tools/run_godot_import.sh
 
+      - name: Check GDScript analyzer warnings
+        run: |
+          source tools/load_versions.sh
+          load_versions tools/versions.env
+          export GODOT_PATH="${GODOT_PATH:-$PWD/.cache/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64}"
+          python3 tools/run_checks.py --warnings-only --require-godot-warnings
+
       - name: Run unit tests
         run: bash tools/run_godot_tests.sh
