@@ -8,6 +8,10 @@ const HasteSpell := preload("res://resources/spells/haste.tres")
 const ShowMeSpell := preload("res://resources/spells/show_me.tres")
 const LightSpell := preload("res://resources/spells/light.tres")
 const LightBallSpell := preload("res://resources/spells/light_ball.tres")
+const TargetSpell := preload("res://resources/spells/target.tres")
+const PullSpell := preload("res://resources/spells/pull.tres")
+const FollowSpell := preload("res://resources/spells/follow.tres")
+const StopSpell := preload("res://resources/spells/stop.tres")
 
 
 func run() -> int:
@@ -24,6 +28,8 @@ func run() -> int:
 	failures += _test_fireball_wire_params_spawn_projectile()
 	failures += _test_apply_flashlight_toggle()
 	failures += _test_build_light_ball_params()
+	failures += _test_build_target_params()
+	failures += _test_build_pull_follow_stop_params()
 	return failures
 
 
@@ -84,7 +90,17 @@ func _make_player_stub() -> CharacterBody3D:
 
 
 func _test_all_spells_are_supported() -> int:
-	for spell in [FireballSpell, HasteSpell, ShowMeSpell, LightSpell, LightBallSpell]:
+	for spell in [
+		FireballSpell,
+		HasteSpell,
+		ShowMeSpell,
+		LightSpell,
+		LightBallSpell,
+		TargetSpell,
+		PullSpell,
+		FollowSpell,
+		StopSpell,
+	]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
 			return 1
@@ -250,6 +266,47 @@ func _test_build_light_ball_params() -> int:
 		return 1
 	if float(params.get(SyncScript.KEY_DURATION, 0.0)) != SyncScript.DEFAULT_LIGHT_BALL_DURATION:
 		push_error("Expected light_ball duration to be 30 seconds")
+		return 1
+	return 0
+
+
+func _test_build_target_params() -> int:
+	var player := _make_player_stub()
+	var params := SyncScript.build_params(TargetSpell, player)
+	player.queue_free()
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_TARGET:
+		push_error("Expected target effect id in params")
+		return 1
+	if float(params.get(SyncScript.KEY_DURATION, 0.0)) != SyncScript.DEFAULT_TARGET_DURATION:
+		push_error("Expected target duration to match DEFAULT_TARGET_DURATION")
+		return 1
+	if SyncScript.get_effect_duration_sec(TargetSpell, params) != 0.0:
+		push_error("Expected target to hide HUD active timer")
+		return 1
+	return 0
+
+
+func _test_build_pull_follow_stop_params() -> int:
+	var player := _make_player_stub()
+	var pull_params := SyncScript.build_params(PullSpell, player)
+	var follow_params := SyncScript.build_params(FollowSpell, player)
+	var stop_params := SyncScript.build_params(StopSpell, player)
+	player.queue_free()
+	var ok := (
+		str(pull_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_PULL
+		and str(follow_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_FOLLOW
+		and str(stop_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_STOP
+		and SyncScript.get_effect_duration_sec(PullSpell, pull_params) == 0.0
+		and SyncScript.get_effect_duration_sec(FollowSpell, follow_params) == 0.0
+		and SyncScript.get_effect_duration_sec(StopSpell, stop_params) == 0.0
+	)
+	if not ok:
+		push_error("Expected pull/follow/stop params and zero HUD durations")
+		return 1
+	var pull_wire := SyncScript.pack_for_network(pull_params)
+	var unpacked := SyncScript.unpack_from_network(pull_wire)
+	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_PULL:
+		push_error("Expected pull network round-trip to keep effect id")
 		return 1
 	return 0
 

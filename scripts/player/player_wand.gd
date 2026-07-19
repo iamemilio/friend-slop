@@ -319,7 +319,7 @@ func _success_color_for_spell(spell: SpellDefinition) -> Color:
 			color = Color(1.0, 0.92, 0.55)
 		"haste":
 			color = Color(0.55, 0.82, 1.0)
-		"flashlight_toggle", "light_ball":
+		"flashlight_toggle", "light_ball", "target", "pull", "follow", "stop":
 			color = FLASHLIGHT_COLOR
 	return color
 

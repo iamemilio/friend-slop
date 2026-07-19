@@ -37,6 +37,12 @@ func _test_apprentice_starter_kit() -> int:
 	if not spell_ids.has("light") or not spell_ids.has("light_ball"):
 		push_error("Expected apprentice loadout to include light and light_ball")
 		return 1
+	if not spell_ids.has("target"):
+		push_error("Expected apprentice loadout to include target")
+		return 1
+	if not spell_ids.has("pull") or not spell_ids.has("follow") or not spell_ids.has("stop"):
+		push_error("Expected apprentice loadout to include pull, follow, and stop")
+		return 1
 	return 0
 
 

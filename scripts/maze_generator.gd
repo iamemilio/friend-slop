@@ -111,6 +111,22 @@ func cell_to_world(cell_x: int, cell_y: int) -> Vector3:
 	return pos
 
 
+func grid_to_world(gx: int, gy: int) -> Vector3:
+	## Raw wall-grid cell center (includes corridor cells between rooms).
+	return _grid_to_world(gx, gy)
+
+
+func is_grid_open(gx: int, gy: int) -> bool:
+	if _wall_grid.is_empty():
+		return false
+	if gx < 0 or gy < 0 or gx >= _wall_grid.size():
+		return false
+	var row: Array = _wall_grid[gx]
+	if gy >= row.size():
+		return false
+	return int(row[gy]) == 0
+
+
 func world_to_cell(world_position: Vector3) -> Vector2i:
 	var offset := _maze_offset()
 	var gx := int(round((world_position.x + offset.x) / cell_size))

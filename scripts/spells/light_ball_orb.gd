@@ -4,6 +4,7 @@ extends Node3D
 ## Soft hovering light orb. Cast sequence: outline → mist from wand → sphere.
 
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+const HoveringOrbMotionScript := preload("res://scripts/spells/hovering_orb_motion.gd")
 
 const DEFAULT_DURATION_SEC := 30.0
 const ORB_RADIUS := 0.16
@@ -12,11 +13,10 @@ const CLEAR_MARGIN := 0.08
 const LIGHT_RANGE := 12.0
 const LIGHT_ENERGY := 3.0
 const PLACE_FORWARD := 2.2
-const PLACE_HEIGHT := 1.15
+## Fixed hover height above the ground under the orb.
+const PLACE_HEIGHT := HoveringOrbMotionScript.HEIGHT_LIGHT_BALL
 const CAST_TRAVEL_SEC := 0.28
 const FORM_SEC := 0.14
-const HOVER_AMPLITUDE := 0.07
-const HOVER_SPEED := 1.75
 ## World static geometry (maze walls / floor).
 const WORLD_COLLISION_MASK := 1
 const ORB_COLOR := Color(1.0, 0.96, 0.82, 0.42)
@@ -61,8 +61,10 @@ static func spawn_cast(
 	orb._wand_origin = wand_origin
 	orb._target = target_position
 	parent.add_child(orb)
-	orb.global_position = target_position
-	orb._hover_base = target_position
+	var snapped := snap_to_ground(orb.get_world_3d(), target_position)
+	orb._target = snapped
+	orb.global_position = snapped
+	orb._hover_base = snapped
 	return orb
 
 
@@ -83,7 +85,12 @@ static func resolve_placement(player: CharacterBody3D) -> Vector3:
 	forward = forward.normalized()
 	var desired := wand_origin + forward * PLACE_FORWARD
 	desired.y = player.global_position.y + PLACE_HEIGHT
-	return find_clear_point(player.get_world_3d(), wand_origin, desired)
+	var clear := find_clear_point(player.get_world_3d(), wand_origin, desired)
+	return snap_to_ground(player.get_world_3d(), clear)
+
+
+static func snap_to_ground(world_3d: World3D, pos: Vector3) -> Vector3:
+	return HoveringOrbMotionScript.snap_base(world_3d, pos, PLACE_HEIGHT)
 
 
 static func find_clear_point(
@@ -92,10 +99,10 @@ static func find_clear_point(
 	desired: Vector3
 ) -> Vector3:
 	if world_3d == null:
-		return desired
+		return snap_to_ground(null, desired)
 	var space := world_3d.direct_space_state
 	if space == null:
-		return desired
+		return snap_to_ground(world_3d, desired)
 
 	var clearance := ORB_RADIUS + CLEAR_MARGIN
 	var candidate := desired
@@ -125,12 +132,12 @@ static func find_clear_point(
 	# Walk back toward the wand until the orb sphere is free of geometry.
 	for _i in 10:
 		if _sphere_is_clear(space, candidate, clearance):
-			return candidate
+			return snap_to_ground(world_3d, candidate)
 		candidate = from.lerp(candidate, 0.62)
 
 	if _sphere_is_clear(space, from + Vector3(0.0, 0.05, 0.0), clearance):
-		return from + Vector3(0.0, 0.05, 0.0)
-	return from
+		return snap_to_ground(world_3d, from + Vector3(0.0, 0.05, 0.0))
+	return snap_to_ground(world_3d, from)
 
 
 static func _sphere_is_clear(
@@ -150,6 +157,7 @@ static func _sphere_is_clear(
 
 
 func _ready() -> void:
+	add_to_group("light_ball")
 	_build_outline()
 	_build_orb_visuals(false)
 	_build_mist_and_beam()
@@ -159,8 +167,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not _hovering:
 		return
-	_hover_phase += delta * HOVER_SPEED
-	global_position = _hover_base + Vector3(0.0, sin(_hover_phase) * HOVER_AMPLITUDE, 0.0)
+	_hover_phase = HoveringOrbMotionScript.advance_bob_phase(_hover_phase, delta)
+	global_position = HoveringOrbMotionScript.visual_from_base(_hover_base, _hover_phase)
 
 
 func _build_outline() -> void:
@@ -387,6 +395,31 @@ func _begin_lifetime_fade() -> void:
 		Tween.TRANS_SINE
 	).set_ease(Tween.EASE_IN)
 	_lifetime_tween.chain().tween_callback(queue_free)
+
+
+func get_hover_base() -> Vector3:
+	return _hover_base
+
+
+func spell_set_guided_position(world_pos: Vector3) -> void:
+	## Update cruise base; bobbing continues on top via _process.
+	var snapped := world_pos
+	if is_inside_tree():
+		snapped = snap_to_ground(get_world_3d(), world_pos)
+	_hover_base = snapped
+	if _hovering:
+		global_position = HoveringOrbMotionScript.visual_from_base(_hover_base, _hover_phase)
+	else:
+		global_position = _hover_base
+
+
+func spell_set_follow_base(world_pos: Vector3, blend: float = 1.0) -> void:
+	var t := clampf(blend, 0.0, 1.0)
+	_hover_base = _hover_base.lerp(world_pos, t)
+	if _hovering:
+		global_position = HoveringOrbMotionScript.visual_from_base(_hover_base, _hover_phase)
+	else:
+		global_position = global_position.lerp(world_pos, t)
 
 
 func _exit_tree() -> void:

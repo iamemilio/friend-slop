@@ -28,6 +28,10 @@
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_forge.tres" id="24_forge"]
 [ext_resource type="Resource" path="res://resources/spells/light.tres" id="25_light"]
 [ext_resource type="Resource" path="res://resources/spells/light_ball.tres" id="26_light_ball"]
+[ext_resource type="Resource" path="res://resources/spells/target.tres" id="27_target"]
+[ext_resource type="Resource" path="res://resources/spells/pull.tres" id="29_pull"]
+[ext_resource type="Resource" path="res://resources/spells/follow.tres" id="30_follow"]
+[ext_resource type="Resource" path="res://resources/spells/stop.tres" id="31_stop"]
 [ext_resource type="Script" uid="uid://cjpjlfd2a3wsx" path="res://scripts/player_spawn_slot.gd" id="28_spawn_slot"]
 
 [sub_resource type="Environment" id="Environment_main"]
@@ -69,7 +73,7 @@ run_config = ExtResource("5_run_cfg")
 
 [node name="SpellRegistry" type="Node" parent="." unique_id=1904759634]
 script = ExtResource("6_registry")
-spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("25_light"), ExtResource("26_light_ball"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
+spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8_haste"), ExtResource("15_fireball"), ExtResource("25_light"), ExtResource("26_light_ball"), ExtResource("27_target"), ExtResource("29_pull"), ExtResource("30_follow"), ExtResource("31_stop"), ExtResource("16_stalk"), ExtResource("17_pounce"), ExtResource("18_mark"), ExtResource("19_whisper"), ExtResource("20_mirror"), ExtResource("21_fade"), ExtResource("22_shift"), ExtResource("23_seal"), ExtResource("24_forge")])
 
 [node name="VoiceSpellValidator" type="Node" parent="." unique_id=1384260685]
 script = ExtResource("10_validator")

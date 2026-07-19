@@ -9,6 +9,10 @@ const APPRENTICE_SPELLS: Array[String] = [
 	"haste",
 	"light",
 	"light_ball",
+	"target",
+	"pull",
+	"follow",
+	"stop",
 ]
 
 const WARDEN_SPELLS: Array[String] = [

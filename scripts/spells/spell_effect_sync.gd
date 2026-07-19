@@ -5,6 +5,8 @@ extends RefCounted
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
+const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
+const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
@@ -12,18 +14,24 @@ const KEY_WAND_ORIGIN := "wand_origin"
 const KEY_DIRECTION := "direction"
 const KEY_DURATION := "duration"
 const KEY_MULTIPLIER := "multiplier"
+const KEY_TARGET_KIND := "target_kind"
 
 const EFFECT_HASTE := "haste"
 const EFFECT_LIGHT := "light"
 const EFFECT_FIREBALL := "fireball"
 const EFFECT_FLASHLIGHT_TOGGLE := "flashlight_toggle"
 const EFFECT_LIGHT_BALL := "light_ball"
+const EFFECT_TARGET := "target"
+const EFFECT_PULL := "pull"
+const EFFECT_FOLLOW := "follow"
+const EFFECT_STOP := "stop"
 
 const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
 const DEFAULT_HASTE_MULTIPLIER := 1.65
 const DEFAULT_FIREBALL_CAST_DURATION := 0.0
 const DEFAULT_LIGHT_BALL_DURATION := 30.0
+const DEFAULT_TARGET_DURATION := 10.0
 
 
 static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary = {}) -> float:
@@ -37,8 +45,14 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 		EFFECT_FIREBALL:
 			return DEFAULT_FIREBALL_CAST_DURATION
 		EFFECT_LIGHT_BALL:
-			return float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			# Orb fades itself — no right-side active-timer chrome.
+			return 0.0
 		EFFECT_FLASHLIGHT_TOGGLE:
+			return 0.0
+		EFFECT_TARGET:
+			# Highlight fades itself — no right-side active-timer chrome.
+			return 0.0
+		EFFECT_PULL, EFFECT_FOLLOW, EFFECT_STOP:
 			return 0.0
 		_:
 			return 0.0
@@ -63,9 +77,44 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			params[KEY_DURATION] = DEFAULT_LIGHT_BALL_DURATION
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
+		EFFECT_TARGET:
+			params[KEY_DURATION] = DEFAULT_TARGET_DURATION
+			_append_targetable(params, player)
+		EFFECT_PULL:
+			_append_looked_at_target(params, player, true)
+		EFFECT_FOLLOW:
+			_append_looked_at_target(params, player, false)
+		EFFECT_STOP:
+			pass
 		_:
 			return {}
 	return params
+
+
+static func _append_targetable(params: Dictionary, player: CharacterBody3D) -> void:
+	var target := TargetedObjectControlScript.pick_targetable(player)
+	if target == null:
+		return
+	var desc: Dictionary = TargetedObjectControlScript.describe_target(target)
+	if desc.is_empty():
+		return
+	params[KEY_TARGET_KIND] = str(desc.get("kind", ""))
+	params[KEY_ORIGIN] = desc.get("mark", Vector3.ZERO)
+
+
+static func _append_looked_at_target(
+	params: Dictionary,
+	player: CharacterBody3D,
+	require_los: bool = false
+) -> void:
+	var target := TargetedObjectControlScript.pick_looked_at(player, require_los)
+	if target == null:
+		return
+	var desc: Dictionary = TargetedObjectControlScript.describe_target(target)
+	if desc.is_empty():
+		return
+	params[KEY_TARGET_KIND] = str(desc.get("kind", ""))
+	params[KEY_ORIGIN] = desc.get("mark", Vector3.ZERO)
 
 
 static func pack_for_network(params: Dictionary) -> Dictionary:
@@ -88,6 +137,21 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
+		EFFECT_TARGET:
+			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_TARGET_DURATION))
+			wire[KEY_TARGET_KIND] = str(local.get(KEY_TARGET_KIND, ""))
+			var mark := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			wire["origin_x"] = mark.x
+			wire["origin_y"] = mark.y
+			wire["origin_z"] = mark.z
+		EFFECT_PULL, EFFECT_FOLLOW:
+			wire[KEY_TARGET_KIND] = str(local.get(KEY_TARGET_KIND, ""))
+			var mark := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			wire["origin_x"] = mark.x
+			wire["origin_y"] = mark.y
+			wire["origin_z"] = mark.z
+		EFFECT_STOP:
+			pass
 		EFFECT_LIGHT_BALL:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
 			var wand_origin := coerce_vector3(local.get(KEY_WAND_ORIGIN, Vector3.ZERO))
@@ -127,6 +191,23 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
 		EFFECT_LIGHT:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
+		EFFECT_TARGET:
+			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_TARGET_DURATION))
+			params[KEY_TARGET_KIND] = str(wire.get(KEY_TARGET_KIND, ""))
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+		EFFECT_PULL, EFFECT_FOLLOW:
+			params[KEY_TARGET_KIND] = str(wire.get(KEY_TARGET_KIND, ""))
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+		EFFECT_STOP:
+			pass
 		EFFECT_LIGHT_BALL:
 			params[KEY_ORIGIN] = Vector3(
 				float(wire.get("origin_x", 0.0)),
@@ -159,6 +240,16 @@ static func is_network_format(params: Dictionary) -> bool:
 	if effect_id == EFFECT_FIREBALL and params.has("origin_x") and params.has("dir_x"):
 		return true
 	if effect_id == EFFECT_LIGHT_BALL and params.has("origin_x") and not params.has(KEY_ORIGIN):
+		return true
+	if (
+		(
+			effect_id == EFFECT_PULL
+			or effect_id == EFFECT_FOLLOW
+			or effect_id == EFFECT_TARGET
+		)
+		and params.has("origin_x")
+		and not params.has(KEY_ORIGIN)
+	):
 		return true
 	return false
 
@@ -220,6 +311,14 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			_toggle_flashlight(player)
 		EFFECT_LIGHT_BALL:
 			_apply_light_ball(player, params)
+		EFFECT_TARGET:
+			_apply_target(player, params)
+		EFFECT_PULL:
+			_apply_pull(player, params)
+		EFFECT_FOLLOW:
+			_apply_follow(player, params)
+		EFFECT_STOP:
+			_apply_stop()
 		_:
 			push_warning(
 				"SpellEffectSync: unknown effect '%s'" % str(params.get(KEY_EFFECT_ID, ""))
@@ -235,6 +334,63 @@ static func _reveal_trails(duration_sec: float) -> void:
 	if registry != null and registry.has_method("reveal_trails"):
 		registry.reveal_trails(duration_sec)
 
+
+static func _apply_target(player: CharacterBody3D, params: Dictionary) -> void:
+	if player == null or not player.is_inside_tree():
+		return
+	var duration := float(params.get(KEY_DURATION, DEFAULT_TARGET_DURATION))
+	var target := _resolve_targeted_object(player, params, false)
+	if target == null:
+		target = TargetedObjectControlScript.pick_targetable(player)
+	if target == null:
+		return
+	TargetHighlightScript.apply_single(player.get_tree(), target, duration)
+
+
+static func _apply_pull(player: CharacterBody3D, params: Dictionary) -> void:
+	var target := _resolve_targeted_object(player, params, true)
+	if target == null:
+		return
+	TargetedObjectControlScript.pull_object(player, target)
+
+
+static func _apply_follow(player: CharacterBody3D, params: Dictionary) -> void:
+	var target := _resolve_targeted_object(player, params, false)
+	if target == null:
+		return
+	TargetedObjectControlScript.start_follow(player, target)
+
+
+static func _apply_stop() -> void:
+	var tree := Engine.get_main_loop()
+	if tree == null or not (tree is SceneTree):
+		return
+	TargetedObjectControlScript.stop_all(tree as SceneTree)
+
+
+static func _resolve_targeted_object(
+	player: CharacterBody3D,
+	params: Dictionary,
+	require_los: bool = false
+) -> Node3D:
+	if player == null or not player.is_inside_tree():
+		return null
+	var kind := str(params.get(KEY_TARGET_KIND, ""))
+	if kind.is_empty():
+		return TargetedObjectControlScript.pick_looked_at(player, require_los)
+	var mark := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var resolved := TargetedObjectControlScript.resolve_target(
+		player.get_tree(), kind, mark
+	)
+	if (
+		require_los
+		and resolved != null
+		and not TargetedObjectControlScript.has_clear_line_of_sight(player, resolved)
+	):
+		return null
+	return resolved
+
+
 static func is_supported_effect(effect_id: String) -> bool:
 	return effect_id in [
 		EFFECT_HASTE,
@@ -242,6 +398,10 @@ static func is_supported_effect(effect_id: String) -> bool:
 		EFFECT_FIREBALL,
 		EFFECT_FLASHLIGHT_TOGGLE,
 		EFFECT_LIGHT_BALL,
+		EFFECT_TARGET,
+		EFFECT_PULL,
+		EFFECT_FOLLOW,
+		EFFECT_STOP,
 	]
 
 

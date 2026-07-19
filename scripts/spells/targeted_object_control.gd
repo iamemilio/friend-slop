@@ -1,0 +1,560 @@
+class_name TargetedObjectControl
+extends RefCounted
+
+## Pull / follow / stop helpers for Target-highlighted light balls and the relic.
+
+const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
+const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
+const FloatingFollowPathScript := preload("res://scripts/spells/floating_follow_path.gd")
+const HoveringOrbMotionScript := preload("res://scripts/spells/hovering_orb_motion.gd")
+
+const FOLLOW_DRIVER_NAME := "SpellFollowDriver"
+const PULL_DRIVER_NAME := "SpellPullDriver"
+## Stop cruising once within this flat distance of the player.
+const FOLLOW_STOP_DIST := 1.7
+## Resume cruising only after the player walks this far away (hysteresis).
+const FOLLOW_START_DIST := 2.55
+## Match light-ball hover height above ground.
+const FOLLOW_HEIGHT := HoveringOrbMotionScript.HEIGHT_LIGHT_BALL
+const RELIC_FLOAT_HEIGHT := HoveringOrbMotionScript.HEIGHT_RELIC
+## Constant route cruise (HoveringOrbMotion softens this further).
+const FOLLOW_SPEED := HoveringOrbMotionScript.CRUISE_MAX_SPEED
+const PULL_SPEED := 6.5
+const PULL_ARRIVE_DIST := 0.12
+const PULL_DISTANCE := 2.35
+const REPATH_INTERVAL_SEC := 0.55
+const REPATH_GOAL_MOVE := 1.4
+const LOS_ARRIVE_TOLERANCE := 0.45
+const WORLD_COLLISION_MASK := 1
+const TARGET_KIND_LIGHT_BALL := "light_ball"
+const TARGET_KIND_RELIC := "relic"
+
+
+static func has_active_follows(tree: SceneTree) -> bool:
+	if tree == null:
+		return false
+	return not tree.get_nodes_in_group("spell_follow_driver").is_empty()
+
+
+static func pick_looked_at(player: CharacterBody3D, require_los: bool = false) -> Node3D:
+	## Pick among currently highlighted objects (after Target).
+	if player == null or not player.is_inside_tree():
+		return null
+	return pick_among_anchors(
+		player,
+		TargetHighlightScript.get_highlighted_anchors(player.get_tree()),
+		require_los
+	)
+
+
+static func pick_targetable(player: CharacterBody3D) -> Node3D:
+	## Pick one targetable world object closest to the aim cursor (for Target cast).
+	if player == null or not player.is_inside_tree():
+		return null
+	return pick_among_anchors(
+		player,
+		TargetHighlightScript.collect_anchors(player.get_tree()),
+		false
+	)
+
+
+static func pick_among_anchors(
+	player: CharacterBody3D,
+	anchors: Array[Node3D],
+	require_los: bool = false
+) -> Node3D:
+	if player == null or anchors.is_empty():
+		return null
+	var camera := _find_camera(player)
+	var cursor := _aim_cursor(player)
+	var best: Node3D = null
+	var best_score := INF
+	for anchor in anchors:
+		if anchor == null or not is_instance_valid(anchor):
+			continue
+		if require_los and not has_clear_line_of_sight(player, anchor):
+			continue
+		var score := _cursor_proximity_score(camera, cursor, player, anchor)
+		if score < best_score:
+			best_score = score
+			best = anchor
+	return best
+
+
+static func has_clear_line_of_sight(player: CharacterBody3D, target: Node3D) -> bool:
+	if player == null or target == null or not player.is_inside_tree():
+		return false
+	var world_3d := player.get_world_3d()
+	if world_3d == null or world_3d.direct_space_state == null:
+		return true
+	var from := _view_origin(player)
+	var to := target.global_position
+	if from.distance_squared_to(to) < 0.0001:
+		return true
+	var ray := PhysicsRayQueryParameters3D.create(from, to)
+	ray.collision_mask = WORLD_COLLISION_MASK
+	ray.hit_from_inside = true
+	ray.exclude = _collision_rids(player)
+	var hit := world_3d.direct_space_state.intersect_ray(ray)
+	if hit.is_empty():
+		return true
+	# Treat a near-target collider (e.g. relic body) as still having LOS.
+	return hit.position.distance_to(to) <= LOS_ARRIVE_TOLERANCE
+
+
+static func _aim_cursor(player: CharacterBody3D) -> Vector2:
+	var viewport := player.get_viewport()
+	if viewport == null:
+		return Vector2.ZERO
+	var mouse := viewport.get_mouse_position()
+	var rect := viewport.get_visible_rect()
+	if rect.size.x <= 1.0 or rect.size.y <= 1.0:
+		return mouse
+	# Captured mouse / FPS aim uses the crosshair at screen center.
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		return rect.size * 0.5
+	return mouse
+
+
+static func _find_camera(player: CharacterBody3D) -> Camera3D:
+	if player == null:
+		return null
+	if player.has_method("get_view_camera"):
+		var cam: Variant = player.call("get_view_camera")
+		if cam is Camera3D:
+			return cam as Camera3D
+	var named := player.find_child("FirstPersonCamera", true, false)
+	if named is Camera3D:
+		return named as Camera3D
+	return player.find_child("Camera3D", true, false) as Camera3D
+
+
+static func _cursor_proximity_score(
+	camera: Camera3D,
+	cursor: Vector2,
+	player: CharacterBody3D,
+	anchor: Node3D
+) -> float:
+	if camera != null and camera.is_inside_tree():
+		if camera.is_position_behind(anchor.global_position):
+			return INF
+		var screen := camera.unproject_position(anchor.global_position)
+		return screen.distance_squared_to(cursor)
+	# Fallback without a camera: prefer aim-aligned anchors.
+	var origin := _view_origin(player)
+	var look := _view_direction(player)
+	var to_anchor := anchor.global_position - origin
+	var dist := to_anchor.length()
+	if dist < 0.15:
+		return INF
+	var align := to_anchor.normalized().dot(look)
+	if align <= 0.0:
+		return INF
+	return (1.0 - align) * 12.0 + dist * 0.03
+
+
+static func _collision_rids(root: Node) -> Array:
+	var rids: Array = []
+	if root == null:
+		return rids
+	if root is CollisionObject3D:
+		rids.append((root as CollisionObject3D).get_rid())
+	for child in root.get_children():
+		rids.append_array(_collision_rids(child))
+	return rids
+
+
+static func describe_target(node: Node3D) -> Dictionary:
+	if node == null:
+		return {}
+	if node.is_in_group("light_ball") or node is LightBallOrb:
+		return {
+			"kind": TARGET_KIND_LIGHT_BALL,
+			"mark": node.global_position,
+		}
+	# Relic root from DeliveryObjective.get_spell_target_nodes().
+	return {
+		"kind": TARGET_KIND_RELIC,
+		"mark": node.global_position,
+	}
+
+
+static func resolve_target(
+	tree: SceneTree,
+	kind: String,
+	mark: Vector3
+) -> Node3D:
+	if tree == null:
+		return null
+	if kind == TARGET_KIND_LIGHT_BALL:
+		var best: Node3D = null
+		var best_dist := INF
+		for node in tree.get_nodes_in_group("light_ball"):
+			if not node is Node3D:
+				continue
+			var dist := (node as Node3D).global_position.distance_squared_to(mark)
+			if dist < best_dist:
+				best_dist = dist
+				best = node as Node3D
+		return best
+	if kind == TARGET_KIND_RELIC:
+		for node in tree.get_nodes_in_group("delivery_objective"):
+			if node != null and node.has_method("get_spell_target_nodes"):
+				var targets: Variant = node.call("get_spell_target_nodes")
+				if targets is Array and not targets.is_empty():
+					return targets[0] as Node3D
+	return null
+
+
+static func pull_object(player: CharacterBody3D, target: Node3D) -> void:
+	if player == null or target == null:
+		return
+	if not has_clear_line_of_sight(player, target):
+		return
+	clear_follows_on(target)
+	clear_pulls_on(target)
+	var dest := _pull_destination(player)
+	var driver := _SpellPullDriver.new()
+	driver.name = PULL_DRIVER_NAME
+	target.add_child(driver)
+	driver.begin(player, dest)
+
+
+static func start_follow(player: CharacterBody3D, target: Node3D) -> void:
+	if player == null or target == null:
+		return
+	clear_all_follows(player.get_tree())
+	clear_pulls_on(target)
+	var driver := _SpellFollowDriver.new()
+	driver.name = FOLLOW_DRIVER_NAME
+	target.add_child(driver)
+	driver.begin(player)
+
+
+static func stop_all(tree: SceneTree) -> void:
+	if tree == null:
+		return
+	TargetHighlightScript.clear_all(tree)
+	clear_all_follows(tree)
+	clear_all_pulls(tree)
+
+
+static func clear_all_follows(tree: SceneTree) -> void:
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group("spell_follow_driver"):
+		if is_instance_valid(node):
+			node.name = "%s_dying" % str(node.name)
+			node.queue_free()
+
+
+static func clear_all_pulls(tree: SceneTree) -> void:
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group("spell_pull_driver"):
+		if is_instance_valid(node):
+			node.name = "%s_dying" % str(node.name)
+			node.queue_free()
+
+
+static func clear_follows_on(target: Node3D) -> void:
+	if target == null:
+		return
+	var existing := target.get_node_or_null(FOLLOW_DRIVER_NAME)
+	if existing != null:
+		existing.name = "%s_dying" % FOLLOW_DRIVER_NAME
+		existing.queue_free()
+
+
+static func clear_pulls_on(target: Node3D) -> void:
+	if target == null:
+		return
+	var existing := target.get_node_or_null(PULL_DRIVER_NAME)
+	if existing != null:
+		existing.name = "%s_dying" % PULL_DRIVER_NAME
+		existing.queue_free()
+
+
+static func _pull_destination(player: CharacterBody3D) -> Vector3:
+	var origin := _view_origin(player)
+	var look := _view_direction(player)
+	var desired := origin + look * PULL_DISTANCE
+	desired.y = player.global_position.y + FOLLOW_HEIGHT
+	var world_3d := player.get_world_3d()
+	if world_3d != null:
+		desired = LightBallOrbScript.find_clear_point(world_3d, origin, desired)
+		return LightBallOrbScript.snap_to_ground(world_3d, desired)
+	return desired
+
+
+static func _view_origin(player: CharacterBody3D) -> Vector3:
+	if player.has_method("get_view_origin"):
+		return player.call("get_view_origin")
+	if player.has_method("get_wand_cast_origin"):
+		return player.call("get_wand_cast_origin")
+	return player.global_position + Vector3(0.0, 1.4, 0.0)
+
+
+static func _view_direction(player: CharacterBody3D) -> Vector3:
+	if player.has_method("get_view_direction"):
+		return player.call("get_view_direction")
+	if player.has_method("get_wand_cast_direction"):
+		return player.call("get_wand_cast_direction")
+	return -player.global_transform.basis.z.normalized()
+
+
+static func _facing_horizontal(player: CharacterBody3D) -> Vector3:
+	var forward := _view_direction(player)
+	forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		forward = -player.global_transform.basis.z
+		forward.y = 0.0
+	if forward.length_squared() < 0.0001:
+		return Vector3.FORWARD
+	return forward.normalized()
+
+
+static func _flat_distance(a: Vector3, b: Vector3) -> float:
+	var delta := a - b
+	delta.y = 0.0
+	return delta.length()
+
+
+static func _delivery_from_relic(relic_root: Node3D) -> Node:
+	var node: Node = relic_root
+	while node != null:
+		if node.is_in_group("delivery_objective"):
+			return node
+		node = node.get_parent()
+	return null
+
+
+static func _height_above_ground_for(host: Node3D) -> float:
+	if host is LightBallOrb:
+		return HoveringOrbMotionScript.HEIGHT_LIGHT_BALL
+	return HoveringOrbMotionScript.HEIGHT_RELIC
+
+
+static func _motion_base_position(host: Node3D) -> Vector3:
+	## Use the non-bobbing base so pathing doesn't rumble with the hover sine.
+	if host is LightBallOrb:
+		return (host as LightBallOrb).get_hover_base()
+	var objective := _delivery_from_relic(host)
+	if objective != null and objective.has_method("get_relic_motion_base"):
+		return objective.call("get_relic_motion_base")
+	return host.global_position
+
+
+static func _world_3d_for(host: Node3D, player: CharacterBody3D) -> World3D:
+	if host != null and host.is_inside_tree():
+		return host.get_world_3d()
+	if player != null and player.is_inside_tree():
+		return player.get_world_3d()
+	return null
+
+
+static func follow_approach_goal(player: CharacterBody3D, height: float) -> Vector3:
+	## XZ approach toward the player; height is only for path queries.
+	var goal := player.global_position
+	goal.y = height
+	return goal
+
+
+static func _find_maze(tree: SceneTree) -> Node:
+	if tree == null:
+		return null
+	if tree.current_scene != null:
+		var maze: Node = tree.current_scene.get_node_or_null("MazeGenerator")
+		if maze != null:
+			return maze
+	return tree.root.find_child("MazeGenerator", true, false)
+
+
+static func _apply_float_position(host: Node3D, world_pos: Vector3) -> void:
+	if host is LightBallOrb:
+		(host as LightBallOrb).spell_set_guided_position(world_pos)
+		return
+	var objective := _delivery_from_relic(host)
+	if objective != null and objective.has_method("spell_set_guided_relic_position"):
+		objective.call("spell_set_guided_relic_position", world_pos)
+		return
+	host.global_position = world_pos
+
+
+static func _step_along_route(
+	from: Vector3,
+	waypoint: Vector3,
+	speed: float,
+	delta: float,
+	world_3d: World3D = null,
+	height_above_ground: float = FOLLOW_HEIGHT
+) -> Vector3:
+	return HoveringOrbMotionScript.cruise_base_toward(
+		from,
+		waypoint,
+		delta,
+		world_3d,
+		height_above_ground,
+		speed,
+		HoveringOrbMotionScript.CRUISE_SMOOTH
+	)
+
+
+static func _build_float_path(
+	player: CharacterBody3D,
+	from: Vector3,
+	goal: Vector3
+) -> Array[Vector3]:
+	var maze: Node = null
+	var space: PhysicsDirectSpaceState3D = null
+	if player != null and player.is_inside_tree():
+		maze = _find_maze(player.get_tree())
+		var world_3d := player.get_world_3d()
+		if world_3d != null:
+			space = world_3d.direct_space_state
+	var path := FloatingFollowPathScript.build_path(
+		from, goal, maze, FOLLOW_HEIGHT, space
+	)
+	return FloatingFollowPathScript.advance_path(path, from)
+
+
+class _SpellPullDriver extends Node:
+	var _player: CharacterBody3D
+	var _dest := Vector3.ZERO
+	var _path: Array[Vector3] = []
+
+
+	func _ready() -> void:
+		add_to_group("spell_pull_driver")
+		set_process(true)
+
+
+	func begin(player: CharacterBody3D, dest: Vector3) -> void:
+		_player = player
+		_dest = dest
+		_dest.y = 0.0
+		var host := get_parent() as Node3D
+		if host != null:
+			var from := TargetedObjectControl._motion_base_position(host)
+			var path_goal := dest
+			path_goal.y = from.y
+			_path = TargetedObjectControl._build_float_path(_player, from, path_goal)
+
+
+	func _process(delta: float) -> void:
+		var host := get_parent() as Node3D
+		if host == null or not is_instance_valid(host):
+			queue_free()
+			return
+		var from := TargetedObjectControl._motion_base_position(host)
+		_path = FloatingFollowPathScript.advance_path(_path, from)
+		var waypoint := _dest if _path.is_empty() else _path[0]
+		var world_3d := TargetedObjectControl._world_3d_for(host, _player)
+		var height := TargetedObjectControl._height_above_ground_for(host)
+		var next_pos := TargetedObjectControl._step_along_route(
+			from,
+			waypoint,
+			TargetedObjectControl.PULL_SPEED,
+			delta,
+			world_3d,
+			height
+		)
+		TargetedObjectControl._apply_float_position(host, next_pos)
+		if (
+			TargetedObjectControl._flat_distance(next_pos, _dest)
+			<= TargetedObjectControl.PULL_ARRIVE_DIST
+		):
+			var final_pos := Vector3(_dest.x, from.y, _dest.z)
+			final_pos = HoveringOrbMotionScript.snap_base(world_3d, final_pos, height)
+			TargetedObjectControl._apply_float_position(host, final_pos)
+			queue_free()
+
+
+class _SpellFollowDriver extends Node:
+	var _player: CharacterBody3D
+	var _path: Array[Vector3] = []
+	var _path_goal := Vector3.ZERO
+	var _smoothed_goal := Vector3.ZERO
+	var _goal_ready := false
+	var _repath_in := 0.0
+	## When true, hold still until the player walks beyond FOLLOW_START_DIST.
+	var _parked := false
+
+
+	func _ready() -> void:
+		add_to_group("spell_follow_driver")
+		set_process(true)
+
+
+	func begin(player: CharacterBody3D) -> void:
+		_player = player
+		_repath_in = 0.0
+		_parked = false
+		_goal_ready = false
+
+
+	func _process(delta: float) -> void:
+		if _player == null or not is_instance_valid(_player) or not _player.is_inside_tree():
+			queue_free()
+			return
+		var host := get_parent() as Node3D
+		if host == null or not is_instance_valid(host):
+			queue_free()
+			return
+
+		var from := TargetedObjectControl._motion_base_position(host)
+		var flat_dist := TargetedObjectControl._flat_distance(from, _player.global_position)
+
+		if _parked:
+			if flat_dist < TargetedObjectControl.FOLLOW_START_DIST:
+				return
+			_parked = false
+
+		if flat_dist <= TargetedObjectControl.FOLLOW_STOP_DIST:
+			_parked = true
+			_path.clear()
+			return
+
+		var ideal := TargetedObjectControl.follow_approach_goal(_player, from.y)
+		if not _goal_ready:
+			_smoothed_goal = from
+			_goal_ready = true
+		_smoothed_goal = HoveringOrbMotionScript.smooth_goal(
+			_smoothed_goal, ideal, delta
+		)
+
+		_repath_in -= delta
+		var needs_repath := (
+			_path.is_empty()
+			or _repath_in <= 0.0
+			or _smoothed_goal.distance_to(_path_goal)
+			>= TargetedObjectControl.REPATH_GOAL_MOVE
+		)
+		if needs_repath:
+			_path = TargetedObjectControl._build_float_path(
+				_player, from, _smoothed_goal
+			)
+			_path_goal = _smoothed_goal
+			_repath_in = TargetedObjectControl.REPATH_INTERVAL_SEC
+		else:
+			_path = FloatingFollowPathScript.advance_path(_path, from)
+
+		var waypoint := _smoothed_goal if _path.is_empty() else _path[0]
+		var world_3d := TargetedObjectControl._world_3d_for(host, _player)
+		var height := TargetedObjectControl._height_above_ground_for(host)
+		var next_pos := TargetedObjectControl._step_along_route(
+			from,
+			waypoint,
+			TargetedObjectControl.FOLLOW_SPEED,
+			delta,
+			world_3d,
+			height
+		)
+		TargetedObjectControl._apply_float_position(host, next_pos)
+
+		if (
+			TargetedObjectControl._flat_distance(next_pos, _player.global_position)
+			<= TargetedObjectControl.FOLLOW_STOP_DIST
+		):
+			_parked = true
+			_path.clear()

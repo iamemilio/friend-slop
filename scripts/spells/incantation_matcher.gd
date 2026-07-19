@@ -6,7 +6,7 @@ extends RefCounted
 ## Common STT near-misses keyed by the expected spell word.
 ## Keep these tight — only pairs that players actually hit in-game.
 const STT_CONFUSABLES := {
-	"light": ["like", "lite", "lights"],
+	"light": ["like", "lite", "lights", "white"],
 	"ball": ["bowl", "bald", "boll"],
 	"show": ["sho", "shaw", "shoe"],
 	"speed": ["speak", "steed"],
@@ -54,25 +54,51 @@ static func _matches_compound_single_word(
 	if expected.is_empty():
 		return false
 
-	var heard_compact := heard_text_from_words(transcript_words).replace(" ", "")
-	if heard_compact == expected or _word_similar(heard_compact, expected):
-		return true
-
 	var normalized: Array[String] = []
 	for word in transcript_words:
 		var cleaned := word.to_lower().strip_edges()
 		if not cleaned.is_empty():
 			normalized.append(cleaned)
+	if normalized.is_empty():
+		return false
 
+	# Single heard token: allow fuzzy / confusable match against the compound.
+	if normalized.size() == 1:
+		return _word_similar(normalized[0], expected)
+
+	# Multi-token joins ("fire ball" → fireball). Require prefix + suffix
+	# alignment so "white ball" does not fuzzy-match fireball via edit distance.
 	for start_idx in normalized.size():
 		var built := ""
 		for end_idx in range(start_idx, normalized.size()):
 			built += normalized[end_idx]
-			if built == expected or _word_similar(built, expected):
+			if built == expected or _is_stt_confusable(built, expected):
+				return true
+			if end_idx > start_idx and _compound_tokens_align(
+				normalized[start_idx],
+				normalized[end_idx],
+				expected
+			):
 				return true
 			if built.length() > expected.length() + 2:
 				break
 	return false
+
+
+static func _compound_tokens_align(first: String, last: String, expected: String) -> bool:
+	if first.is_empty() or last.is_empty() or expected.is_empty():
+		return false
+	var suffix_len := mini(last.length(), expected.length())
+	if suffix_len < 3:
+		return false
+	var suffix := expected.substr(expected.length() - suffix_len)
+	if not _word_similar(last, suffix):
+		return false
+	var prefix_len := mini(first.length(), expected.length())
+	if prefix_len < 3:
+		return false
+	var prefix := expected.substr(0, prefix_len)
+	return _word_similar(first, prefix)
 
 
 static func heard_text_from_words(transcript_words: PackedStringArray) -> String:

@@ -3,6 +3,9 @@ res://tests/unit/test_maze_wall_mesh.gd
 res://tests/unit/test_discoverable_spawn_plan.gd
 res://tests/unit/test_voice_spell_validator.gd
 res://tests/unit/test_incantation_matcher.gd
+res://tests/unit/test_floating_follow_path.gd
+res://tests/unit/test_world_ground.gd
+res://tests/unit/test_hovering_orb_motion.gd
 res://tests/unit/test_spell_grammar_builder.gd
 res://tests/unit/test_spell_cast_validator.gd
 res://tests/unit/test_character_spell_loadout.gd

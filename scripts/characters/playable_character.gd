@@ -13,6 +13,8 @@ const PLAYER_MIN_SEPARATION := 0.55
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
+const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
+const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -216,6 +218,10 @@ func get_wand_cast_direction() -> Vector3:
 	return _camera_aim_direction()
 
 
+func get_view_camera() -> Camera3D:
+	return _view_camera
+
+
 func _camera_aim_direction() -> Vector3:
 	return -camera_pivot.global_transform.basis.z.normalized()
 
@@ -398,11 +404,32 @@ func _try_free_cast() -> bool:
 		return false
 	if _spell_loadout == null or _casting_session == null:
 		return false
-	var candidates: Array[SpellDefinition] = _spell_loadout.get_known_spells()
+	var candidates: Array[SpellDefinition] = _filter_free_cast_candidates(
+		_spell_loadout.get_known_spells()
+	)
 	if candidates.is_empty():
 		return false
 	_casting_session.start_free_cast(candidates)
 	return true
+
+
+func _filter_free_cast_candidates(known: Array[SpellDefinition]) -> Array[SpellDefinition]:
+	var filtered: Array[SpellDefinition] = []
+	var tree := get_tree()
+	var target_active := TargetHighlightScript.has_active_highlights(tree)
+	var follow_active := TargetedObjectControlScript.has_active_follows(tree)
+	for spell in known:
+		if spell == null:
+			continue
+		match spell.id:
+			"pull", "follow":
+				if not target_active:
+					continue
+			"stop":
+				if not target_active and not follow_active:
+					continue
+		filtered.append(spell)
+	return filtered
 
 
 func _find_nearest_interactable() -> Interactable:

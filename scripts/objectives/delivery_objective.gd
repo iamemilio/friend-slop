@@ -9,12 +9,12 @@ signal completed
 
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
+const HoveringOrbMotionScript := preload("res://scripts/spells/hovering_orb_motion.gd")
 const INTERACT_RANGE := 2.5
 const INTERACT_RANGE_SQ := INTERACT_RANGE * INTERACT_RANGE
 const PING_INTERVAL_SEC := 3.5
-const FLOAT_HEIGHT := 1.1
-const BOB_SPEED := 2.2
-const BOB_AMPLITUDE := 0.12
+## Fixed float height above the ground under the relic.
+const FLOAT_HEIGHT := HoveringOrbMotionScript.HEIGHT_RELIC
 const CARRY_OFFSET := Vector3(0.35, -0.15, -0.55)
 const RING_HEIGHT_Y := 0.95
 const BEACON_HEIGHT := 140.0
@@ -134,6 +134,46 @@ func get_interaction_prompt(player: Node) -> String:
 					return InputPromptScript.with_action("interact", "Leave it?")
 				return InputPromptScript.with_action("interact", "Drop it")
 	return ""
+
+
+func get_spell_target_nodes() -> Array[Node3D]:
+	## Only the world relic is targetable (not the shrine).
+	var nodes: Array[Node3D] = []
+	if state.phase != DeliveryObjectiveState.Phase.SEEK_ITEM:
+		return nodes
+	if _item_root != null and is_instance_valid(_item_root):
+		nodes.append(_item_root)
+	return nodes
+
+
+func spell_pull_relic_to(world_pos: Vector3) -> void:
+	## Instant placement helper — animated pulls go through guided motion.
+	if state.phase != DeliveryObjectiveState.Phase.SEEK_ITEM:
+		return
+	_item_world_pos = _snap_relic_to_ground(world_pos)
+	_sync_item_transform()
+
+
+func spell_follow_relic_to(world_pos: Vector3, blend: float = 1.0) -> void:
+	if state.phase != DeliveryObjectiveState.Phase.SEEK_ITEM:
+		return
+	var t := clampf(blend, 0.0, 1.0)
+	var dest := _snap_relic_to_ground(world_pos)
+	_item_world_pos = _item_world_pos.lerp(dest, t)
+	_item_world_pos = _snap_relic_to_ground(_item_world_pos)
+	_sync_item_transform()
+
+
+func spell_set_guided_relic_position(world_pos: Vector3) -> void:
+	## Update cruise base; bobbing continues on top via _update_world_bob.
+	if state.phase != DeliveryObjectiveState.Phase.SEEK_ITEM:
+		return
+	_item_world_pos = _snap_relic_to_ground(world_pos)
+	_update_world_bob()
+
+
+func get_relic_motion_base() -> Vector3:
+	return _item_world_pos
 
 
 func is_complete() -> bool:
@@ -521,8 +561,12 @@ func _clear_visuals() -> void:
 
 func _cell_center(cell: Vector2i) -> Vector3:
 	var pos: Vector3 = _cell_to_world.call(cell.x, cell.y)
-	pos.y = FLOAT_HEIGHT
-	return pos
+	return _snap_relic_to_ground(pos)
+
+
+func _snap_relic_to_ground(pos: Vector3) -> Vector3:
+	var world_3d := get_world_3d() if is_inside_tree() else null
+	return HoveringOrbMotionScript.snap_base(world_3d, pos, FLOAT_HEIGHT)
 
 
 func _ping_max_distance() -> float:
@@ -544,14 +588,10 @@ func _is_near(a: Vector3, b: Vector3) -> bool:
 
 func _drop_world_position(player: Node) -> Vector3:
 	if _item_root != null and is_instance_valid(_item_root):
-		var pos := _item_root.global_position
-		pos.y = FLOAT_HEIGHT
-		return pos
+		return _snap_relic_to_ground(_item_root.global_position)
 	if player is Node3D:
-		var pos := (player as Node3D).global_position
-		pos.y = FLOAT_HEIGHT
-		return pos
-	return _item_world_pos
+		return _snap_relic_to_ground((player as Node3D).global_position)
+	return _snap_relic_to_ground(_item_world_pos)
 
 
 func _build_visuals() -> void:
@@ -910,9 +950,9 @@ func _sync_item_transform() -> void:
 func _update_world_bob() -> void:
 	if _item_root == null:
 		return
-	var pos := _item_world_pos
-	pos.y += sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
-	_item_root.global_position = pos
+	_item_root.global_position = HoveringOrbMotionScript.visual_from_base(
+		_item_world_pos, _bob_time * HoveringOrbMotionScript.BOB_SPEED
+	)
 
 
 func _attach_to_carrier(player: Node3D) -> void:

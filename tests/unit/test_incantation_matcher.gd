@@ -14,6 +14,7 @@ func run() -> int:
 	failures += _test_compound_single_word_fireball()
 	failures += _test_light_and_light_ball_phrases()
 	failures += _test_stt_confusable_like_for_light()
+	failures += _test_white_ball_is_light_ball_not_fireball()
 	failures += _test_rejects_short_substring_false_positive()
 	return failures
 
@@ -108,6 +109,23 @@ func _test_stt_confusable_like_for_light() -> int:
 		return 1
 	if IncantationMatcherScript.matches(PackedStringArray(["ladder"]), light):
 		push_error("Expected unrelated word not to match light")
+		return 1
+	return 0
+
+
+func _test_white_ball_is_light_ball_not_fireball() -> int:
+	var light := _make_spell("light", ["light"])
+	var light_ball := _make_spell("light_ball", ["light", "ball"])
+	var fireball := _make_spell("fireball", ["fireball"])
+	var heard := PackedStringArray(["white", "ball"])
+	if not IncantationMatcherScript.matches(heard, light_ball):
+		push_error("Expected STT 'white ball' to match light ball")
+		return 1
+	if not IncantationMatcherScript.matches(PackedStringArray(["white"]), light):
+		push_error("Expected STT 'white' to match light")
+		return 1
+	if IncantationMatcherScript.matches(heard, fireball):
+		push_error("Expected STT 'white ball' not to match fireball")
 		return 1
 	return 0
 

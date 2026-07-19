@@ -126,6 +126,14 @@ func get_cast_success_text() -> String:
 			text = "Your wand light toggles."
 		"light_ball":
 			text = "An orb of light hangs in the air, then slowly fades."
+		"target":
+			text = "One object near your aim gains a dashed green outline."
+		"pull":
+			text = "The outlined object flies toward your gaze."
+		"follow":
+			text = "The outlined object drifts toward you along open paths."
+		"stop":
+			text = "Target and Follow dissolve."
 	return text
 
 
@@ -160,6 +168,28 @@ func get_codex_effect_detail() -> String:
 				"Say \"light ball\" to leave a glowing orb ahead of you. "
 				+ "It fades away after %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_LIGHT_BALL_DURATION
+			)
+		"target":
+			text = (
+				"Say \"target\" to outline the light orb or delivery relic "
+				+ "closest to your aim for %.0f seconds."
+				% SpellEffectSyncScript.DEFAULT_TARGET_DURATION
+			)
+		"pull":
+			text = (
+				"While Target outlines are active, say \"pull\" to draw the "
+				+ "object nearest your aim toward your camera along open paths. "
+				+ "Requires clear line of sight."
+			)
+		"follow":
+			text = (
+				"While Target outlines are active, say \"follow\" to send the "
+				+ "looked-at object toward you at a steady speed along open paths "
+				+ "until Stop."
+			)
+		"stop":
+			text = (
+				"Say \"stop\" to clear Target outlines and end any Follow."
 			)
 	return text
 
