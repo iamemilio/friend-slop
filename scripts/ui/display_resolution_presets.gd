@@ -80,8 +80,11 @@ static func find_default_preset_index(include_size: Vector2i = Vector2i.ZERO) ->
 
 
 static func normalize_size(size: Vector2i) -> Vector2i:
-	if find_preset_index(size, size) >= 0:
-		return size
+	# Do not pass `size` as include_size — that would invent a preset for any value.
+	var presets := build_presets()
+	for preset in presets:
+		if preset == size:
+			return size
 	return get_default_monitor_size()
 
 

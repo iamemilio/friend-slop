@@ -227,6 +227,11 @@ func disconnect_session() -> void:
 	lobby.reset()
 	MatchStateManager.reset()
 	TrailRegistry.reset()
+	# Autoload lookup needs an active tree (unit tests instantiate this off-tree).
+	if is_inside_tree():
+		var voice_hub := get_node_or_null("/root/SteamProximityVoiceHub")
+		if voice_hub != null and voice_hub.has_method("stop_session"):
+			voice_hub.call("stop_session")
 	if transport != null:
 		transport.disconnect_session()
 
@@ -561,7 +566,7 @@ func _on_connection_failed() -> void:
 
 
 func _on_server_disconnected() -> void:
-	is_session_active = false
+	disconnect_session()
 	session_ended.emit("Host disconnected.")
 	status_changed.emit("Host disconnected.")
 

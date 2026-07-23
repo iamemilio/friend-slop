@@ -158,6 +158,8 @@ func _test_validation_runs_async_without_blocking_first_poll(tree: SceneTree) ->
 		_pump_session_frame(session)
 		if session.get_state() == SpellCastingSession.STATE_IDLE:
 			break
+		# Yield wall time so the delayed worker thread can finish.
+		OS.delay_msec(1)
 
 	WorkerScript.test_delay_sec = 0.0
 	_free_session(session)

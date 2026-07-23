@@ -72,7 +72,7 @@ func _on_settings_pressed() -> void:
 
 
 func _on_exit_pressed() -> void:
-	get_tree().quit()
+	SteamService.request_app_quit()
 
 
 func _on_settings_closed() -> void:
