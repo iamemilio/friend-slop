@@ -609,19 +609,30 @@ func _finish_success(validation: CastValidationResult = null) -> void:
 		tome_teaching_changed.emit(false, null)
 
 
-func _finish_fail(reason: String, partial: CastValidationResult = null) -> void:
+func _finish_fail(
+	reason: String,
+	partial: CastValidationResult = null,
+	allow_tome_coaching: bool = true
+) -> void:
 	var failed_spell := _spell
-	if _tome_teaching and _tome_spell != null:
+	## Soft teaching retries (wrong words, quiet mic) can coach; hard STT install issues cannot.
+	if allow_tome_coaching and _tome_teaching and _tome_spell != null:
 		cast_failed.emit(failed_spell, reason, partial)
 		_spell = _tome_spell
 		_coaching_retry_left = TOME_RETRY_SEC
 		_set_state(STATE_COACHING)
 		return
+	var was_tome := _tome_teaching
+	if was_tome:
+		_tome_teaching = false
+		_tome_spell = null
 	cast_failed.emit(failed_spell, reason, partial)
 	_spell = null
 	_free_cast = false
 	_free_cast_candidates = []
 	_set_state(STATE_IDLE)
+	if was_tome:
+		tome_teaching_changed.emit(false, null)
 
 
 func _try_fail_missing_stt() -> bool:
@@ -637,7 +648,8 @@ func _try_fail_missing_stt() -> bool:
 		partial.incantation_text = _tome_spell.get_incantation_text()
 	CastValidationResult.apply_transcript(partial, _transcript_words)
 	TomeDebug.log("CastSession", "validation FAILED: %s" % issue)
-	_finish_fail(issue, partial)
+	## Missing STT cannot be fixed by coaching retry — hard-fail to idle.
+	_finish_fail(issue, partial, false)
 	return true
 
 
