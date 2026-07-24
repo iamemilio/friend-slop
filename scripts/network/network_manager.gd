@@ -229,9 +229,7 @@ func disconnect_session() -> void:
 	TrailRegistry.reset()
 	# Autoload lookup needs an active tree (unit tests instantiate this off-tree).
 	if is_inside_tree():
-		var voice_hub := get_node_or_null("/root/SteamProximityVoiceHub")
-		if voice_hub != null and voice_hub.has_method("stop_session"):
-			voice_hub.call("stop_session")
+		SteamProximityVoiceHub.stop_session()
 	if transport != null:
 		transport.disconnect_session()
 
@@ -286,8 +284,9 @@ func spawn_player_for_peer(
 
 	var player := _instantiate_player_for_peer(peer_id)
 	player.name = str(peer_id)
-	player.set_multiplayer_authority(peer_id)
 	players_root.add_child(player, true)
+	# Set authority after enter-tree so recursive authority sticks on Head/voice children.
+	player.set_multiplayer_authority(peer_id)
 	player.initialize_player(get_player_index_for_peer(peer_id))
 	if peer_id == multiplayer.get_unique_id():
 		configure_local_player.call(player)
@@ -305,6 +304,8 @@ func _rpc_start_game(
 		"Start game RPC received (peer_id=%s, seed=%s)"
 		% [multiplayer.get_unique_id(), run_seed]
 	)
+	# Every peer (host + clients) must drop lobby chat before loading the match.
+	SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
 	MatchStateManager.reset()
 	GameState.prepare_match(run_seed, roles, character_configs)
 	## Synchronize the deterministic clock used by clouds and other time-driven effects.

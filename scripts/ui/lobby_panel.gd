@@ -27,6 +27,7 @@ var _in_lobby: bool = false
 @onready var _player_list_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/PlayersSection/PlayerListScroll/PlayerListVBox
 )
+@onready var _lobby_voice_checkbox: CheckBox = $Panel/MarginContainer/VBox/LobbyVoiceCheckBox
 @onready var _status_label: Label = $Panel/MarginContainer/VBox/StatusLabel
 @onready var _primary_button: Button = $Panel/MarginContainer/VBox/PrimaryButton
 @onready var _back_button: Button = $Panel/MarginContainer/VBox/BackButton
@@ -39,6 +40,7 @@ func _ready() -> void:
 	_back_button.pressed.connect(_on_back_pressed)
 	_copy_room_code_button.pressed.connect(_on_copy_room_code_pressed)
 	_invite_friends_button.pressed.connect(_on_invite_friends_pressed)
+	_lobby_voice_checkbox.toggled.connect(_on_lobby_voice_toggled)
 	NetworkManager.status_changed.connect(_on_network_status)
 	NetworkManager.connection_failed.connect(_on_connection_failed)
 	NetworkManager.became_host.connect(_on_became_host)
@@ -197,6 +199,11 @@ func _enter_lobby_ui() -> void:
 	_in_lobby = true
 	_room_code_edit.visible = false
 	_players_section.visible = true
+	_lobby_voice_checkbox.visible = true
+	_lobby_voice_checkbox.set_pressed_no_signal(
+		SteamProximityVoiceHub.get_mode() == SteamProximityVoiceHub.Mode.LOBBY
+	)
+	_lobby_voice_checkbox.disabled = not SteamService.is_ready()
 	if _host_mode:
 		_room_code_host_row.visible = true
 		_primary_button.visible = true
@@ -209,6 +216,32 @@ func _enter_lobby_ui() -> void:
 		_back_button.text = "Leave"
 		_status_label.text = "Waiting for the host to start…"
 	_refresh_player_list()
+	_update_lobby_voice_hint()
+
+
+func _on_lobby_voice_toggled(enabled: bool) -> void:
+	if not _in_lobby:
+		return
+	if enabled:
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.LOBBY)
+	else:
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
+	_update_lobby_voice_hint()
+
+
+func _update_lobby_voice_hint() -> void:
+	if not _in_lobby or not _lobby_voice_checkbox.button_pressed:
+		return
+	if SteamProximityVoiceHub.is_lobby_voice_active():
+		_status_label.text = (
+			"Lobby voice on — speak to test your mic. "
+			+ "Each player must enable this to hear each other."
+		)
+	elif not SteamService.is_ready():
+		_status_label.text = "Lobby voice needs Steam running."
+		_lobby_voice_checkbox.set_pressed_no_signal(false)
+	else:
+		_status_label.text = "Lobby voice could not start — check the Output log ([TomeDebug:Voice])."
 
 
 func _refresh_player_list() -> void:
@@ -284,10 +317,12 @@ func _update_start_button_state() -> void:
 		_status_label.text = _host_ready_message()
 	else:
 		_status_label.text = NetworkManager.lobby.get_start_block_reason(peer_ids)
+	_update_lobby_voice_hint()
 
 
 func _leave_to_menu() -> void:
 	_in_lobby = false
+	SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
 	NetworkManager.disconnect_session()
 	visible = false
 	_reset_panel_state()
@@ -297,6 +332,9 @@ func _leave_to_menu() -> void:
 func _reset_panel_state() -> void:
 	_in_lobby = false
 	_players_section.visible = false
+	_lobby_voice_checkbox.visible = false
+	_lobby_voice_checkbox.set_pressed_no_signal(false)
+	_lobby_voice_checkbox.disabled = false
 	_lobby_panel_root.visible = true
 	for child in _player_list_vbox.get_children():
 		child.queue_free()

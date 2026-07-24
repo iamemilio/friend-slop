@@ -208,9 +208,9 @@ func _apply_match_gameplay_state() -> void:
 	_match_subsystems_active = enable
 	NetworkManagerScript.set_players_sync_enabled(players_root, enable)
 	if enable:
-		SteamProximityVoiceHub.start_session()
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.GAME)
 	else:
-		SteamProximityVoiceHub.stop_session()
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
 
 
 func _ensure_speech_stt_ready() -> void:
@@ -604,7 +604,7 @@ func _teardown_match_subsystems() -> void:
 		return
 	_match_subsystems_active = false
 	NetworkManagerScript.set_players_sync_enabled(players_root, false)
-	SteamProximityVoiceHub.stop_session()
+	SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
 
 
 func _leave_match_scene(scene_path: String) -> void:

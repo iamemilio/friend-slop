@@ -1,2 +1,2 @@
-godot-steam-voice v0.1.2 @ b96926c
+godot-steam-voice @ d359591
 synced from https://github.com/iamemilio/godot-steam-voice.git
