@@ -27,7 +27,9 @@ static func prewarm() -> void:
 	var model_path := find_model_path()
 	if model_path.is_empty():
 		return
-	_get_or_load_model(model_path)
+	_transcribe_mutex.lock()
+	_get_or_load_model_unlocked(model_path)
+	_transcribe_mutex.unlock()
 
 
 static func prewarm_full(source_sample_rate: int) -> bool:
@@ -36,7 +38,10 @@ static func prewarm_full(source_sample_rate: int) -> bool:
 	var model_path := find_model_path()
 	if model_path.is_empty():
 		return false
-	if _get_or_load_model(model_path) == null:
+	_transcribe_mutex.lock()
+	var model: Object = _get_or_load_model_unlocked(model_path)
+	_transcribe_mutex.unlock()
+	if model == null:
 		return false
 
 	var rate: int = maxi(source_sample_rate, VOSK_SAMPLE_RATE)
@@ -55,21 +60,23 @@ static func is_model_loaded() -> bool:
 
 
 static func unload_model() -> void:
+	_transcribe_mutex.lock()
 	_cached_model = null
 	_cached_model_path = ""
+	_transcribe_mutex.unlock()
 
 
 static func transcribe_samples(
 	samples: PackedFloat32Array,
 	sample_rate: int,
-	grammar_json: String = ""
+	grammar_phrases: PackedStringArray = PackedStringArray()
 ) -> Dictionary:
 	var empty := {"words": PackedStringArray(), "starts": PackedFloat32Array()}
 	if samples.is_empty() or sample_rate <= 0 or not is_available():
 		return empty
 
 	_transcribe_mutex.lock()
-	var result := _transcribe_with_vosk_recognizer(samples, sample_rate, grammar_json)
+	var result := _transcribe_with_vosk_recognizer(samples, sample_rate, grammar_phrases)
 	_transcribe_mutex.unlock()
 	return result
 
@@ -95,7 +102,10 @@ static func extract_words_and_starts(result: Dictionary) -> Dictionary:
 	if result.has("result"):
 		for entry in result["result"]:
 			if entry is Dictionary:
-				words.append(str(entry.get("word", "")).strip_edges())
+				var word := str(entry.get("word", "")).strip_edges()
+				if word.is_empty() or word == "[unk]":
+					continue
+				words.append(word)
 				starts.append(float(entry.get("start", 0.0)))
 
 	if words.is_empty() and result.has("alternatives"):
@@ -114,32 +124,36 @@ static func extract_words_and_starts(result: Dictionary) -> Dictionary:
 static func _transcribe_with_vosk_recognizer(
 	samples: PackedFloat32Array,
 	sample_rate: int,
-	grammar_json: String = ""
+	grammar_phrases: PackedStringArray = PackedStringArray()
 ) -> Dictionary:
 	var empty := {"words": PackedStringArray(), "starts": PackedFloat32Array()}
 	var model_path := find_model_path()
 	if model_path.is_empty():
 		return empty
 
-	var model: Object = _get_or_load_model(model_path)
+	var model: Object = _get_or_load_model_unlocked(model_path)
 	if model == null:
 		push_warning("GdvoskAdapter: failed to load Vosk model at %s" % model_path)
 		return empty
 
-	var result_dict := _transcribe_at_rate(model, samples, sample_rate, grammar_json)
-	if not _result_has_words(result_dict) and sample_rate != VOSK_SAMPLE_RATE:
-		var vosk_samples: PackedFloat32Array = _resample_for_vosk(
-			samples, sample_rate, VOSK_SAMPLE_RATE
-		)
-		result_dict = _transcribe_at_rate(
-			model, vosk_samples, VOSK_SAMPLE_RATE, grammar_json
-		)
+	## Vosk English models expect 16 kHz PCM. Always resample when needed.
+	var vosk_samples := samples
+	var vosk_rate := sample_rate
+	if sample_rate != VOSK_SAMPLE_RATE:
+		vosk_samples = _resample_for_vosk(samples, sample_rate, VOSK_SAMPLE_RATE)
+		vosk_rate = VOSK_SAMPLE_RATE
 
+	var result_dict := _transcribe_at_rate(model, vosk_samples, vosk_rate, grammar_phrases)
 	if not _result_has_words(result_dict):
 		SpellLogScript.debug(
 			"Gdvosk",
-			"no final result (samples=%d rate=%d grammar=%s)"
-			% [samples.size(), sample_rate, not grammar_json.is_empty()]
+			"no final result (samples=%d rate=%d vosk_rate=%d grammar=%s)"
+			% [
+				samples.size(),
+				sample_rate,
+				vosk_rate,
+				not grammar_phrases.is_empty(),
+			]
 		)
 		return empty
 
@@ -154,7 +168,7 @@ static func _transcribe_at_rate(
 	model: Object,
 	samples: PackedFloat32Array,
 	rate: int,
-	grammar_json: String = ""
+	grammar_phrases: PackedStringArray = PackedStringArray()
 ) -> Dictionary:
 	if samples.is_empty() or rate <= 0:
 		return {}
@@ -163,13 +177,19 @@ static func _transcribe_at_rate(
 	if recognizer == null:
 		return {}
 
-	if recognizer.has_method("setup"):
-		var setup_error: int = recognizer.call("setup", model, rate, null)
-		if setup_error != OK:
-			push_warning("GdvoskAdapter: VoskRecognizer.setup failed (%s)" % setup_error)
-			return {}
-	if not grammar_json.is_empty() and recognizer.has_method("setGrammar"):
-		recognizer.call("setGrammar", grammar_json)
+	var setup_error: int = ERR_UNAVAILABLE
+	if not grammar_phrases.is_empty() and recognizer.has_method("setup_with_grammar"):
+		setup_error = int(recognizer.call("setup_with_grammar", model, rate, grammar_phrases))
+	elif recognizer.has_method("setup"):
+		setup_error = int(recognizer.call("setup", model, rate, null))
+	if setup_error != OK:
+		push_warning("GdvoskAdapter: VoskRecognizer setup failed (%s)" % setup_error)
+		return {}
+
+	if recognizer.has_method("set_include_words_in_output"):
+		recognizer.call("set_include_words_in_output", true)
+	if recognizer.has_method("set_max_alternatives"):
+		recognizer.call("set_max_alternatives", 1)
 
 	_feed_samples(recognizer, samples)
 	_flush_recognizer(recognizer, rate)
@@ -185,17 +205,12 @@ static func _flush_recognizer(recognizer: Object, sample_rate: int) -> void:
 	recognizer.call("accept_samples", silence)
 
 
-static func _get_or_load_model(model_path: String) -> Object:
-	_transcribe_mutex.lock()
+static func _get_or_load_model_unlocked(model_path: String) -> Object:
 	if _cached_model != null and _cached_model_path == model_path:
-		var cached: Object = _cached_model
-		_transcribe_mutex.unlock()
-		return cached
+		return _cached_model
 	_cached_model = _create_vosk_model(model_path)
 	_cached_model_path = model_path if _cached_model != null else ""
-	var loaded: Object = _cached_model
-	_transcribe_mutex.unlock()
-	return loaded
+	return _cached_model
 
 
 static func _create_vosk_model(model_path: String) -> Object:
@@ -299,5 +314,6 @@ static func _coerce_result_dictionary(raw: Variant) -> Dictionary:
 static func _append_text_tokens(words: PackedStringArray, text: String) -> void:
 	for token in text.split(" ", false):
 		var cleaned := token.strip_edges()
-		if not cleaned.is_empty():
-			words.append(cleaned)
+		if cleaned.is_empty() or cleaned == "[unk]":
+			continue
+		words.append(cleaned)

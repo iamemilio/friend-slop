@@ -11,8 +11,6 @@ signal tome_retry_tick(seconds_left: float)
 
 enum Mode { LEARN, CAST }
 
-const ValidationRunnerScript := preload("res://scripts/spells/spell_validation_runner.gd")
-const SpellSttConfigScript := preload("res://scripts/spells/spell_stt_config.gd")
 const VoiceCaptureWorkerScript := preload("res://scripts/spells/voice_capture_worker.gd")
 
 const STATE_IDLE := "idle"
@@ -26,9 +24,6 @@ const MAX_LISTEN_SEC := 5.0
 const TRAILING_SILENCE_SEC := 0.15
 const MIN_LISTEN_BEFORE_END_SEC := 0.25
 const TOME_RETRY_SEC := 2.0
-const MAX_CAPTURE_CHUNKS_PER_FRAME := 8
-
-@export var mic_bus_name: String = "MicCapture"
 
 var _state: String = STATE_IDLE
 var _mode: Mode = Mode.CAST
@@ -36,10 +31,9 @@ var _spell: SpellDefinition
 var _tome_teaching := false
 var _tome_spell: SpellDefinition
 var _coaching_retry_left: float = 0.0
+## Match VoiceSpellValidator — STT + validation entrypoint (not owned by this node).
 var _validator: VoiceSpellValidator
 var _spell_loadout: Node
-var _mic_player: AudioStreamPlayer
-var _capture_effect: AudioEffectCapture
 var _arming_left: float = 0.0
 var _listen_left: float = 0.0
 var _listen_elapsed: float = 0.0
@@ -49,11 +43,12 @@ var _recorded_samples: PackedFloat32Array = PackedFloat32Array()
 var _sample_rate: int = 44100
 var _transcript_words: PackedStringArray = PackedStringArray()
 var _word_starts_sec: PackedFloat32Array = PackedFloat32Array()
-var _validation_runner: SpellValidationRunner
 var _free_cast := false
 var _free_cast_candidates: Array[SpellDefinition] = []
 var _free_cast_debug_lines: PackedStringArray = PackedStringArray()
 var _capture_worker: VoiceCaptureWorker
+## True while Match Listeners/Spellcasting sink feeds STT.
+var _using_broker := false
 
 
 func _ready() -> void:
@@ -63,9 +58,8 @@ func _ready() -> void:
 		set_physics_process(false)
 		return
 	_capture_worker = VoiceCaptureWorkerScript.new()
-	_ensure_validation_runner()
 	if _is_local_simulation():
-		_setup_microphone()
+		_sample_rate = int(AudioServer.get_mix_rate())
 
 
 func _is_character_preview_placeholder() -> bool:
@@ -82,20 +76,24 @@ func _is_character_preview_placeholder() -> bool:
 	return false
 
 
-func _ensure_validation_runner() -> void:
-	if _validation_runner == null:
-		_validation_runner = get_node_or_null("SpellValidationRunner") as SpellValidationRunner
-	if _validation_runner == null:
-		_validation_runner = ValidationRunnerScript.new()
-		_validation_runner.name = "SpellValidationRunner"
-		add_child(_validation_runner)
-	if not _validation_runner.validation_finished.is_connected(_on_validation_runner_finished):
-		_validation_runner.validation_finished.connect(_on_validation_runner_finished)
-
-
 func configure(validator: VoiceSpellValidator, spell_loadout: Node = null) -> void:
+	if (
+		_validator != null
+		and _validator.validation_finished.is_connected(_on_validation_finished)
+	):
+		_validator.validation_finished.disconnect(_on_validation_finished)
 	_validator = validator
 	_spell_loadout = spell_loadout
+	if (
+		_validator != null
+		and not _validator.validation_finished.is_connected(_on_validation_finished)
+	):
+		_validator.validation_finished.connect(_on_validation_finished)
+
+
+func poll_validation_progress() -> void:
+	if _validator != null and _validator.has_method("poll_validation_progress"):
+		_validator.poll_validation_progress()
 
 
 func is_free_cast() -> bool:
@@ -145,12 +143,10 @@ func start(spell: SpellDefinition, mode: Mode) -> void:
 	var mode_name := "LEARN" if mode == Mode.LEARN else "CAST"
 	TomeDebug.log(
 		"CastSession",
-		"start mode=%s spell='%s' mic_player=%s capture=%s"
+		"start mode=%s spell='%s'"
 		% [
 			mode_name,
 			spell.id,
-			_mic_player != null,
-			_capture_effect != null,
 		]
 	)
 	_tome_teaching = false
@@ -276,34 +272,6 @@ func _exit_tree() -> void:
 	_stop_mic()
 
 
-func _setup_microphone() -> void:
-	if _mic_player != null:
-		return
-	_sample_rate = int(AudioServer.get_mix_rate())
-	var bus_idx: int = AudioServer.get_bus_index(mic_bus_name)
-	if bus_idx < 0:
-		push_warning("SpellCastingSession: mic bus '%s' not found" % mic_bus_name)
-		TomeDebug.log("CastSession", "mic setup FAILED: bus '%s' missing" % mic_bus_name)
-		return
-
-	for i in AudioServer.get_bus_effect_count(bus_idx):
-		var effect: AudioEffect = AudioServer.get_bus_effect(bus_idx, i)
-		if effect is AudioEffectCapture:
-			_capture_effect = effect
-			break
-
-	_mic_player = AudioStreamPlayer.new()
-	_mic_player.name = "MicInput"
-	_mic_player.bus = mic_bus_name
-	_mic_player.stream = AudioStreamMicrophone.new()
-	add_child(_mic_player)
-	TomeDebug.log(
-		"CastSession",
-		"mic setup ok bus=%s capture=%s input_device='%s'"
-		% [mic_bus_name, _capture_effect != null, AudioServer.get_input_device()]
-	)
-
-
 func _set_state(next: String) -> void:
 	_state = next
 	TomeDebug.log("CastSession", "state -> %s (spell=%s)" % [
@@ -325,7 +293,6 @@ func _process(delta: float) -> void:
 		STATE_LISTENING:
 			_listen_left -= delta
 			_listen_elapsed += delta
-			_drain_capture_buffer()
 			var level: float = _compute_listen_level()
 			listen_level_changed.emit(level)
 			_update_listen_coaching(level, delta)
@@ -342,48 +309,85 @@ func _process(delta: float) -> void:
 
 func _begin_listening() -> void:
 	SettingsManager.stop_mic_test()
-	_ensure_microphone()
+	if _capture_worker != null:
+		_capture_worker.reset()
+		_capture_worker.start()
 	_set_state(STATE_LISTENING)
 	_listen_left = MAX_LISTEN_SEC
 	_listen_elapsed = 0.0
 	_speech_detected = false
 	_silence_after_speech = 0.0
-	if _capture_effect:
-		_capture_effect.clear_buffer()
-	if _mic_player:
-		_mic_player.play()
-		TomeDebug.log("CastSession", "mic player started playing=%s" % _mic_player.playing)
-	else:
-		TomeDebug.log("CastSession", "mic player missing — no audio capture")
+	_using_broker = false
+
+	var listener := SteamProximityVoiceHub.get_spellcasting_listener()
+	if listener == null:
+		_fail_mic_setup("Match Listeners/Spellcasting missing")
+		return
+	if not listener.listening:
+		_fail_mic_setup(
+			"Spellcasting listener not registered — Match VoiceSession must be started"
+		)
+		return
+	listener.attach_sink(Callable(self, "_on_broker_pcm"))
+	if not listener.has_sink():
+		_fail_mic_setup("Spellcasting sink attach failed")
+		return
+	_using_broker = true
+	_sample_rate = int(AudioServer.get_mix_rate())
+	var broker := SteamProximityVoiceHub.get_mic_broker()
+	if broker != null and broker.has_method("ensure_mic_live"):
+		broker.call("ensure_mic_live")
+	TomeDebug.log(
+		"CastSession",
+		(
+			"mic via Listeners/Spellcasting last_rms=%.4f listening=%s "
+			+ "broker_rms=%.4f peak_abs=%.4f chunks=%d device='%s'"
+		)
+		% [
+			listener.last_rms,
+			listener.listening,
+			float(broker.call("get_last_rms")) if broker != null else 0.0,
+			float(broker.call("get_last_peak_abs")) if broker != null else 0.0,
+			listener.chunks_received,
+			AudioServer.get_input_device(),
+		]
+	)
+	if (
+		broker != null
+		and float(broker.call("get_last_peak_abs")) <= 0.0001
+		and broker.has_method("diagnose_capture")
+	):
+		broker.call("diagnose_capture")
+
 	if _free_cast:
 		listen_coaching_changed.emit(_free_cast_coaching_text())
 	elif _spell != null:
 		listen_coaching_changed.emit(_spell.get_listen_coaching_text())
-	if _capture_worker != null:
-		_capture_worker.reset()
-		_capture_worker.start()
+
+
+func _fail_mic_setup(reason: String) -> void:
+	push_error("CastSession: %s" % reason)
+	TomeDebug.log("CastSession", "mic FAILED: %s" % reason)
+	_stop_mic()
+	_finish_fail(reason, null, false)
+
+
+func _on_broker_pcm(mono: PackedFloat32Array, _mix_rate: int) -> void:
+	if not _using_broker or _state != STATE_LISTENING:
+		return
+	if _capture_worker == null or mono.is_empty():
+		return
+	_capture_worker.push_chunk(mono)
 
 
 func _stop_mic() -> void:
-	if _mic_player and _mic_player.playing:
-		_mic_player.stop()
+	if _using_broker:
+		var listener := SteamProximityVoiceHub.get_spellcasting_listener()
+		if listener != null:
+			listener.detach_sink()
+		_using_broker = false
 	if _capture_worker != null:
 		_capture_worker.stop()
-
-
-func _drain_capture_buffer() -> void:
-	if _capture_effect == null or _capture_worker == null:
-		return
-	var chunks_processed := 0
-	while _capture_effect.can_get_buffer(512) \
-			and chunks_processed < MAX_CAPTURE_CHUNKS_PER_FRAME:
-		var chunk: PackedVector2Array = _capture_effect.get_buffer(512)
-		var mono := PackedFloat32Array()
-		mono.resize(chunk.size())
-		for i in chunk.size():
-			mono[i] = (chunk[i].x + chunk[i].y) * 0.5
-		_capture_worker.push_chunk(mono)
-		chunks_processed += 1
 
 
 func _compute_listen_level() -> float:
@@ -484,20 +488,34 @@ func _begin_validation() -> void:
 	if _state != STATE_LISTENING:
 		return
 	_set_state(STATE_VALIDATING)
-	_drain_capture_buffer()
+	var used_broker := _using_broker
+	var broker_rms := 0.0
+	var broker := SteamProximityVoiceHub.get_mic_broker()
+	if broker != null and broker.has_method("get_last_rms"):
+		broker_rms = float(broker.call("get_last_rms"))
 	_stop_mic()
 	var worker_samples := PackedFloat32Array()
 	if _capture_worker != null:
 		worker_samples = _capture_worker.take_samples()
 	if worker_samples.size() > _recorded_samples.size():
 		_recorded_samples = worker_samples
+	var peak := SpellAudioUtils.compute_peak_window_rms(_recorded_samples, _sample_rate)
+	var listener := SteamProximityVoiceHub.get_spellcasting_listener()
+	var listener_rms := listener.last_rms if listener != null else 0.0
 	TomeDebug.log(
 		"CastSession",
-		"validating samples=%d sample_rate=%d stub=%s"
+		(
+			"validating samples=%d sample_rate=%d peak_rms=%.4f broker_rms=%.4f "
+			+ "listener_rms=%.4f stub=%s used_broker=%s"
+		)
 		% [
 			_recorded_samples.size(),
 			_sample_rate,
-			str(_validator.use_stub) if _validator != null else "no_validator",
+			peak,
+			broker_rms,
+			listener_rms,
+			str(_validator.is_using_stub()) if _validator != null else "no_validator",
+			used_broker,
 		]
 	)
 
@@ -505,28 +523,20 @@ func _begin_validation() -> void:
 		_finish_fail("Voice validator not configured")
 		return
 
-	if _transcript_words.is_empty() and _validator.use_stub:
+	if _transcript_words.is_empty() and _validator.is_using_stub():
 		_inject_stub_transcript_for_candidates()
-	if not SpeechSttLoader.ensure_ready():
-		TomeDebug.log(
-			"CastSession",
-			"speech STT not ready: %s"
-			% SpeechSttLoader.get_status()
-		)
 	if _try_fail_missing_stt():
 		return
 
-	_ensure_validation_runner()
 	var mode := "free_cast" if _free_cast else "targeted"
 	var known_spells := _known_spells_for_player()
 	if _free_cast:
 		_free_cast_candidates = known_spells
 	var grammar_spells := _grammar_spells_for_player(known_spells)
-	if not _validation_runner.start(
+	if not _validator.start_validation(
 		mode,
 		_recorded_samples,
 		_sample_rate,
-		_validator.use_stub,
 		_spell,
 		_free_cast_candidates,
 		_transcript_words,
@@ -582,15 +592,15 @@ func _apply_validation_payload(payload: Dictionary) -> bool:
 	return true
 
 
-func _on_validation_runner_finished(_payload: Dictionary) -> void:
+func _on_validation_finished(_payload: Dictionary) -> void:
 	if _state != STATE_VALIDATING:
 		return
 	_apply_validation_payload(_payload)
 
 
 func _abort_validation() -> void:
-	_ensure_validation_runner()
-	_validation_runner.abort()
+	if _validator != null:
+		_validator.abort_validation()
 
 
 func _finish_success(validation: CastValidationResult = null) -> void:
@@ -636,9 +646,9 @@ func _finish_fail(
 
 
 func _try_fail_missing_stt() -> bool:
-	if _validator.use_stub:
+	if _validator == null or _validator.is_using_stub():
 		return false
-	var issue := SpellSttConfigScript.get_runtime_issue()
+	var issue := _validator.get_runtime_stt_issue()
 	if issue.is_empty():
 		return false
 	var partial := CastValidationResult.fail(issue)
@@ -694,11 +704,3 @@ func _is_local_simulation() -> bool:
 	if player_node != null:
 		return player_node.is_multiplayer_authority()
 	return is_multiplayer_authority()
-
-
-func _ensure_microphone() -> void:
-	if not _is_local_simulation():
-		return
-	if _mic_player != null and _capture_effect != null:
-		return
-	_setup_microphone()

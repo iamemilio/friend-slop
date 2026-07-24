@@ -8,6 +8,7 @@ func run() -> int:
 	failures += _test_extract_words_from_alternatives()
 	failures += _test_extract_words_from_result_entries()
 	failures += _test_extract_words_from_text_field()
+	failures += _test_extract_words_skips_unk()
 	return failures
 
 
@@ -40,5 +41,16 @@ func _test_extract_words_from_text_field() -> int:
 	var words: PackedStringArray = parsed.get("words", PackedStringArray())
 	if words.size() != 2 or words[0] != "show" or words[1] != "me":
 		push_error("Expected text field words show/me, got: %s" % words)
+		return 1
+	return 0
+
+
+func _test_extract_words_skips_unk() -> int:
+	var parsed: Dictionary = GdvoskAdapterScript.extract_words_and_starts({
+		"alternatives": [{"confidence": 1.0, "text": "[unk] fireball [unk]"}],
+	})
+	var words: PackedStringArray = parsed.get("words", PackedStringArray())
+	if words.size() != 1 or words[0] != "fireball":
+		push_error("Expected [unk] tokens stripped, got: %s" % words)
 		return 1
 	return 0

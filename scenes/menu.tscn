@@ -1,8 +1,6 @@
 [gd_scene format=3 uid="uid://cmenu001"]
 
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1_menu"]
-[ext_resource type="PackedScene" uid="uid://csettingspanel001" path="res://scenes/ui/settings_panel.tscn" id="2_settings"]
-[ext_resource type="PackedScene" uid="uid://clobbypanel001" path="res://scenes/ui/lobby_panel.tscn" id="3_lobby"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
 bg_color = Color(0.22, 0.16, 0.34, 1)
@@ -28,7 +26,7 @@ corner_radius_top_right = 8
 corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 
-[node name="Menu" type="Control"]
+[node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -74,7 +72,7 @@ theme_override_font_sizes/font_size = 20
 theme_override_styles/normal = SubResource("StyleBoxFlat_button")
 theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
-text = "Play"
+text = "Host"
 
 [node name="JoinButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(240, 48)
@@ -85,7 +83,7 @@ theme_override_font_sizes/font_size = 20
 theme_override_styles/normal = SubResource("StyleBoxFlat_button")
 theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
-text = "Join Game"
+text = "Join"
 
 [node name="SettingsButton" type="Button" parent="CenterContainer/VBoxContainer"]
 custom_minimum_size = Vector2(240, 48)
@@ -108,7 +106,3 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_button")
 theme_override_styles/hover = SubResource("StyleBoxFlat_button_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_button_hover")
 text = "Exit"
-
-[node name="SettingsPanel" parent="." instance=ExtResource("2_settings")]
-
-[node name="LobbyPanel" parent="." instance=ExtResource("3_lobby")]

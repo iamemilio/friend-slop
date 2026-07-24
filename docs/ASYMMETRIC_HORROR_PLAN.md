@@ -25,7 +25,7 @@ Every feature must pass these checks before merge:
 
 | Keep & extend | Replace or sideline |
 |---------------|---------------------|
-| `MazeGenerator` / `MazeCarver` | First-to-exit race win (`main.gd` → `exit_reached`) |
+| `MazeGenerator` / `MazeCarver` | First-to-exit race win (`match_scene.gd` → `exit_reached`) |
 | `NetworkManager` + `MultiplayerTransport` + netfox player sync | Symmetric 4-player “everyone is a racer” loop |
 | `DiscoverableSpawnPlan` / `Interactable` | Competitive victory scene as default end |
 | Voice spell pipeline (STT, validation, effects) | — |
@@ -46,7 +46,7 @@ Host (server) owns:
 
 Clients send **requests**; server validates and **broadcasts** state deltas. Follow the existing spell RPC pattern in `NetworkManager` (`request_*` → server → `broadcast_*`).
 
-Introduce a dedicated **`MatchState`** (autoload or child of `NetworkManager`) rather than scattering flags across `main.gd`.
+Introduce a dedicated **`MatchState`** (autoload or child of `NetworkManager`) rather than scattering flags across `match_scene.gd`.
 
 ### 2. Data-driven content
 
@@ -252,7 +252,7 @@ Headless Godot scenes:
 
 ### Technical spike (ADR required)
 
-**Done** — see `docs/adr/001-proximity-voice.md` and packaged addon at `addons/godot-steam-voice/`. Game wiring: `FriendSlopVoiceAdapter` autoload; maze muffling via `MufflingMap`; spatial rules enabled on `MatchState.ACTIVE`.
+**Done** — see `docs/adr/001-proximity-voice.md`. In-repo stack: `SimpleVoiceChat` + `GameVoiceSession` under `GameApp`; Steam P2P for PCM transport. Match proximity/muffling is a follow-up.
 
 <details>
 <summary>Original spike notes (historical)</summary>
@@ -271,7 +271,7 @@ Document choice in `docs/adr/001-proximity-voice.md`:
 
 ### Deliverables
 
-1. **`FriendSlopVoiceAdapter`** (replaces planned `ProximityVoiceManager`) — wires `VoiceSession` to player heads and maze muffling.
+1. **`GameApp` + `GameVoiceSession`** — lobby/match voice configs on a shared `SimpleVoiceChat` engine (done; proximity/muffling still open).
 2. **Occlusion model v1:** maze grid **room id** per cell (from `MazeCarver`); same room = clear; adjacent = −12 dB; 2+ walls = −24 dB; sealed chamber = leak profile.
 3. **Lobby vs match:** full voice in lobby; on `MatchState.ACTIVE`, enforce proximity rules.
 4. **Settings:** push-to-talk override (streamer mode); emote wheel (short-range presets) — optional stub UI.
@@ -314,7 +314,7 @@ Document choice in `docs/adr/001-proximity-voice.md`:
 | Action | Path |
 |--------|------|
 | Create | `scripts/objectives/anchor_definition.gd`, `anchor_interactable.gd`, `anchor_spawn_plan.gd` |
-| Extend | `scripts/main.gd` — remove sole reliance on `exit_reached` in horror mode |
+| Extend | `scripts/match_scene.gd` — remove sole reliance on `exit_reached` in horror mode |
 | Create | `resources/objectives/horror_run_config.tres` |
 
 ### Tests

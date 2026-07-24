@@ -787,26 +787,26 @@ func _set_beacon_extend(amount: float) -> void:
 	var extend := clampf(amount, 0.0, 1.0)
 	# Grow from the floor upward around the shrine (lightsaber ignition).
 	var mid_y := BEACON_HEIGHT * 0.5 * extend
-	var scale := Vector3(1.0, maxf(extend, 0.001), 1.0)
-	var show := extend > 0.001
+	var beacon_scale := Vector3(1.0, maxf(extend, 0.001), 1.0)
+	var beacon_visible := extend > 0.001
 	for mesh in [_beacon_beam, _beacon_mid, _beacon_core]:
 		if mesh != null and is_instance_valid(mesh):
-			mesh.visible = show
-			mesh.scale = scale
+			mesh.visible = beacon_visible
+			mesh.scale = beacon_scale
 			mesh.position.y = mid_y
 	if _beacon_ground != null and is_instance_valid(_beacon_ground):
-		_beacon_ground.visible = show
+		_beacon_ground.visible = beacon_visible
 		_beacon_ground.scale = Vector3(
 			lerpf(0.35, 1.0, extend),
 			1.0,
 			lerpf(0.35, 1.0, extend)
 		)
 	if _beacon_light != null and is_instance_valid(_beacon_light):
-		_beacon_light.visible = show
+		_beacon_light.visible = beacon_visible
 		_beacon_light.light_energy = BEACON_LIGHT_ENERGY * extend
 		_beacon_light.spot_range = BEACON_HEIGHT * extend
 	if _beacon_base_light != null and is_instance_valid(_beacon_base_light):
-		_beacon_base_light.visible = show
+		_beacon_base_light.visible = beacon_visible
 		_beacon_base_light.light_energy = 6.5 * extend
 
 

@@ -11,6 +11,7 @@ const INTERACT_RANGE_SQ := 9.0
 const PLAYER_MIN_SEPARATION := 0.55
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
+const GameWorldScript := preload("res://scripts/game_world.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
@@ -200,7 +201,7 @@ func launch_fireball() -> void:
 
 
 func launch_fireball_from_params(origin: Vector3, direction: Vector3) -> void:
-	var world := get_tree().current_scene
+	var world: Node = GameWorldScript.find_match_root(get_tree())
 	if world == null:
 		world = get_parent()
 	FireballProjectileScript.spawn(world, origin, direction.normalized())
@@ -489,8 +490,9 @@ func _update_interaction_prompt() -> void:
 			_game_hud.set_interaction_prompt(objective_prompt)
 			return
 	var maze: Node = null
-	if get_tree().current_scene != null:
-		maze = get_tree().current_scene.get_node_or_null("MazeGenerator")
+	var match_root: Node = GameWorldScript.find_match_root(get_tree())
+	if match_root != null:
+		maze = match_root.get_node_or_null("MazeGenerator")
 	if maze != null and maze.has_method("get_exit_approach_prompt"):
 		var exit_prompt: String = maze.call("get_exit_approach_prompt", self)
 		if not exit_prompt.is_empty():

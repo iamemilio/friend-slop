@@ -7,6 +7,7 @@ const FireballProjectileScript := preload("res://scripts/spells/fireball_project
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
+const GameWorldScript := preload("res://scripts/game_world.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
@@ -433,7 +434,9 @@ static func _apply_fireball(player: CharacterBody3D, params: Dictionary) -> void
 	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.FORWARD))
 	if direction.length_squared() <= 0.01:
 		return
-	var world: Node = player.get_tree().current_scene if player.is_inside_tree() else null
+	var world: Node = null
+	if player.is_inside_tree():
+		world = GameWorldScript.find_match_root(player.get_tree())
 	if world == null:
 		world = player.get_parent()
 	if world == null:
@@ -464,7 +467,9 @@ static func _apply_light_ball(player: CharacterBody3D, params: Dictionary) -> vo
 	var wand_origin := coerce_vector3(params.get(KEY_WAND_ORIGIN, Vector3.ZERO))
 	if wand_origin == Vector3.ZERO:
 		wand_origin = _fireball_origin(player)
-	var world: Node = player.get_tree().current_scene if player.is_inside_tree() else null
+	var world: Node = null
+	if player.is_inside_tree():
+		world = GameWorldScript.find_match_root(player.get_tree())
 	if world == null:
 		world = player.get_parent()
 	if world == null:

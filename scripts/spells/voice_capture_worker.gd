@@ -75,11 +75,13 @@ func _worker_loop() -> void:
 			chunks.append(chunk)
 		_pending_chunks.clear()
 		_mutex.unlock()
-		if should_stop:
-			break
+		## Always flush pending audio before honoring stop, or the last listen
+		## chunks are discarded and STT sees silence / truncated speech.
 		for chunk_variant in chunks:
 			if chunk_variant is PackedFloat32Array:
 				_append_chunk(chunk_variant)
+		if should_stop:
+			break
 		if chunks.is_empty():
 			OS.delay_usec(THREAD_SLEEP_USEC)
 

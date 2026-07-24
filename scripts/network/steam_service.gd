@@ -16,7 +16,7 @@ const LOBBY_TYPE_FRIENDS_ONLY := 1
 const DEFAULT_APP_ID := 480
 
 const SteamMultiplayerPeerAdapterScript := preload(
-	"res://addons/godot-steam-voice/adapters/steam_multiplayer_peer_adapter.gd"
+	"res://scripts/network/steam_multiplayer_peer_adapter.gd"
 )
 
 var initialized: bool = false

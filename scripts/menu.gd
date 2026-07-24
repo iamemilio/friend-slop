@@ -1,5 +1,11 @@
 extends Control
 
+## Main menu screen (Host / Join / Settings / Exit). Navigation is owned by GameApp.
+
+signal host_pressed()
+signal join_pressed()
+signal settings_pressed()
+
 const UiScaleScript := preload("res://scripts/ui/ui_scale.gd")
 
 const TITLE_FONT_BASE := 48
@@ -15,20 +21,22 @@ const VBOX_SEPARATION_BASE := 18
 @onready var _join_button: Button = $CenterContainer/VBoxContainer/JoinButton
 @onready var _settings_button: Button = $CenterContainer/VBoxContainer/SettingsButton
 @onready var _exit_button: Button = $CenterContainer/VBoxContainer/ExitButton
-@onready var _settings_panel: SettingsPanel = $SettingsPanel
-@onready var _lobby_panel: LobbyPanel = $LobbyPanel
 
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	_play_button.pressed.connect(_on_play_pressed)
-	_join_button.pressed.connect(_on_join_pressed)
-	_settings_button.pressed.connect(_on_settings_pressed)
+	_play_button.pressed.connect(func() -> void: host_pressed.emit())
+	_join_button.pressed.connect(func() -> void: join_pressed.emit())
+	_settings_button.pressed.connect(func() -> void: settings_pressed.emit())
 	_exit_button.pressed.connect(_on_exit_pressed)
-	_settings_panel.closed.connect(_on_settings_closed)
-	_lobby_panel.closed.connect(_on_lobby_closed)
 	get_viewport().size_changed.connect(_apply_menu_layout)
 	_apply_menu_layout()
+
+
+func set_menu_visible(show_buttons: bool) -> void:
+	_center_container.visible = show_buttons
+	if show_buttons:
+		_apply_menu_layout()
 
 
 func _apply_menu_layout() -> void:
@@ -42,51 +50,10 @@ func _apply_menu_layout() -> void:
 	_menu_vbox.add_theme_constant_override("separation", separation)
 	_title_label.add_theme_font_size_override("font_size", title_font)
 
-	for button in _menu_buttons():
+	for button in [_play_button, _join_button, _settings_button, _exit_button]:
 		button.add_theme_font_size_override("font_size", button_font)
 		button.custom_minimum_size = Vector2(button_width, button_height)
 
 
-func _menu_buttons() -> Array[Button]:
-	return [
-		_play_button,
-		_join_button,
-		_settings_button,
-		_exit_button,
-	]
-
-
-func _on_play_pressed() -> void:
-	_hide_menu()
-	_lobby_panel.open_host()
-
-
-func _on_join_pressed() -> void:
-	_hide_menu()
-	_lobby_panel.open_join()
-
-
-func _on_settings_pressed() -> void:
-	_hide_menu()
-	_settings_panel.open()
-
-
 func _on_exit_pressed() -> void:
 	SteamService.request_app_quit()
-
-
-func _on_settings_closed() -> void:
-	_show_menu()
-
-
-func _on_lobby_closed() -> void:
-	_show_menu()
-
-
-func _hide_menu() -> void:
-	_center_container.visible = false
-
-
-func _show_menu() -> void:
-	_center_container.visible = true
-	_apply_menu_layout()

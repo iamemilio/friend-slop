@@ -7,6 +7,7 @@ const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 const FloatingFollowPathScript := preload("res://scripts/spells/floating_follow_path.gd")
 const HoveringOrbMotionScript := preload("res://scripts/spells/hovering_orb_motion.gd")
+const GameWorldScript := preload("res://scripts/game_world.gd")
 
 const FOLLOW_DRIVER_NAME := "SpellFollowDriver"
 const PULL_DRIVER_NAME := "SpellPullDriver"
@@ -363,8 +364,9 @@ static func follow_approach_goal(player: CharacterBody3D, height: float) -> Vect
 static func _find_maze(tree: SceneTree) -> Node:
 	if tree == null:
 		return null
-	if tree.current_scene != null:
-		var maze: Node = tree.current_scene.get_node_or_null("MazeGenerator")
+	var match_root: Node = GameWorldScript.find_match_root(tree)
+	if match_root != null:
+		var maze: Node = match_root.get_node_or_null("MazeGenerator")
 		if maze != null:
 			return maze
 	return tree.root.find_child("MazeGenerator", true, false)

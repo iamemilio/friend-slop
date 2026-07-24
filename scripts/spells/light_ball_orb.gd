@@ -61,10 +61,10 @@ static func spawn_cast(
 	orb._wand_origin = wand_origin
 	orb._target = target_position
 	parent.add_child(orb)
-	var snapped := snap_to_ground(orb.get_world_3d(), target_position)
-	orb._target = snapped
-	orb.global_position = snapped
-	orb._hover_base = snapped
+	var snapped_pos := snap_to_ground(orb.get_world_3d(), target_position)
+	orb._target = snapped_pos
+	orb.global_position = snapped_pos
+	orb._hover_base = snapped_pos
 	return orb
 
 
@@ -403,10 +403,10 @@ func get_hover_base() -> Vector3:
 
 func spell_set_guided_position(world_pos: Vector3) -> void:
 	## Update cruise base; bobbing continues on top via _process.
-	var snapped := world_pos
+	var snapped_pos := world_pos
 	if is_inside_tree():
-		snapped = snap_to_ground(get_world_3d(), world_pos)
-	_hover_base = snapped
+		snapped_pos = snap_to_ground(get_world_3d(), world_pos)
+	_hover_base = snapped_pos
 	if _hovering:
 		global_position = HoveringOrbMotionScript.visual_from_base(_hover_base, _hover_phase)
 	else:

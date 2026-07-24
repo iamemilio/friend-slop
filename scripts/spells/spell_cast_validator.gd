@@ -254,15 +254,25 @@ static func resolve_free_cast_dict(
 		)
 
 	samples = SpellAudioUtils.extract_speech_samples(samples, sample_rate)
-	debug_lines.append("trimmed_samples=%d" % samples.size())
+	var peak_rms: float = SpellAudioUtils.compute_peak_window_rms(samples, sample_rate)
+	debug_lines.append("trimmed_samples=%d peak_rms=%.4f" % [samples.size(), peak_rms])
 
 	if transcript_words.is_empty():
 		debug_lines.append("mode=no transcript")
 		debug_lines.append("result=FAIL (words not verified)")
-		var no_stt := CastValidationResult.fail(
-			"Couldn't verify which spell you said — speech recognition is required for free casting"
+		var reason := (
+			"Speak louder into the microphone"
+			if peak_rms < SpellAudioUtils.MIN_SPEECH_RMS
+			else (
+				"Couldn't verify which spell you said — speech recognition is required for free casting"
+			)
 		)
+		var no_stt := CastValidationResult.fail(reason)
 		no_stt.incantation_text = _expected_from_candidate_dicts(candidate_data)
+		no_stt.audio_rms = peak_rms
+		no_stt.audio_duration_sec = (
+			float(samples.size()) / float(sample_rate) if sample_rate > 0 else 0.0
+		)
 		CastValidationResult.apply_transcript(no_stt, transcript_words)
 		return _pack_free_cast_dict(null, no_stt, debug_lines)
 
@@ -391,15 +401,25 @@ static func resolve_free_cast(
 		)
 
 	samples = SpellAudioUtils.extract_speech_samples(samples, sample_rate)
-	debug_lines.append("trimmed_samples=%d" % samples.size())
+	var peak_rms: float = SpellAudioUtils.compute_peak_window_rms(samples, sample_rate)
+	debug_lines.append("trimmed_samples=%d peak_rms=%.4f" % [samples.size(), peak_rms])
 
 	if transcript_words.is_empty():
 		debug_lines.append("mode=no transcript")
 		debug_lines.append("result=FAIL (words not verified)")
-		var no_stt := CastValidationResult.fail(
-			"Couldn't verify which spell you said — speech recognition is required for free casting"
+		var reason := (
+			"Speak louder into the microphone"
+			if peak_rms < SpellAudioUtils.MIN_SPEECH_RMS
+			else (
+				"Couldn't verify which spell you said — speech recognition is required for free casting"
+			)
 		)
+		var no_stt := CastValidationResult.fail(reason)
 		no_stt.incantation_text = _expected_from_candidates(candidates)
+		no_stt.audio_rms = peak_rms
+		no_stt.audio_duration_sec = (
+			float(samples.size()) / float(sample_rate) if sample_rate > 0 else 0.0
+		)
 		CastValidationResult.apply_transcript(no_stt, transcript_words)
 		return _pack_free_cast(null, no_stt, debug_lines)
 

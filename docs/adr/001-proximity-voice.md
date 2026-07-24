@@ -1,65 +1,90 @@
 # ADR 001: Proximity voice
 
-**Status:** Accepted
+**Status:** Accepted (Friend Slop–owned voice stack, 2026-07)
 
 ## Context
 
 Asymmetric horror requires spatial voice: players hear each other based on distance and maze occlusion. Global Steam lobby chat violates the proximity pillar.
 
-Spell STT captures microphone input for incantations via Godot `MicCapture`. Proximity VoIP uses **GodotSteam voice + dedicated P2P channels** so spell validation stays independent for MVP.
+Spell STT captures microphone input for incantations via Godot `MicCapture`. Steam’s `getVoice` capture API returned persistent `VOICE_NO_DATA` on Windows while Godot’s `AudioStreamMicrophone` worked — so VoIP must not depend on Steam Voice codec APIs.
 
 ## Decision
 
-Use **[godot-steam-voice](https://github.com/iamemilio/godot-steam-voice)** — developed in **`vendor/godot-steam-voice/`** (local clone, gitignored) and packaged into **`addons/godot-steam-voice/`** (tracked; what release exports ship). Current package: see `addons/godot-steam-voice/VERSION.txt` (synced from library `main` / releases such as **v0.1.3**).
+Own a small in-repo voice stack under [`scripts/voice/`](../../scripts/voice/):
 
-Refresh package with `make sync-voice-addon` after library commits. Push library fixes to GitHub first, then sync + commit the addon in Friend Slop so tester release ZIPs include them.
+| Piece | Role |
+|-------|------|
+| `SimpleVoiceChat` | Godot mic capture + remote `AudioStreamGenerator` playback |
+| `SteamP2PVoiceTransport` | Steam `sendP2PPacket` / `readP2PPacket` on voice port `1` |
+| `GameVoiceSession` | Per-state config (lobby open-mic vs match) driving the shared engine |
+| `SteamMultiplayerPeerAdapter` | Peer ID → Steam ID helpers |
 
-### Product modes (Friend Slop hub)
+Product tree: [`scenes/game_app.tscn`](../../scenes/game_app.tscn)
 
-`SteamProximityVoiceHub` keeps product modes **`OFF` / `LOBBY` / `GAME`**, implemented as two library **`VoiceRuntime`** children:
+```
+GameApp
+  MicCaptureBroker     # sole MicCapture drain; fans out to voip / stt / meter
+  VoiceEngine          # SimpleVoiceChat — Peers + voip subscriber
+  States
+    MainMenu
+    Lobby
+      VoiceSession     # GameVoiceSession
+      LobbyPanel
+    Match
+      VoiceSession
+      Main             # instanced at runtime
+  SettingsPanel
+```
 
-| Mode | Runtime | Config |
-|------|---------|--------|
-| `OFF` | both stopped | — |
-| `LOBBY` | `LobbyRuntime` | `EPHEMERAL_CLUSTER`, `proximity.enabled = false` (open mic) |
-| `GAME` | `GameRuntime` | `MEMBERS`, library game-ready proximity (8 m / 40 m) |
+| State | Voice |
+|-------|--------|
+| MainMenu | all sessions stopped |
+| Lobby | `Lobby/VoiceSession` toggled by host (open mic) |
+| Match | `Match/VoiceSession` while gameplay active |
 
-Always call `set_mode(OFF)` / `stop_session()` to tear down (autoload survives scene changes). Runtimes share **one** `VoiceSession` + **one** `VoiceChannel`.
+Call sites may still use the thin `SteamProximityVoiceHub` autoload shim → `GameApp` voice API.
 
-### Library building blocks
+**Not used:** Steam `startVoiceRecording` / `getVoice` / `decompressVoice`, and the former `addons/godot-steam-voice` codec library.
 
-- **`VoiceRuntime`** + **`VoiceContextConfig`** / **`ProximitySettings`** — Inspector-configured start/stop
-- **`VoiceSession`** — one Steam capture stream; one send/decompress per packet
-- **`VoiceChannel`** — presets + composable **`VoiceRule`** stack (single channel by default)
-- **`MufflingMap`** for maze wall occlusion
-- GodotSteam **`getVoice` / `decompressVoice`**; **`sendP2PPacket` / `readP2PPacket`** on dedicated P2P port
-- **`VoiceMember`** on player `Head` nodes for GAME binding
+### Packet format
 
-Spell STT in `spell_casting_session.gd` stays independent.
+Versioned PCM envelope: magic `FSVC` + uint16 LE sample rate + PCM16 mono samples (~16 kHz, ~40 ms frames).
 
-**Not used:** Steam lobby voice during `MatchState.ACTIVE`.
+### Mic capture ownership
+
+`MicCaptureBroker` is the only caller of `AudioEffectCapture.get_buffer()`. Subscribers receive mono PCM copies.
+
+| Policy | Set by | Subscribers |
+|--------|--------|-------------|
+| `CHAT_ONLY` | Lobby `VoiceSession/Listeners` has only `Chat` | `chat` only |
+| `MATCH_FANOUT` | Match `VoiceSession/Listeners` includes `Spellcasting` | `chat` + optional `spellcasting` |
+
+Author listeners as `MicCaptureListener` children under each `VoiceSession/Listeners`.
+Chat listeners own `ProximityChatSettings` (enable + range/volume). When subscribed,
+those same nodes show live `listening` / `chunks_received` / `last_rms` — no mirror
+copies under `MicCaptureBroker`.
+
+| Subscriber | When |
+|------------|------|
+| `chat` | `SimpleVoiceChat` while a voice session is active |
+| `spellcasting` | `SpellCastingSession` while `STATE_LISTENING` (match fan-out only) |
+
+Unit tests inject PCM via `MicCaptureBroker.inject_pcm()` (no real mic):
+`tests/unit/test_mic_capture_pipeline.gd`, `tests/unit/test_mic_capture_broker.gd`.
+
+Enable `GameApp.debug_voice` for `[friend-slop-mic-broker]` subscribe/fanout/heartbeat traces.
 
 ## Deprovisioning
 
-Hub is an autoload — scene unload alone does not stop voice. Lifecycle events must call `set_mode(OFF)` / `stop_session()`:
+Lifecycle events must stop voice (`set_mode(OFF)` / `stop_voice()`):
 
 - Leave lobby / disconnect
-- Host start-game RPC (all peers, before loading main)
-- Match end / quit to menu
+- Host start-game RPC (all peers, before Match state)
+- Match end / return to MainMenu
 - App Exit / window close (`SteamService` teardown)
-
-Hard crash: best-effort only via Steam client cleanup; no in-game guarantee.
 
 ## Consequences
 
-- Lobby: opt-in checkbox; open mic via proximity disabled
-- Active maze: proximity falloff (+ optional wall muffling later)
-- CI disables voice processing when `FRIEND_SLOP_TEST=1` or `STEAM_PROXIMITY_VOICE_TEST=1`
-- Release builds include whatever is committed under `addons/godot-steam-voice/`
-
-## References
-
-- https://github.com/iamemilio/godot-steam-voice (releases / v0.1.3+)
-- `addons/godot-steam-voice/INSTALL.txt` / `VERSION.txt`
-- `docs/adr/002-steam-p2p-transport.md` — game RPCs on channel 0; voice on addon P2P port
-- `tools/sync_godot_steam_voice.py` / `make sync-voice-addon`
+- Scene dock shows product states next to per-state VoiceSession configs and live `MicCaptureBroker/Mic` / `Peers/Peer_*` nodes
+- Voice code lives with the game; no vendored addon sync step
+- Proximity attenuation uses Chat listener `ProximityChatSettings`; mic share is broker fan-out

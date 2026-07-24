@@ -9,7 +9,7 @@ const SCAN_ROOTS := [
 ]
 
 const EXTRA_SCENES := [
-	"res://scenes/main.tscn",
+	"res://scenes/match.tscn",
 	"res://scenes/menu.tscn",
 	"res://scenes/characters/character.tscn",
 	"res://scenes/characters/playable_character.tscn",

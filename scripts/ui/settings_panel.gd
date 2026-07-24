@@ -11,9 +11,15 @@ var _output_device_option: OptionButton
 var _input_device_option: OptionButton
 var _master_volume_slider: HSlider
 var _master_volume_label: Label
+var _mic_volume_slider: HSlider
+var _mic_volume_label: Label
 var _mic_test_button: Button
+var _hear_myself_switch: CheckButton
 var _mic_level_bar: ProgressBar
 var _mic_status_label: Label
+var _lobby_voice_switch: CheckButton
+var _lobby_voice_hint: Label
+var _player_voice_list: VBoxContainer
 var _resolution_option: OptionButton
 var _resolution_hint_label: Label
 var _dev_apprentice_button: Button
@@ -27,7 +33,7 @@ var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 	$Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox
 )
 @onready var _audio_vbox: VBoxContainer = (
-	$Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox
+	$Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox
 )
 @onready var _dev_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox
@@ -42,15 +48,22 @@ func _ready() -> void:
 	_master_volume_slider.min_value = 0.0
 	_master_volume_slider.max_value = 1.0
 	_master_volume_slider.step = 0.01
+	_mic_volume_slider.min_value = 0.0
+	_mic_volume_slider.max_value = 1.0
+	_mic_volume_slider.step = 0.01
 	_mic_level_bar.min_value = 0.0
 	_mic_level_bar.max_value = 1.0
 	_mic_level_bar.value = 0.0
 	_close_button.pressed.connect(_on_close_pressed)
 	_mic_test_button.pressed.connect(_on_mic_test_pressed)
+	_hear_myself_switch.toggled.connect(_on_hear_myself_toggled)
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
+	_mic_volume_slider.value_changed.connect(_on_mic_volume_changed)
+	_lobby_voice_switch.toggled.connect(_on_lobby_voice_toggled)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
 	_dev_warden_button.pressed.connect(_on_dev_warden_pressed)
 	_resolution_option.item_selected.connect(_on_resolution_selected)
+	NetworkManager.lobby_roster_changed.connect(_on_lobby_roster_changed)
 	_populate_from_settings()
 
 
@@ -70,6 +83,8 @@ func open() -> void:
 	_mic_level_bar.value = 0.0
 	_mic_status_label.text = "Press Test Microphone to check input."
 	_mic_test_button.text = "Test Microphone"
+	_refresh_lobby_voice_switch()
+	_refresh_player_voice_list()
 
 
 func close_panel() -> void:
@@ -84,6 +99,9 @@ func is_open() -> bool:
 
 
 func _process(_delta: float) -> void:
+	if not visible:
+		return
+	_refresh_lobby_voice_switch()
 	if not _mic_test_active:
 		return
 
@@ -105,9 +123,15 @@ func _cache_node_refs() -> void:
 	_input_device_option = _audio_vbox.get_node("InputDeviceOption")
 	_master_volume_slider = _audio_vbox.get_node("MasterVolumeRow/MasterVolumeSlider")
 	_master_volume_label = _audio_vbox.get_node("MasterVolumeRow/MasterVolumeLabel")
+	_mic_volume_slider = _audio_vbox.get_node("MicVolumeRow/MicVolumeSlider")
+	_mic_volume_label = _audio_vbox.get_node("MicVolumeRow/MicVolumeLabel")
 	_mic_test_button = _audio_vbox.get_node("MicTestButton")
+	_hear_myself_switch = _audio_vbox.get_node("HearMyselfRow/HearMyselfSwitch")
 	_mic_level_bar = _audio_vbox.get_node("MicLevelBar")
 	_mic_status_label = _audio_vbox.get_node("MicStatusLabel")
+	_lobby_voice_switch = _audio_vbox.get_node("LobbyVoiceRow/LobbyVoiceSwitch")
+	_lobby_voice_hint = _audio_vbox.get_node("LobbyVoiceHint")
+	_player_voice_list = _audio_vbox.get_node_or_null("PlayerVoiceList") as VBoxContainer
 	_dev_apprentice_button = _dev_vbox.get_node("DevRoleSection/DevApprenticeButton")
 	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
@@ -132,6 +156,10 @@ func _populate_from_settings() -> void:
 	_select_device(_input_device_option, SettingsManager.input_device)
 	_master_volume_slider.value = SettingsManager.master_volume
 	_update_master_volume_label(SettingsManager.master_volume)
+	_mic_volume_slider.value = SettingsManager.mic_volume
+	_update_mic_volume_label(SettingsManager.mic_volume)
+	_hear_myself_switch.set_pressed_no_signal(SettingsManager.hear_myself)
+	_refresh_lobby_voice_switch()
 	_dev_solo_role = SettingsManager.dev_solo_role
 	_refresh_dev_solo_ui()
 	_voice_stub_checkbox.button_pressed = SettingsManager.voice_use_stub
@@ -206,6 +234,8 @@ func _select_device(option: OptionButton, saved_device: String) -> void:
 func _apply_to_manager() -> void:
 	SettingsManager.set_window_resolution_preset_index(_resolution_option.selected)
 	SettingsManager.master_volume = _master_volume_slider.value
+	SettingsManager.mic_volume = _mic_volume_slider.value
+	SettingsManager.hear_myself = _hear_myself_switch.button_pressed
 	SettingsManager.output_device = _read_device_selection(_output_device_option)
 	SettingsManager.input_device = _read_device_selection(_input_device_option)
 	SettingsManager.dev_solo_role = _dev_solo_role
@@ -248,8 +278,85 @@ func _on_master_volume_changed(value: float) -> void:
 	SettingsManager.apply_audio_settings()
 
 
+func _on_mic_volume_changed(value: float) -> void:
+	_update_mic_volume_label(value)
+	SettingsManager.mic_volume = value
+	SettingsManager.apply_audio_settings()
+
+
+func _on_hear_myself_toggled(enabled: bool) -> void:
+	SettingsManager.hear_myself = enabled
+	SettingsManager.apply_audio_settings()
+	SettingsManager.save_settings()
+
+
+func _is_lobby_voice_ui_on() -> bool:
+	if NetworkManager.is_session_active:
+		return SteamProximityVoiceHub.get_mode() == SteamProximityVoiceHub.Mode.LOBBY
+	return SettingsManager.lobby_voice_default
+
+
+func _can_toggle_lobby_voice_live() -> bool:
+	return NetworkManager.is_session_active and NetworkManager.is_host()
+
+
+func _refresh_lobby_voice_switch() -> void:
+	if _lobby_voice_switch == null:
+		return
+	var enabled := _is_lobby_voice_ui_on()
+	_lobby_voice_switch.set_pressed_no_signal(enabled)
+	var steam_ready := SteamService.is_ready()
+	if NetworkManager.is_session_active:
+		_lobby_voice_switch.disabled = not steam_ready or not NetworkManager.is_host()
+		if _lobby_voice_hint != null:
+			_lobby_voice_hint.text = (
+				"Same control as the lobby menu. Only the host can change lobby voice."
+				if NetworkManager.is_host()
+				else "Lobby voice is controlled by the host."
+			)
+	else:
+		_lobby_voice_switch.disabled = false
+		if _lobby_voice_hint != null:
+			_lobby_voice_hint.text = (
+				"Sets your default for the next lobby. Hosts can still toggle voice live "
+				+ "from the lobby menu or here."
+			)
+
+
+func _on_lobby_voice_toggled(enabled: bool) -> void:
+	if _lobby_voice_switch.disabled:
+		_refresh_lobby_voice_switch()
+		return
+
+	SettingsManager.lobby_voice_default = enabled
+	SettingsManager.save_settings()
+
+	if _can_toggle_lobby_voice_live():
+		_set_lobby_voice_enabled(enabled)
+	_refresh_lobby_voice_switch()
+
+
+func _set_lobby_voice_enabled(enabled: bool) -> void:
+	if enabled:
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.LOBBY)
+	else:
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
+	if (
+		enabled
+		and SteamService.is_ready()
+		and not SteamProximityVoiceHub.is_lobby_voice_active()
+	):
+		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
+		SettingsManager.lobby_voice_default = false
+		SettingsManager.save_settings()
+
+
 func _update_master_volume_label(value: float) -> void:
 	_master_volume_label.text = "%d%%" % int(round(value * 100.0))
+
+
+func _update_mic_volume_label(value: float) -> void:
+	_mic_volume_label.text = "%d%%" % int(round(value * 100.0))
 
 
 func _on_mic_test_pressed() -> void:
@@ -274,6 +381,17 @@ func _stop_mic_test() -> void:
 	_mic_test_active = false
 	_mic_test_button.text = "Test Microphone"
 	_mic_status_label.text = "Microphone test stopped."
+
+
+func _on_lobby_roster_changed() -> void:
+	if not visible:
+		return
+	_refresh_player_voice_list()
+
+
+func _refresh_player_voice_list() -> void:
+	if _player_voice_list != null and _player_voice_list.has_method("refresh"):
+		_player_voice_list.call("refresh")
 
 
 func _on_close_pressed() -> void:

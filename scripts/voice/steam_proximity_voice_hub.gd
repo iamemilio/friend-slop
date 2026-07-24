@@ -1,252 +1,162 @@
 extends Node
 
-## Friend Slop voice: product modes OFF / LOBBY / GAME over library VoiceRuntime nodes.
-## Deprovision is always set_mode(OFF) — the hub is an autoload and survives scene changes.
+## Thin autoload façade → GameApp voice API (keeps existing call sites working).
 
 enum Mode { OFF, LOBBY, GAME }
 
-const SteamMultiplayerPeerAdapterScript := preload(
-	"res://addons/godot-steam-voice/adapters/steam_multiplayer_peer_adapter.gd"
-)
 
-var mode: Mode = Mode.OFF
-var lobby_runtime: VoiceRuntime
-var game_runtime: VoiceRuntime
-
-
-func _ready() -> void:
-	_build_runtimes()
-	if NetworkManager.peer_connected.is_connected(_on_peer_connected):
-		NetworkManager.peer_connected.disconnect(_on_peer_connected)
-	NetworkManager.peer_connected.connect(_on_peer_connected)
-	if NetworkManager.peer_disconnected.is_connected(_on_peer_disconnected):
-		NetworkManager.peer_disconnected.disconnect(_on_peer_disconnected)
-	NetworkManager.peer_disconnected.connect(_on_peer_disconnected)
-	if SteamService.lobby_member_joined.is_connected(_on_steam_lobby_member_joined):
-		SteamService.lobby_member_joined.disconnect(_on_steam_lobby_member_joined)
-	SteamService.lobby_member_joined.connect(_on_steam_lobby_member_joined)
-
-
-func get_session() -> VoiceSession:
-	if game_runtime != null and game_runtime.is_active():
-		return game_runtime.get_session()
-	if lobby_runtime != null and lobby_runtime.is_active():
-		return lobby_runtime.get_session()
-	if lobby_runtime != null:
-		return lobby_runtime.get_session()
-	if game_runtime != null:
-		return game_runtime.get_session()
-	return null
+func _app() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return tree.get_first_node_in_group("game_app")
 
 
 func get_mode() -> Mode:
-	return mode
+	var app := _app()
+	if app == null:
+		return Mode.OFF
+	var state := int(app.get("state"))
+	if not bool(app.call("is_voice_active")):
+		return Mode.OFF
+	match state:
+		1:
+			return Mode.LOBBY
+		2:
+			return Mode.GAME
+		_:
+			return Mode.OFF
 
 
 func is_active() -> bool:
-	return mode != Mode.OFF and _active_runtime() != null and _active_runtime().is_active()
+	var app := _app()
+	return app != null and bool(app.call("is_voice_active"))
 
 
 func is_lobby_voice_active() -> bool:
-	return mode == Mode.LOBBY and is_active()
+	var app := _app()
+	return app != null and bool(app.call("is_lobby_voice_active"))
 
 
-## Alias for lifecycle callers (disconnect / quit). Always deprovisions.
 func stop_session() -> void:
-	set_mode(Mode.OFF)
+	var app := _app()
+	if app != null:
+		app.call("stop_voice")
 
 
-## Only lifecycle entry point. Leaving any mode full-stops before provisioning next.
-func set_mode(next: Mode) -> void:
-	if next == mode and (next == Mode.OFF or is_active()):
-		if next != Mode.OFF:
-			refresh()
-		return
-
-	var previous := mode
-	_stop_runtimes()
-	mode = Mode.OFF
-	if previous != Mode.OFF:
-		TomeDebug.log(
-			"Voice",
-			"Deprovisioned (leaving_%s_for_%s)" % [_mode_label(previous), _mode_label(next)]
-		)
-
-	if next == Mode.OFF:
-		return
-
-	if not _can_start_voice(next):
-		return
-
-	SteamService.allow_p2p_relay()
-	var steam_ids := _collect_session_steam_ids()
-	var runtime := lobby_runtime if next == Mode.LOBBY else game_runtime
-	runtime.set_peers(steam_ids)
-	runtime.start()
-	if not runtime.is_active():
-		TomeDebug.log("Voice", "Failed to start voice for mode=%s" % _mode_label(next))
-		return
-
-	mode = next
-	TomeDebug.log("Voice", "Mode set to %s" % _mode_label(mode))
-	_log_refresh_snapshot()
-
-
-func refresh() -> void:
-	if mode == Mode.OFF:
-		return
-	var runtime := _active_runtime()
-	if runtime == null or not runtime.is_active():
-		return
-	if not NetworkManager.is_session_active and not GameState.is_multiplayer:
-		return
-
-	runtime.set_peers(_collect_session_steam_ids())
-	runtime.refresh()
-	_log_refresh_snapshot()
-
-
-func _active_runtime() -> VoiceRuntime:
-	match mode:
-		Mode.LOBBY:
-			return lobby_runtime
-		Mode.GAME:
-			return game_runtime
-		_:
-			return null
-
-
-func _stop_runtimes() -> void:
-	if lobby_runtime != null:
-		lobby_runtime.stop()
-	if game_runtime != null:
-		game_runtime.stop()
-
-
-func _can_start_voice(next: Mode) -> bool:
-	if lobby_runtime == null or game_runtime == null:
-		return false
-	if not SteamService.is_ready() or not Engine.has_singleton("Steam"):
-		TomeDebug.log("Voice", "Cannot start %s — Steam unavailable" % _mode_label(next))
-		return false
-	match next:
-		Mode.LOBBY:
-			if not NetworkManager.is_session_active:
-				TomeDebug.log("Voice", "Cannot start LOBBY — not in a network lobby")
-				return false
-		Mode.GAME:
-			if not GameState.is_multiplayer and not NetworkManager.is_session_active:
-				TomeDebug.log("Voice", "Cannot start GAME — no multiplayer session")
-				return false
-		_:
-			return false
-	return true
-
-
-func _build_runtimes() -> void:
-	if lobby_runtime != null:
-		return
-
-	var lobby_cfg := VoiceContextConfig.new()
-	lobby_cfg.label = &"lobby"
-	lobby_cfg.binding = VoiceContextConfig.Binding.EPHEMERAL_CLUSTER
-	lobby_cfg.proximity = ProximitySettings.new()
-	lobby_cfg.proximity.enabled = false
-	lobby_cfg.proximity.configuration = ProximityConfiguration.new()
-
-	var game_cfg := VoiceContextConfig.new()
-	game_cfg.label = &"game"
-	game_cfg.binding = VoiceContextConfig.Binding.MEMBERS
-	# proximity defaults: enabled, 8 m buffer / 40 m range (library game-ready)
-
-	lobby_runtime = VoiceRuntime.new()
-	lobby_runtime.name = "LobbyRuntime"
-	lobby_runtime.config = lobby_cfg
-	lobby_runtime.log_level = VoiceRuntime.LogLevel.DEBUG
-	lobby_runtime.log_message.connect(_on_runtime_log)
-	add_child(lobby_runtime)
-
-	game_runtime = VoiceRuntime.new()
-	game_runtime.name = "GameRuntime"
-	game_runtime.config = game_cfg
-	game_runtime.log_level = VoiceRuntime.LogLevel.DEBUG
-	game_runtime.log_message.connect(_on_runtime_log)
-	add_child(game_runtime)
-
-
-func _collect_session_steam_ids() -> Array[int]:
+func get_mic_broker() -> Node:
+	var app := _app()
+	if app != null and app.get("mic_broker") != null:
+		return app.get("mic_broker") as Node
 	var tree := get_tree()
 	if tree == null:
-		return []
-	var mp := tree.get_multiplayer()
-	var steam_ids := SteamMultiplayerPeerAdapterScript.collect_session_steam_ids(mp)
-	if not SteamService.is_ready():
-		return steam_ids
-	var lobby_id := SteamService.current_lobby_id
-	if lobby_id == 0:
-		return steam_ids
-	var merged: Array[int] = steam_ids.duplicate()
-	for index in range(SteamService.get_lobby_member_count(lobby_id)):
-		var member_id := SteamService.get_lobby_member_by_index(index, lobby_id)
-		if member_id == 0 or member_id == SteamService.get_steam_id():
-			continue
-		if not merged.has(member_id):
-			merged.append(member_id)
-	return merged
+		return null
+	return tree.get_first_node_in_group("mic_capture_broker")
 
 
-func _mode_label(value: Mode) -> String:
-	match value:
+## Match VoiceSession Spellcasting listener (pre-registered while match voice is on).
+func get_spellcasting_listener() -> MicCaptureListener:
+	var session := _match_voice_session()
+	if session == null or not session.has_method("get_spellcasting_listener"):
+		return null
+	return session.call("get_spellcasting_listener") as MicCaptureListener
+
+
+func get_chat_listener() -> MicCaptureListener:
+	var session := _active_voice_session()
+	if session == null or not session.has_method("get_chat_listener"):
+		return null
+	return session.call("get_chat_listener") as MicCaptureListener
+
+
+func _match_voice_session() -> Node:
+	var app := _app()
+	if app == null:
+		return null
+	return app.get("match_voice") as Node
+
+
+func _active_voice_session() -> Node:
+	var app := _app()
+	if app == null or not app.has_method("get_active_voice_session"):
+		return null
+	return app.call("get_active_voice_session") as Node
+
+
+func _voice_engine() -> Node:
+	var app := _app()
+	if app == null:
+		return null
+	return app.get("voice_engine") as Node
+
+
+func set_mode(next: Mode) -> void:
+	var app := _app()
+	if app == null:
+		return
+	match next:
+		Mode.OFF:
+			app.call("stop_voice")
 		Mode.LOBBY:
-			return "lobby"
+			app.call("set_lobby_voice_enabled", true)
 		Mode.GAME:
-			return "game"
-		_:
-			return "off"
+			app.call("set_match_voice_enabled", true)
 
 
-func _log_refresh_snapshot() -> void:
-	var runtime := _active_runtime()
-	var session := get_session()
-	var channel := session.get_primary_channel() if session != null else null
-	var speakers: Array = []
-	var has_listener := false
-	if channel != null:
-		speakers = channel.get_registered_speaker_ids()
-		has_listener = channel.get_listener_node() != null
-	var peers: Array = []
-	if session != null:
-		peers = session.get_session_peers()
-	TomeDebug.log(
-		"Voice",
-		"Refreshed mode=%s peers=%s speakers=%s listener=%s runtime=%s"
-		% [
-			_mode_label(mode),
-			peers,
-			speakers,
-			has_listener,
-			runtime.name if runtime != null else "none",
-		]
-	)
+func resolve_steam_id_for_peer(peer_id: int) -> int:
+	var app := _app()
+	if app == null:
+		return 0
+	return int(app.call("resolve_steam_id_for_peer", peer_id))
 
 
-func _on_runtime_log(_level: VoiceRuntime.LogLevel, event: String, detail: String) -> void:
-	if detail.is_empty():
-		TomeDebug.log("Voice", event)
-	else:
-		TomeDebug.log("Voice", "%s — %s" % [event, detail])
+func is_peer_speaking(peer_id: int, timeout_ms: int = 350) -> bool:
+	var app := _app()
+	if app == null:
+		return false
+	return bool(app.call("is_peer_speaking", peer_id, timeout_ms))
 
 
-func _on_peer_connected(peer_id: int) -> void:
-	TomeDebug.log("Voice", "Peer connected id=%s — refreshing" % peer_id)
-	call_deferred("refresh")
+func is_local_speaking(timeout_ms: int = 350) -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	return is_peer_speaking(tree.get_multiplayer().get_unique_id(), timeout_ms)
 
 
-func _on_peer_disconnected(peer_id: int) -> void:
-	TomeDebug.log("Voice", "Peer disconnected id=%s — refreshing" % peer_id)
-	call_deferred("refresh")
+func is_peer_muted(peer_id: int) -> bool:
+	var app := _app()
+	if app == null:
+		return false
+	return bool(app.call("is_peer_muted", peer_id))
 
 
-func _on_steam_lobby_member_joined(steam_id: int) -> void:
-	TomeDebug.log("Voice", "Lobby member joined steam_id=%s — refreshing" % steam_id)
-	call_deferred("refresh")
+func set_peer_muted(peer_id: int, muted: bool) -> void:
+	var app := _app()
+	if app != null:
+		app.call("set_peer_muted", peer_id, muted)
+
+
+func get_peer_volume(peer_id: int) -> float:
+	var app := _app()
+	if app == null:
+		return 1.0
+	return float(app.call("get_peer_volume", peer_id))
+
+
+func set_peer_volume(peer_id: int, linear: float) -> void:
+	var app := _app()
+	if app != null:
+		app.call("set_peer_volume", peer_id, linear)
+
+
+func set_debug_logging(enabled: bool) -> void:
+	var app := _app()
+	if app != null:
+		app.set("debug_voice", enabled)
+	var broker := get_mic_broker()
+	if broker != null:
+		broker.set("debug_logging", enabled)
+	var engine := _voice_engine()
+	if engine != null:
+		engine.set("debug_logging", enabled)

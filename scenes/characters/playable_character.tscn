@@ -1,11 +1,10 @@
-[gd_scene load_steps=8 format=3 uid="uid://bplayable001"]
+[gd_scene load_steps=7 format=3 uid="uid://bplayable001"]
 
 [ext_resource type="PackedScene" uid="uid://bcharacter01" path="res://scenes/characters/character.tscn" id="1_character"]
 [ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="2_playable"]
 [ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="3_loadout"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="4_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="5_effects"]
-[ext_resource type="Script" path="res://scripts/voice/steam_proximity_voice.gd" id="6_voice"]
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_playable"]
 properties/0/path = NodePath(".:position")
@@ -28,10 +27,6 @@ unique_name_in_owner = true
 [node name="FirstPersonCamera" type="Camera3D" parent="Head/CameraPivot"]
 unique_name_in_owner = true
 fov = 75.0
-
-[node name="SteamProximityVoice" type="Node" parent="Head" index="2"]
-script = ExtResource("6_voice")
-head_path = NodePath("..")
 
 [node name="CharacterSpellLoadout" type="Node" parent="." index="3"]
 unique_name_in_owner = true

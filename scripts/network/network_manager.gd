@@ -21,6 +21,7 @@ const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_con
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const GameWorldScript := preload("res://scripts/game_world.gd")
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
@@ -313,7 +314,11 @@ func _rpc_start_game(
 	if not match_snapshot.is_empty():
 		MatchStateManager.apply_snapshot(match_snapshot)
 	MatchStateManager.log_summary()
-	get_tree().change_scene_to_file("res://scenes/main.tscn")
+	var app := get_tree().get_first_node_in_group("game_app")
+	if app != null and app.has_method("enter_match"):
+		app.call("enter_match")
+	else:
+		get_tree().change_scene_to_file("res://scenes/match.tscn")
 
 
 func sync_match_phase(next: int) -> void:
@@ -383,7 +388,7 @@ func _prepare_spell_cast_wire(
 	spell_id: String,
 	params: Dictionary
 ) -> Dictionary:
-	var main := get_tree().current_scene
+	var main: Node = GameWorldScript.find_match_root(get_tree())
 	if main != null and main.has_method("prepare_spell_cast_wire"):
 		return main.prepare_spell_cast_wire(caster_peer_id, spell_id, params)
 	return SpellEffectSyncScript.pack_for_network(SpellEffectSyncScript.normalize_params(params))
@@ -634,7 +639,7 @@ func _forward_to_main(method: StringName, args: Array = []) -> void:
 	)
 	if not always_forward and not MatchStateManager.allows_gameplay_actions():
 		return
-	var main := get_tree().current_scene
+	var main: Node = GameWorldScript.find_match_root(get_tree())
 	if main != null and main.has_method(method):
 		main.callv(method, args)
 

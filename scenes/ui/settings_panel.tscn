@@ -1,6 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://csettingspanel001"]
+[gd_scene load_steps=5 format=3 uid="uid://csettingspanel001"]
 
 [ext_resource type="Script" path="res://scripts/ui/settings_panel.gd" id="1_settings"]
+[ext_resource type="Script" path="res://scripts/ui/player_voice_list.gd" id="2_player_voice"]
+[ext_resource type="Script" path="res://scripts/ui/menu_toggle_switch.gd" id="3_toggle"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.09, 0.18, 0.96)
@@ -15,6 +17,7 @@ corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 
 [node name="SettingsPanel" type="Control"]
+visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -41,9 +44,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -360.0
-offset_top = -320.0
+offset_top = -360.0
 offset_right = 360.0
-offset_bottom = 320.0
+offset_bottom = 360.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
@@ -120,72 +123,164 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="AudioVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer"]
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer"]
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="AudioVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="OutputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="GeneralHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "General"
+
+[node name="OutputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Output Device"
 
-[node name="OutputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="OutputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 
-[node name="InputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="InputDeviceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Input Device (Microphone)"
 
-[node name="InputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="InputDeviceOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 
-[node name="MasterVolumeRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="MasterVolumeRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 layout_mode = 2
 theme_override_constants/separation = 12
 
-[node name="MasterVolumeCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+[node name="MasterVolumeCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MasterVolumeRow"]
 custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Master Volume"
 
-[node name="MasterVolumeSlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+[node name="MasterVolumeSlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MasterVolumeRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 1
 value = 1.0
 
-[node name="MasterVolumeLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox/MasterVolumeRow"]
+[node name="MasterVolumeLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MasterVolumeRow"]
 custom_minimum_size = Vector2(48, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
 text = "100%"
 horizontal_alignment = 2
 
-[node name="MicTestLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="MicVolumeRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="MicVolumeCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MicVolumeRow"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Mic Volume"
+
+[node name="MicVolumeSlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MicVolumeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+value = 1.0
+
+[node name="MicVolumeLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/MicVolumeRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
+text = "100%"
+horizontal_alignment = 2
+
+[node name="HearMyselfRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HearMyselfLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/HearMyselfRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Hear Myself"
+
+[node name="HearMyselfSwitch" type="CheckButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/HearMyselfRow"]
+custom_minimum_size = Vector2(48, 28)
+layout_mode = 2
+scale = Vector2(1.5, 1.5)
+tooltip_text = "Play your own mic in your headset during voice chat (software sidetone). Does not change what others hear."
+text = ""
+script = ExtResource("3_toggle")
+
+[node name="MicTestLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Microphone Test"
 
-[node name="MicTestButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="MicTestButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 text = "Test Microphone"
 
-[node name="MicLevelBar" type="ProgressBar" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="MicLevelBar" type="ProgressBar" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 show_percentage = false
 
-[node name="MicStatusLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/AudioVBox"]
+[node name="MicStatusLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
 text = "Press Test Microphone to check input."
+
+[node name="AudioSectionSeparator" type="HSeparator" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+
+[node name="GameHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Game"
+
+[node name="LobbyVoiceRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LobbyVoiceLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/LobbyVoiceRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Lobby Voice Chat"
+
+[node name="LobbyVoiceSwitch" type="CheckButton" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox/LobbyVoiceRow"]
+custom_minimum_size = Vector2(48, 28)
+layout_mode = 2
+scale = Vector2(1.5, 1.5)
+tooltip_text = "Talk with others in this lobby before the match."
+text = ""
+script = ExtResource("3_toggle")
+
+[node name="LobbyVoiceHint" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.58, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "When you are hosting a lobby, this matches the lobby menu switch. Otherwise it sets your default for the next lobby."
+
+[node name="PlayerVoiceList" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+script = ExtResource("2_player_voice")
 
 [node name="Developer" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
 visible = false

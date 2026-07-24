@@ -256,9 +256,9 @@ func _build_floor() -> void:
 
 func _build_walls() -> void:
 	var wall_size := Vector3(cell_size, wall_height, cell_size)
-	var grid_to_world := func(gx: int, gy: int) -> Vector3:
+	var cell_to_world_fn := func(gx: int, gy: int) -> Vector3:
 		return _grid_to_world(gx, gy)
-	var mesh := MazeWallMeshScript.build(_wall_grid, wall_size, grid_to_world)
+	var mesh := MazeWallMeshScript.build(_wall_grid, wall_size, cell_to_world_fn)
 
 	var body := StaticBody3D.new()
 	body.name = "Walls"
