@@ -13,6 +13,7 @@
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
 [ext_resource type="PackedScene" uid="uid://bfqs6msunremi" path="res://scenes/ui/guide_panel.tscn" id="9_guide"]
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
+[ext_resource type="Script" path="res://scripts/ui/aim_cursor.gd" id="9_aim"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
 [ext_resource type="Script" path="res://scripts/spells/spell_validation_runner.gd" id="11_runner"]
@@ -116,6 +117,16 @@ spawn_slot_index = 2
 
 [node name="GameHUD" type="CanvasLayer" parent="." unique_id=1905588477]
 script = ExtResource("9_hud")
+
+[node name="AimCursor" type="Control" parent="GameHUD"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("9_aim")
 
 [node name="GuidePanel" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
 

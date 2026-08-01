@@ -22,6 +22,14 @@ var _lobby_voice_hint: Label
 var _player_voice_list: VBoxContainer
 var _resolution_option: OptionButton
 var _resolution_hint_label: Label
+var _crosshair_opacity_slider: HSlider
+var _crosshair_opacity_label: Label
+var _crosshair_thickness_slider: HSlider
+var _crosshair_thickness_label: Label
+var _crosshair_color_picker: ColorPickerButton
+var _crosshair_outer_switch: CheckButton
+var _crosshair_dot_switch: CheckButton
+var _crosshair_preview: Control
 var _dev_apprentice_button: Button
 var _dev_warden_button: Button
 var _voice_stub_checkbox: CheckBox
@@ -30,7 +38,7 @@ var _dev_allow_any_lobby_size_checkbox: CheckBox
 var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 
 @onready var _general_vbox: VBoxContainer = (
-	$Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox
+	$Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox
 )
 @onready var _audio_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox
@@ -51,6 +59,12 @@ func _ready() -> void:
 	_mic_volume_slider.min_value = 0.0
 	_mic_volume_slider.max_value = 1.0
 	_mic_volume_slider.step = 0.01
+	_crosshair_opacity_slider.min_value = 0.0
+	_crosshair_opacity_slider.max_value = 1.0
+	_crosshair_opacity_slider.step = 0.01
+	_crosshair_thickness_slider.min_value = 0.5
+	_crosshair_thickness_slider.max_value = 5.0
+	_crosshair_thickness_slider.step = 0.05
 	_mic_level_bar.min_value = 0.0
 	_mic_level_bar.max_value = 1.0
 	_mic_level_bar.value = 0.0
@@ -59,6 +73,11 @@ func _ready() -> void:
 	_hear_myself_switch.toggled.connect(_on_hear_myself_toggled)
 	_master_volume_slider.value_changed.connect(_on_master_volume_changed)
 	_mic_volume_slider.value_changed.connect(_on_mic_volume_changed)
+	_crosshair_opacity_slider.value_changed.connect(_on_crosshair_opacity_changed)
+	_crosshair_thickness_slider.value_changed.connect(_on_crosshair_thickness_changed)
+	_crosshair_color_picker.color_changed.connect(_on_crosshair_color_changed)
+	_crosshair_outer_switch.toggled.connect(_on_crosshair_outer_toggled)
+	_crosshair_dot_switch.toggled.connect(_on_crosshair_dot_toggled)
 	_lobby_voice_switch.toggled.connect(_on_lobby_voice_toggled)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
 	_dev_warden_button.pressed.connect(_on_dev_warden_pressed)
@@ -119,6 +138,26 @@ func _process(_delta: float) -> void:
 func _cache_node_refs() -> void:
 	_resolution_option = _general_vbox.get_node("ResolutionOption")
 	_resolution_hint_label = _general_vbox.get_node("ResolutionHintLabel")
+	_crosshair_opacity_slider = _general_vbox.get_node(
+		"CrosshairOpacityRow/CrosshairOpacitySlider"
+	)
+	_crosshair_opacity_label = _general_vbox.get_node(
+		"CrosshairOpacityRow/CrosshairOpacityLabel"
+	)
+	_crosshair_thickness_slider = _general_vbox.get_node(
+		"CrosshairThicknessRow/CrosshairThicknessSlider"
+	)
+	_crosshair_thickness_label = _general_vbox.get_node(
+		"CrosshairThicknessRow/CrosshairThicknessLabel"
+	)
+	_crosshair_color_picker = _general_vbox.get_node(
+		"CrosshairColorRow/CrosshairColorPicker"
+	)
+	_crosshair_outer_switch = _general_vbox.get_node(
+		"CrosshairOuterRow/CrosshairOuterSwitch"
+	)
+	_crosshair_dot_switch = _general_vbox.get_node("CrosshairDotRow/CrosshairDotSwitch")
+	_crosshair_preview = _general_vbox.get_node("CrosshairPreviewFrame/CrosshairPreview")
 	_output_device_option = _audio_vbox.get_node("OutputDeviceOption")
 	_input_device_option = _audio_vbox.get_node("InputDeviceOption")
 	_master_volume_slider = _audio_vbox.get_node("MasterVolumeRow/MasterVolumeSlider")
@@ -159,6 +198,16 @@ func _populate_from_settings() -> void:
 	_mic_volume_slider.value = SettingsManager.mic_volume
 	_update_mic_volume_label(SettingsManager.mic_volume)
 	_hear_myself_switch.set_pressed_no_signal(SettingsManager.hear_myself)
+	_crosshair_opacity_slider.value = SettingsManager.crosshair_opacity
+	_update_crosshair_opacity_label(SettingsManager.crosshair_opacity)
+	_crosshair_thickness_slider.value = SettingsManager.crosshair_thickness
+	_update_crosshair_thickness_label(SettingsManager.crosshair_thickness)
+	_crosshair_color_picker.set_block_signals(true)
+	_crosshair_color_picker.color = SettingsManager.crosshair_color
+	_crosshair_color_picker.set_block_signals(false)
+	_crosshair_outer_switch.set_pressed_no_signal(SettingsManager.crosshair_show_outer)
+	_crosshair_dot_switch.set_pressed_no_signal(SettingsManager.crosshair_show_dot)
+	_refresh_crosshair_preview()
 	_refresh_lobby_voice_switch()
 	_dev_solo_role = SettingsManager.dev_solo_role
 	_refresh_dev_solo_ui()
@@ -238,6 +287,11 @@ func _apply_to_manager() -> void:
 	SettingsManager.hear_myself = _hear_myself_switch.button_pressed
 	SettingsManager.output_device = _read_device_selection(_output_device_option)
 	SettingsManager.input_device = _read_device_selection(_input_device_option)
+	SettingsManager.crosshair_opacity = _crosshair_opacity_slider.value
+	SettingsManager.crosshair_thickness = _crosshair_thickness_slider.value
+	SettingsManager.crosshair_color = _crosshair_color_picker.color
+	SettingsManager.crosshair_show_outer = _crosshair_outer_switch.button_pressed
+	SettingsManager.crosshair_show_dot = _crosshair_dot_switch.button_pressed
 	SettingsManager.dev_solo_role = _dev_solo_role
 	SettingsManager.voice_use_stub = _voice_stub_checkbox.button_pressed
 	SettingsManager.dev_spawn_relic_near_spawn = (
@@ -282,6 +336,33 @@ func _on_mic_volume_changed(value: float) -> void:
 	_update_mic_volume_label(value)
 	SettingsManager.mic_volume = value
 	SettingsManager.apply_audio_settings()
+
+
+func _on_crosshair_opacity_changed(value: float) -> void:
+	_update_crosshair_opacity_label(value)
+	SettingsManager.crosshair_opacity = value
+	_refresh_crosshair_preview()
+
+
+func _on_crosshair_thickness_changed(value: float) -> void:
+	_update_crosshair_thickness_label(value)
+	SettingsManager.crosshair_thickness = value
+	_refresh_crosshair_preview()
+
+
+func _on_crosshair_color_changed(color: Color) -> void:
+	SettingsManager.crosshair_color = color
+	_refresh_crosshair_preview()
+
+
+func _on_crosshair_outer_toggled(enabled: bool) -> void:
+	SettingsManager.crosshair_show_outer = enabled
+	_refresh_crosshair_preview()
+
+
+func _on_crosshair_dot_toggled(enabled: bool) -> void:
+	SettingsManager.crosshair_show_dot = enabled
+	_refresh_crosshair_preview()
 
 
 func _on_hear_myself_toggled(enabled: bool) -> void:
@@ -357,6 +438,19 @@ func _update_master_volume_label(value: float) -> void:
 
 func _update_mic_volume_label(value: float) -> void:
 	_mic_volume_label.text = "%d%%" % int(round(value * 100.0))
+
+
+func _update_crosshair_opacity_label(value: float) -> void:
+	_crosshair_opacity_label.text = "%d%%" % int(round(value * 100.0))
+
+
+func _update_crosshair_thickness_label(value: float) -> void:
+	_crosshair_thickness_label.text = "%.1f" % value
+
+
+func _refresh_crosshair_preview() -> void:
+	if _crosshair_preview != null:
+		_crosshair_preview.queue_redraw()
 
 
 func _on_mic_test_pressed() -> void:

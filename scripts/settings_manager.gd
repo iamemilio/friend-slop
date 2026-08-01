@@ -21,6 +21,11 @@ var input_device: String = ""
 var output_device: String = ""
 ## Hear local mic through speakers during voice chat (and mic test).
 var hear_myself: bool = false
+var crosshair_color: Color = Color(1.0, 1.0, 1.0)
+var crosshair_opacity: float = 0.92
+var crosshair_thickness: float = 1.75
+var crosshair_show_outer: bool = true
+var crosshair_show_dot: bool = true
 var dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 var voice_use_stub: bool = false
 var lobby_voice_default: bool = true
@@ -143,6 +148,21 @@ func load_settings() -> void:
 		hear_myself = bool(config.get_value("audio", "hear_myself", hear_myself))
 	elif config.has_section_key("audio", "mic_test_monitor"):
 		hear_myself = bool(config.get_value("audio", "mic_test_monitor", hear_myself))
+	crosshair_color = config.get_value("crosshair", "color", crosshair_color)
+	crosshair_opacity = clampf(
+		float(config.get_value("crosshair", "opacity", crosshair_opacity)),
+		0.0,
+		1.0
+	)
+	crosshair_thickness = clampf(
+		float(config.get_value("crosshair", "thickness", crosshair_thickness)),
+		0.5,
+		5.0
+	)
+	crosshair_show_outer = bool(
+		config.get_value("crosshair", "show_outer", crosshair_show_outer)
+	)
+	crosshair_show_dot = bool(config.get_value("crosshair", "show_dot", crosshair_show_dot))
 	dev_solo_role = int(config.get_value("dev", "dev_solo_role", dev_solo_role))
 	voice_use_stub = config.get_value("dev", "voice_use_stub", voice_use_stub)
 	dev_spawn_relic_near_spawn = config.get_value(
@@ -168,6 +188,11 @@ func save_settings() -> void:
 	config.set_value("audio", "output_device", output_device)
 	config.set_value("audio", "lobby_voice_default", lobby_voice_default)
 	config.set_value("audio", "hear_myself", hear_myself)
+	config.set_value("crosshair", "color", crosshair_color)
+	config.set_value("crosshair", "opacity", crosshair_opacity)
+	config.set_value("crosshair", "thickness", crosshair_thickness)
+	config.set_value("crosshair", "show_outer", crosshair_show_outer)
+	config.set_value("crosshair", "show_dot", crosshair_show_dot)
 	config.set_value("dev", "dev_solo_role", dev_solo_role)
 	config.set_value("dev", "voice_use_stub", voice_use_stub)
 	config.set_value("dev", "dev_spawn_relic_near_spawn", dev_spawn_relic_near_spawn)

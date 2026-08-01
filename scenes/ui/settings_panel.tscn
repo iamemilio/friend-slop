@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://csettingspanel001"]
+[gd_scene load_steps=7 format=3 uid="uid://csettingspanel001"]
 
 [ext_resource type="Script" path="res://scripts/ui/settings_panel.gd" id="1_settings"]
 [ext_resource type="Script" path="res://scripts/ui/player_voice_list.gd" id="2_player_voice"]
 [ext_resource type="Script" path="res://scripts/ui/menu_toggle_switch.gd" id="3_toggle"]
+[ext_resource type="Script" path="res://scripts/ui/aim_cursor.gd" id="4_aim"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
 bg_color = Color(0.12, 0.09, 0.18, 0.96)
@@ -15,6 +16,18 @@ corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_crosshair_preview"]
+bg_color = Color(0.06, 0.05, 0.09, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.35, 0.4, 0.5, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="SettingsPanel" type="Control"]
 visible = false
@@ -86,30 +99,141 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 8
 theme_override_constants/margin_bottom = 8
 
-[node name="GeneralVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer"]
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer"]
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GeneralVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 14
 
-[node name="DisplayHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+[node name="DisplayHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Display"
 
-[node name="ResolutionLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+[node name="ResolutionLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
 text = "Resolution"
 
-[node name="ResolutionOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+[node name="ResolutionOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
 custom_minimum_size = Vector2(0, 36)
 layout_mode = 2
 
-[node name="ResolutionHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/GeneralVBox"]
+[node name="ResolutionHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
 theme_override_font_sizes/font_size = 13
 autowrap_mode = 2
 text = "Changes the game window size. Drag the window edges to resize manually. Fullscreen is exited automatically when applying a preset."
+
+[node name="CrosshairSectionSeparator" type="HSeparator" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+
+[node name="CrosshairHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Crosshair"
+
+[node name="CrosshairPreviewFrame" type="PanelContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_crosshair_preview")
+
+[node name="CrosshairPreview" type="Control" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairPreviewFrame"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+mouse_filter = 2
+script = ExtResource("4_aim")
+fill_parent = false
+
+[node name="CrosshairOpacityRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrosshairOpacityCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairOpacityRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Opacity"
+
+[node name="CrosshairOpacitySlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairOpacityRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="CrosshairOpacityLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairOpacityRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+text = "92%"
+horizontal_alignment = 2
+
+[node name="CrosshairThicknessRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrosshairThicknessCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairThicknessRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Thickness"
+
+[node name="CrosshairThicknessSlider" type="HSlider" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairThicknessRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+
+[node name="CrosshairThicknessLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairThicknessRow"]
+custom_minimum_size = Vector2(48, 0)
+layout_mode = 2
+text = "1.8"
+horizontal_alignment = 2
+
+[node name="CrosshairColorRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrosshairColorCaption" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairColorRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "Color"
+
+[node name="CrosshairColorPicker" type="ColorPickerButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairColorRow"]
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+edit_alpha = false
+text = "Pick"
+
+[node name="CrosshairOuterRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrosshairOuterLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairOuterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Outer circle"
+
+[node name="CrosshairOuterSwitch" type="CheckButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairOuterRow"]
+layout_mode = 2
+button_pressed = true
+script = ExtResource("3_toggle")
+
+[node name="CrosshairDotRow" type="HBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrosshairDotLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairDotRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Center dot"
+
+[node name="CrosshairDotSwitch" type="CheckButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox/CrosshairDotRow"]
+layout_mode = 2
+button_pressed = true
+script = ExtResource("3_toggle")
 
 [node name="Audio" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
 layout_mode = 2

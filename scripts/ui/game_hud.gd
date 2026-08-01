@@ -17,6 +17,7 @@ var _guide_open := false
 var _objective_lines: PackedStringArray = PackedStringArray()
 
 @onready var guide_panel: GuidePanel = $GuidePanel
+@onready var aim_cursor: Control = $AimCursor
 
 @onready var prompt_label: Label = $MarginContainer/PromptLabel
 @onready var casting_panel: PanelContainer = $CastingPanel
@@ -40,6 +41,7 @@ func _ready() -> void:
 	mic_level_bar.value = 0.0
 	guide_panel.spell_selected.connect(_on_codex_spell_selected)
 	_setup_active_strip()
+	_update_aim_cursor_visibility()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -372,7 +374,15 @@ func _on_spell_learned(spell_id: String) -> void:
 
 
 func _process(_delta: float) -> void:
+	_update_aim_cursor_visibility()
 	_update_active_strip()
+
+
+func _update_aim_cursor_visibility() -> void:
+	if aim_cursor == null:
+		return
+	# Matches FPS aim: captured mouse uses the screen-center crosshair.
+	aim_cursor.visible = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 
 
 func _refresh_guide_content() -> void:

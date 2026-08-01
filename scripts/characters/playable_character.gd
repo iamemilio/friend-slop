@@ -9,6 +9,7 @@ const JUMP_VELOCITY := 2.5
 const MOUSE_SENSITIVITY := 0.002
 const INTERACT_RANGE_SQ := 9.0
 const PLAYER_MIN_SEPARATION := 0.55
+const AIM_RAY_LENGTH := 200.0
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const GameWorldScript := preload("res://scripts/game_world.gd")
@@ -213,13 +214,22 @@ func get_wand_cast_origin() -> Vector3:
 
 
 func get_wand_cast_direction() -> Vector3:
-	if _wand != null:
-		return _wand.get_cast_direction()
-	return _camera_aim_direction()
+	## Wand pose is cosmetic; spells aim through the crosshair / camera look.
+	return _aim_direction_from_origin(get_wand_cast_origin())
 
 
 func get_view_camera() -> Camera3D:
 	return _view_camera
+
+
+func get_view_direction() -> Vector3:
+	return _camera_aim_direction()
+
+
+func get_view_origin() -> Vector3:
+	if _view_camera != null:
+		return _view_camera.global_position
+	return head.global_position
 
 
 func _camera_aim_direction() -> Vector3:
@@ -228,6 +238,29 @@ func _camera_aim_direction() -> Vector3:
 
 func _head_aim_origin() -> Vector3:
 	return head.global_position + _camera_aim_direction() * 0.6 + Vector3(0.0, 0.1, 0.0)
+
+
+func _aim_direction_from_origin(origin: Vector3) -> Vector3:
+	var to_aim := _crosshair_world_point() - origin
+	if to_aim.length_squared() < 0.0001:
+		return _camera_aim_direction()
+	return to_aim.normalized()
+
+
+func _crosshair_world_point() -> Vector3:
+	var look := _camera_aim_direction()
+	var cam_origin := get_view_origin()
+	var far_point := cam_origin + look * AIM_RAY_LENGTH
+	var world_3d := get_world_3d()
+	if world_3d == null or world_3d.direct_space_state == null:
+		return far_point
+	var ray := PhysicsRayQueryParameters3D.create(cam_origin, far_point)
+	ray.collide_with_areas = false
+	ray.exclude = [get_rid()]
+	var hit := world_3d.direct_space_state.intersect_ray(ray)
+	if hit.is_empty():
+		return far_point
+	return hit.position
 
 
 func _aim_fireball_direction() -> Vector3:
