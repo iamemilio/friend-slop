@@ -15,7 +15,7 @@
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
-[ext_resource type="Script" path="res://scripts/spells/spell_validation_runner.gd" id="11_runner"]
+[ext_resource type="Script" uid="uid://cgo2lkhlxtcky" path="res://scripts/spells/spell_validation_runner.gd" id="11_runner"]
 [ext_resource type="PackedScene" uid="uid://cpausemenu001" path="res://scenes/ui/pause_menu.tscn" id="14_pause"]
 [ext_resource type="Resource" path="res://resources/spells/fireball.tres" id="15_fireball"]
 [ext_resource type="Resource" path="res://resources/spells/warden/warden_stalk.tres" id="16_stalk"]
@@ -30,10 +30,10 @@
 [ext_resource type="Resource" path="res://resources/spells/light.tres" id="25_light"]
 [ext_resource type="Resource" path="res://resources/spells/light_ball.tres" id="26_light_ball"]
 [ext_resource type="Resource" path="res://resources/spells/target.tres" id="27_target"]
+[ext_resource type="Script" uid="uid://cjpjlfd2a3wsx" path="res://scripts/player_spawn_slot.gd" id="28_spawn_slot"]
 [ext_resource type="Resource" path="res://resources/spells/pull.tres" id="29_pull"]
 [ext_resource type="Resource" path="res://resources/spells/follow.tres" id="30_follow"]
 [ext_resource type="Resource" path="res://resources/spells/stop.tres" id="31_stop"]
-[ext_resource type="Script" uid="uid://cjpjlfd2a3wsx" path="res://scripts/player_spawn_slot.gd" id="28_spawn_slot"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -56,7 +56,7 @@ show_light_arrow = false
 [node name="CloudSystem" type="Node3D" parent="." unique_id=1526258183]
 script = ExtResource("2_clouds")
 spawn_size = Vector3(1500, 40, 1500)
-sky_coverage = 0.14
+sky_coverage = 0.09
 wind_speed = 1.0
 wind_direction = 40.0
 
@@ -79,7 +79,7 @@ spells = Array[ExtResource("6_eb6dy")]([ExtResource("7_show_me"), ExtResource("8
 [node name="VoiceSpellValidator" type="Node" parent="." unique_id=1384260685]
 script = ExtResource("10_validator")
 
-[node name="SpellValidationRunner" type="Node" parent="VoiceSpellValidator"]
+[node name="SpellValidationRunner" type="Node" parent="VoiceSpellValidator" unique_id=1629603056]
 script = ExtResource("11_runner")
 
 [node name="DeliveryObjective" type="Node3D" parent="." unique_id=747476849]
@@ -98,6 +98,7 @@ spawn_cell = Vector2i(22, 22)
 [node name="ApprenticeSpawn_0" type="Marker3D" parent="Players" unique_id=45769250]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.5, 0.5, -133.5)
 script = ExtResource("28_spawn_slot")
+auto_place = false
 
 [node name="ApprenticeSpawn_1" type="Marker3D" parent="Players" unique_id=142476161]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 130.5, 0.5, -133.5)

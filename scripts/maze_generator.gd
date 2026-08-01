@@ -50,7 +50,12 @@ var _exit_world_pos: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
+		## Prefer Match.editor_refresh_environment_preview (maze + moon/clouds).
 		_notify_main_editor_preview()
+		## Fallback: if Match orchestration did not build geometry (common when
+		## match.tscn is the edited root and a deferred rebuild is skipped),
+		## generate locally so the viewport is never an empty grid.
+		call_deferred("_editor_ensure_maze_geometry")
 		return
 	call_deferred("_deferred_generate")
 
@@ -65,6 +70,15 @@ func _notify_main_editor_preview() -> void:
 	var main := get_parent()
 	if main != null and main.has_method("editor_refresh_environment_preview"):
 		main.editor_refresh_environment_preview()
+
+
+func _editor_ensure_maze_geometry() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	## Match preview already populated Floor/Walls.
+	if get_node_or_null("Floor") != null:
+		return
+	generate_maze(4242)
 
 
 func _deferred_generate() -> void:

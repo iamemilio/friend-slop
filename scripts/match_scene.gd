@@ -78,6 +78,9 @@ func editor_refresh_environment_preview() -> void:
 	# Rebuild using the same generate_maze / configure_for_maze path as a real match.
 	if not Engine.is_editor_hint():
 		return
+	## Allow re-entry after a completed rebuild (opening match.tscn as root can
+	## queue notify-from-child + Match._ready; the second call used to no-op forever
+	## if the first deferred build had not cleared the flag yet).
 	if _editor_rebuild_queued:
 		return
 	_editor_rebuild_queued = true
@@ -90,6 +93,7 @@ func _editor_build_match_world() -> void:
 		return
 	var maze_node := get_node_or_null("MazeGenerator")
 	if maze_node == null or not maze_node.has_method("generate_maze"):
+		push_warning("Match: editor preview skipped — MazeGenerator missing")
 		return
 	if not maze_node.maze_ready.is_connected(_on_editor_maze_ready):
 		maze_node.maze_ready.connect(_on_editor_maze_ready)
