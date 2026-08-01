@@ -1,20 +1,16 @@
 [gd_scene format=3 uid="uid://bplayerwand1"]
 
-[ext_resource type="Script" path="res://scripts/player/player_wand.gd" id="1_wand"]
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
-top_radius = 0.008
-bottom_radius = 0.008
-height = 0.28
+[ext_resource type="Script" uid="uid://co3lwxyvgag6i" path="res://scripts/player/player_wand.gd" id="1_wand"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shaft"]
 albedo_color = Color(0.18, 0.12, 0.1, 1)
 metallic = 0.35
 roughness = 0.55
 
-[sub_resource type="SphereMesh" id="SphereMesh_tip"]
-radius = 0.012
-height = 0.024
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.008
+bottom_radius = 0.008
+height = 0.28
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tip"]
 albedo_color = Color(0.85, 0.88, 0.95, 1)
@@ -24,27 +20,31 @@ emission_enabled = true
 emission = Color(1, 1, 1, 1)
 emission_energy_multiplier = 0.0
 
-[node name="Wand" type="Node3D"]
+[sub_resource type="SphereMesh" id="SphereMesh_tip"]
+radius = 0.012
+height = 0.024
+
+[node name="Wand" type="Node3D" unique_id=463812716]
 script = ExtResource("1_wand")
 
-[node name="Model" type="Node3D" parent="."]
+[node name="Model" type="Node3D" parent="." unique_id=100243204]
 transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
 
-[node name="Shaft" type="MeshInstance3D" parent="Model"]
+[node name="Shaft" type="MeshInstance3D" parent="Model" unique_id=968697797]
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.14)
-mesh = SubResource("CylinderMesh_shaft")
 material_override = SubResource("StandardMaterial3D_shaft")
+mesh = SubResource("CylinderMesh_shaft")
 
-[node name="Tip" type="MeshInstance3D" parent="Model"]
+[node name="Tip" type="MeshInstance3D" parent="Model" unique_id=1597332967]
+transform = Transform3D(0.65, 0, 0, 0, 0.65, 0, 0, 0, 0.65, 0, 0, -0.28076172)
 visible = false
-transform = Transform3D(0.82, 0, 0, 0, 0.82, 0, 0, 0, 0.82, 0, 0, -0.28)
-mesh = SubResource("SphereMesh_tip")
 material_override = SubResource("StandardMaterial3D_tip")
+mesh = SubResource("SphereMesh_tip")
 
-[node name="CastOrigin" type="Marker3D" parent="Model"]
+[node name="CastOrigin" type="Marker3D" parent="Model" unique_id=2091642123]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.305)
 
-[node name="FlashlightBeam" type="SpotLight3D" parent="Model/CastOrigin"]
+[node name="FlashlightBeam" type="SpotLight3D" parent="Model/CastOrigin" unique_id=1794838673]
 visible = false
 light_color = Color(1, 0.86, 0.56, 1)
 light_energy = 0.0
