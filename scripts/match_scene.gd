@@ -252,7 +252,11 @@ func _apply_role_starting_spells(loadout: Node) -> void:
 	if GameState.is_multiplayer:
 		peer_id = multiplayer.get_unique_id()
 	var config := GameState.get_character_config_for_peer(peer_id)
-	for spell_id in config.get_starting_spell_ids():
+	var starting_ids: Array[String] = config.get_starting_spell_ids()
+	if loadout.has_method("apply_starting_spells"):
+		loadout.apply_starting_spells(starting_ids)
+		return
+	for spell_id in starting_ids:
 		loadout.learn_spell(spell_id, "starting")
 
 

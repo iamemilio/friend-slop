@@ -47,11 +47,17 @@ func _test_dict_round_trip() -> int:
 func _test_warden_starting_spells() -> int:
 	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.WARDEN)
 	var spell_ids := config.get_starting_spell_ids()
-	if spell_ids.size() != 9:
-		push_error("Expected warden config to expose nine starting spells")
-		return 1
-	if not spell_ids.has("warden_forge"):
-		push_error("Expected warden loadout to include warden_forge")
+	var expected_size := (
+		RoleLoadoutScript.APPRENTICE_STARTER_SPELLS.size()
+		+ RoleLoadoutScript.WARDEN_STARTER_SPELLS.size()
+	)
+	var missing := (
+		spell_ids.size() != expected_size
+		or not spell_ids.has("warden_forge")
+		or not spell_ids.has("show_me")
+	)
+	if missing:
+		push_error("Expected warden config to expose union of starter spells")
 		return 1
 	return 0
 
@@ -59,7 +65,7 @@ func _test_warden_starting_spells() -> int:
 func _test_apprentice_starting_spells() -> int:
 	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.APPRENTICE)
 	var spell_ids := config.get_starting_spell_ids()
-	if spell_ids.size() != RoleLoadoutScript.APPRENTICE_SPELLS.size():
+	if spell_ids.size() != RoleLoadoutScript.APPRENTICE_STARTER_SPELLS.size():
 		push_error("Expected apprentice config to expose all apprentice starting spells")
 		return 1
 	if not spell_ids.has("fireball") or not spell_ids.has("light"):

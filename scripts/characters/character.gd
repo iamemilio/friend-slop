@@ -3,16 +3,10 @@ extends CharacterBody3D
 
 ## 3D character shell: body/head meshes, collision, and tint.
 ## Inherited by PlayableCharacter (and then Apprentice / Warden).
+## CollisionShape3D is authored per character scene (Apprentice / Warden) — not rebuilt here.
 
 ## Body/head render layer — wand lights use a world-only mask and skip this layer.
 const PLAYER_SELF_VISUAL_LAYER := WorldVisualLayers.PLAYER_SELF
-
-const BODY_RADIUS := 0.20
-const HEAD_RADIUS := 0.16
-const BODY_CENTER_Y := BODY_RADIUS
-const HEAD_CENTER_Y := BODY_RADIUS * 2.0 + HEAD_RADIUS
-const COLLISION_WALL_PADDING := 0.08
-const BODY_COLLISION_RADIUS := BODY_RADIUS + COLLISION_WALL_PADDING
 
 var _character_color: Color = Color.WHITE
 
@@ -20,17 +14,6 @@ var _character_color: Color = Color.WHITE
 @onready var _body_mesh: MeshInstance3D = %Body
 @onready var _head_mesh: MeshInstance3D = %HeadMesh
 @onready var _body_collision: CollisionShape3D = %CollisionShape3D
-
-
-func _configure_collision() -> void:
-	var body_capsule := CapsuleShape3D.new()
-	body_capsule.radius = BODY_COLLISION_RADIUS
-	var bottom_y := BODY_CENTER_Y - BODY_RADIUS
-	var top_y := HEAD_CENTER_Y + HEAD_RADIUS
-	var total_height := top_y - bottom_y
-	body_capsule.height = maxf(0.08, total_height - body_capsule.radius * 2.0)
-	_body_collision.shape = body_capsule
-	_body_collision.position.y = bottom_y + body_capsule.radius + body_capsule.height * 0.5
 
 
 func _apply_character_color(color: Color) -> void:

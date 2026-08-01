@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://bplayable001"]
+[gd_scene load_steps=8 format=3 uid="uid://bplayable001"]
 
 [ext_resource type="PackedScene" uid="uid://bcharacter01" path="res://scenes/characters/character.tscn" id="1_character"]
 [ext_resource type="Script" path="res://scripts/characters/playable_character.gd" id="2_playable"]
 [ext_resource type="Script" path="res://scripts/spells/character_spell_loadout.gd" id="3_loadout"]
 [ext_resource type="Script" path="res://scripts/spells/spell_casting_session.gd" id="4_session"]
 [ext_resource type="Script" path="res://scripts/spells/spell_effect_applier.gd" id="5_effects"]
+[ext_resource type="PackedScene" uid="uid://bplayerwand1" path="res://scenes/characters/player_wand.tscn" id="6_wand"]
 
 [sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_playable"]
 properties/0/path = NodePath(".:position")
@@ -18,7 +19,7 @@ properties/2/spawn = true
 properties/2/replication_mode = 1
 
 [node name="PlayableCharacter" instance=ExtResource("1_character")]
-editor_description = "PlayableCharacter = Character + camera, spells, sync. Open THIS scene to edit playable systems in the Inspector."
+editor_description = "PlayableCharacter = Character + camera, shared wand, spells, sync. Edit wand pose here so Apprentice and Warden both inherit it."
 script = ExtResource("2_playable")
 
 [node name="CameraPivot" type="Node3D" parent="Head" index="1"]
@@ -27,6 +28,9 @@ unique_name_in_owner = true
 [node name="FirstPersonCamera" type="Camera3D" parent="Head/CameraPivot"]
 unique_name_in_owner = true
 fov = 75.0
+
+[node name="Wand" parent="Head/CameraPivot" instance=ExtResource("6_wand")]
+transform = Transform3D(1, 0, 0, 0, 0.9715491, -0.23683814, 0, 0.23683814, 0.9715491, 0.15, -0.2, -0.16)
 
 [node name="CharacterSpellLoadout" type="Node" parent="." index="3"]
 unique_name_in_owner = true
@@ -44,3 +48,5 @@ script = ExtResource("5_effects")
 root_path = NodePath("..")
 public_visibility = false
 replication_config = SubResource("SceneReplicationConfig_playable")
+
+[editable path="Head/CameraPivot/Wand"]

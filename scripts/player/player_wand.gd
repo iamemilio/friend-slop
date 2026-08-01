@@ -14,8 +14,8 @@ const LISTEN_LEVEL_REFERENCE := 0.08
 const LISTEN_PEAK_DECAY := 0.68
 const LISTEN_VISUAL_CURVE := 0.62
 const SHAFT_LENGTH := 0.28
-const SHAFT_TOP_RADIUS := 0.007
-const SHAFT_BOTTOM_RADIUS := 0.010
+const SHAFT_TOP_RADIUS := 0.008
+const SHAFT_BOTTOM_RADIUS := 0.008
 const TIP_RADIUS := 0.012
 ## Spill-tuned cone: same warmth/brightness as the old omni spill, shaped forward from the tip.
 const FLASHLIGHT_ENERGY := 3.0
@@ -42,7 +42,10 @@ var _listen_peak: float = 0.0
 
 
 func _ready() -> void:
-	if has_node("Shaft") and has_node("Tip") and has_node("CastOrigin"):
+	if (
+		has_node("Model/Shaft")
+		or (has_node("Shaft") and has_node("Tip") and has_node("CastOrigin"))
+	):
 		_bind_existing_meshes()
 	else:
 		_build_wand_meshes()
@@ -51,9 +54,13 @@ func _ready() -> void:
 
 
 func _bind_existing_meshes() -> void:
-	_shaft_mesh = get_node("Shaft") as MeshInstance3D
-	_tip_mesh = get_node("Tip") as MeshInstance3D
-	_cast_origin = get_node("CastOrigin") as Marker3D
+	var model := get_node_or_null("Model")
+	var shaft_path := "Model/Shaft" if model != null else "Shaft"
+	var tip_path := "Model/Tip" if model != null else "Tip"
+	var origin_path := "Model/CastOrigin" if model != null else "CastOrigin"
+	_shaft_mesh = get_node(shaft_path) as MeshInstance3D
+	_tip_mesh = get_node(tip_path) as MeshInstance3D
+	_cast_origin = get_node(origin_path) as Marker3D
 	_flashlight_light = _cast_origin.get_node_or_null("FlashlightBeam") as SpotLight3D
 	if _flashlight_light != null:
 		_configure_flashlight_light(_flashlight_light)
@@ -214,14 +221,18 @@ func _refresh_tip_light() -> void:
 		var visual := _listen_visual_strength(_listen_level)
 		var emission := TIP_EMISSION_ARMED + visual * TIP_EMISSION_LISTEN_MAX
 		_apply_tip_visual(visual, emission)
+		_set_tip_visible(true)
 		return
 	if _flame_glow_active:
 		_apply_flame_glow_visual()
+		_set_tip_visible(true)
 		return
 	if _flashlight_active:
 		_apply_flashlight_tip_visual()
+		_set_tip_visible(true)
 		return
 	_apply_tip_visual(0.0, 0.0)
+	_set_tip_visible(false)
 
 
 static func _listen_visual_strength(listen_level: float) -> float:
@@ -229,27 +240,34 @@ static func _listen_visual_strength(listen_level: float) -> float:
 
 
 func _apply_tip_visual(visual: float, emission: float) -> void:
+	if _tip_mesh == null:
+		return
 	if _tip_mesh.material_override is StandardMaterial3D:
 		var mat: StandardMaterial3D = _tip_mesh.material_override
-		var dim := Color(0.72, 0.76, 0.88)
+		## Dim when armed / quiet; brighten with voice volume.
+		var dim := Color(0.55, 0.62, 0.78)
 		var bright := Color(1.0, 0.98, 0.92)
 		mat.albedo_color = dim.lerp(bright, visual)
-		var glow := Color(0.82, 0.88, 1.0).lerp(Color(1.0, 0.94, 0.78), visual)
+		var glow := Color(0.72, 0.82, 1.0).lerp(Color(1.0, 0.94, 0.78), visual)
 		mat.emission = glow
 		mat.emission_energy_multiplier = emission
 	_tip_mesh.scale = Vector3.ONE * (1.0 + visual * TIP_SCALE_LISTEN_BOOST)
 
 
 func _apply_flashlight_tip_visual() -> void:
+	if _tip_mesh == null:
+		return
 	if _tip_mesh.material_override is StandardMaterial3D:
 		var mat: StandardMaterial3D = _tip_mesh.material_override
-		mat.albedo_color = Color(0.85, 0.88, 0.95)
+		mat.albedo_color = FLASHLIGHT_COLOR.lightened(0.15)
 		mat.emission = FLASHLIGHT_COLOR
 		mat.emission_energy_multiplier = FLASHLIGHT_TIP_EMISSION
 	_tip_mesh.scale = Vector3.ONE
 
 
 func _apply_flame_glow_visual() -> void:
+	if _tip_mesh == null:
+		return
 	if _tip_mesh.material_override is StandardMaterial3D:
 		var mat: StandardMaterial3D = _tip_mesh.material_override
 		mat.albedo_color = FLAME_GLOW_COLOR.lightened(0.12)
@@ -259,6 +277,7 @@ func _apply_flame_glow_visual() -> void:
 
 
 func _pulse_tip(color: Color, duration: float) -> void:
+	_set_tip_visible(true)
 	_set_tip_emission(color, 2.0)
 	var tween := create_tween()
 	tween.tween_method(
@@ -269,6 +288,11 @@ func _pulse_tip(color: Color, duration: float) -> void:
 		duration
 	)
 	tween.tween_callback(_refresh_tip_light)
+
+
+func _set_tip_visible(visible: bool) -> void:
+	if _tip_mesh != null:
+		_tip_mesh.visible = visible
 
 
 func _emit_burst(particles: CPUParticles3D, color: Color) -> void:
@@ -304,6 +328,11 @@ func _set_tip_emission(color: Color, energy: float) -> void:
 
 
 func _tip_local_position() -> Vector3:
+	if _cast_origin != null and is_instance_valid(_cast_origin):
+		return to_local(_cast_origin.global_position)
+	var model := get_node_or_null("Model") as Node3D
+	if model != null:
+		return model.transform * Vector3(0.0, 0.0, -SHAFT_LENGTH)
 	return Vector3(0.0, 0.0, -SHAFT_LENGTH)
 
 

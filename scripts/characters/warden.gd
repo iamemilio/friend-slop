@@ -1,23 +1,14 @@
 class_name Warden
 extends PlayableCharacter
 
-## Maze Warden — larger silhouette, no wand; voice and spells use head aim.
+## Maze Warden — larger silhouette with shared playable wand.
 
 const WARDEN_BODY_SCALE := 1.18
-const WARDEN_COLLISION_SCALE := 1.12
 
 
 func _ready() -> void:
 	scale = Vector3.ONE * WARDEN_BODY_SCALE
 	super._ready()
-
-
-func _configure_collision() -> void:
-	super._configure_collision()
-	var shape := _body_collision.shape as CapsuleShape3D
-	if shape != null:
-		shape.radius *= WARDEN_COLLISION_SCALE
-		shape.height *= WARDEN_COLLISION_SCALE
 
 
 func _apply_character_color(color: Color) -> void:

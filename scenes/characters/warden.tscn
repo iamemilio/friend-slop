@@ -1,7 +1,11 @@
-[gd_scene load_steps=5 format=3 uid="uid://bwarden001"]
+[gd_scene format=3 uid="uid://bwarden001"]
 
 [ext_resource type="PackedScene" uid="uid://bplayable001" path="res://scenes/characters/playable_character.tscn" id="1_base"]
-[ext_resource type="Script" path="res://scripts/characters/warden.gd" id="2_warden"]
+[ext_resource type="Script" uid="uid://bkiwi53jjvbur" path="res://scripts/characters/warden.gd" id="2_warden"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_warden"]
+radius = 0.27441406
+height = 0.8107129
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
 albedo_color = Color(0.55, 0.2, 0.7, 1)
@@ -13,16 +17,27 @@ albedo_color = Color(0.62, 0.28, 0.78, 1)
 metallic = 0.05
 roughness = 0.62
 
-[node name="Warden" instance=ExtResource("1_base")]
-editor_description = "Open THIS scene to edit Warden in the Inspector (Body / Head). EditorStudio lights the viewport when this scene is open. Workspaces and main only show instances (Inspector mostly locked)."
+[node name="Warden" unique_id=1493913747 instance=ExtResource("1_base")]
+editor_description = "Edit Warden Body / Head / CollisionShape3D here. Note root scale 1.18 also enlarges collision in-world."
 script = ExtResource("2_warden")
+player_index = 0
+gravity = null
 
-[node name="Body" parent="." index="1"]
+[node name="CollisionShape3D" parent="." index="0" unique_id=294740946]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39127442, 0)
+shape = SubResource("CapsuleShape3D_warden")
+
+[node name="Body" parent="." index="1" unique_id=73058391]
 transform = Transform3D(1.08, 0, 0, 0, 1.08, 0, 0, 0, 1.08, 0, 0.2, 0)
 surface_material_override/0 = SubResource("StandardMaterial3D_body")
 
-[node name="Head" parent="." index="2"]
+[node name="Head" parent="." index="2" unique_id=1186111743]
 transform = Transform3D(1.05, 0, 0, 0, 1.05, 0, 0, 0, 1.05, 0, 0.62, 0)
 
-[node name="HeadMesh" parent="Head" index="0"]
+[node name="HeadMesh" parent="Head" index="0" unique_id=1294118041]
 surface_material_override/0 = SubResource("StandardMaterial3D_head")
+
+[node name="Wand" parent="Head/CameraPivot" index="1"]
+transform = Transform3D(0.9999997, 0, 0, 0, 0.8589598, -0.5120428, 0, 0.5120428, 0.8589598, 0.16287427, -0.22496113, -0.14379837)
+
+[editable path="Head/CameraPivot/Wand"]

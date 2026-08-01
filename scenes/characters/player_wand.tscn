@@ -3,8 +3,8 @@
 [ext_resource type="Script" path="res://scripts/player/player_wand.gd" id="1_wand"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
-top_radius = 0.007
-bottom_radius = 0.01
+top_radius = 0.008
+bottom_radius = 0.008
 height = 0.28
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_shaft"]
@@ -27,20 +27,24 @@ emission_energy_multiplier = 0.0
 [node name="Wand" type="Node3D"]
 script = ExtResource("1_wand")
 
-[node name="Shaft" type="MeshInstance3D" parent="."]
+[node name="Model" type="Node3D" parent="."]
+transform = Transform3D(0.5, 0, 0, 0, 0.5, 0, 0, 0, 0.5, 0, 0, 0)
+
+[node name="Shaft" type="MeshInstance3D" parent="Model"]
 transform = Transform3D(1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, -0.14)
 mesh = SubResource("CylinderMesh_shaft")
 material_override = SubResource("StandardMaterial3D_shaft")
 
-[node name="Tip" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.28)
+[node name="Tip" type="MeshInstance3D" parent="Model"]
+visible = false
+transform = Transform3D(0.82, 0, 0, 0, 0.82, 0, 0, 0, 0.82, 0, 0, -0.28)
 mesh = SubResource("SphereMesh_tip")
 material_override = SubResource("StandardMaterial3D_tip")
 
-[node name="CastOrigin" type="Marker3D" parent="."]
+[node name="CastOrigin" type="Marker3D" parent="Model"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.305)
 
-[node name="FlashlightBeam" type="SpotLight3D" parent="CastOrigin"]
+[node name="FlashlightBeam" type="SpotLight3D" parent="Model/CastOrigin"]
 visible = false
 light_color = Color(1, 0.86, 0.56, 1)
 light_energy = 0.0

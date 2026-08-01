@@ -1,7 +1,7 @@
 class_name PlayableCharacter
 extends Character
 
-## Playable character: movement, camera, spells, and optional wand/trail in derived scenes.
+## Playable character: movement, camera, shared wand, spells, and optional trail in derived scenes.
 
 const WALK_SPEED := 3.0
 const SPRINT_SPEED := 5.0
@@ -49,7 +49,6 @@ func _ready() -> void:
 	_wand = get_node_or_null("Head/CameraPivot/Wand") as PlayerWand
 	if _wand == null:
 		_wand = get_node_or_null("Head/CameraPivot/FirstPersonCamera/Wand") as PlayerWand
-	_configure_collision()
 	_character_color = GameState.get_snail_color(player_index)
 	_apply_character_color(_character_color)
 	_setup_view_camera()
