@@ -10,7 +10,7 @@ func run() -> int:
 	failures += _test_two_players_are_separated()
 	failures += _test_three_players_use_distinct_positions()
 	failures += _test_open_spawn_cells_skip_walled_centers()
-	failures += _test_warden_spawns_near_center()
+	failures += _test_headmaster_spawns_near_center()
 	failures += _test_apprentices_use_distinct_corners()
 	return failures
 
@@ -28,15 +28,15 @@ func _test_single_player_uses_spawn_center() -> int:
 	if positions.size() != 1:
 		push_error("Expected one spawn position for solo player")
 		return 1
-	# First roster cell is warden center for compute_positions index 0.
-	var center_cell := PlayerSpawnLayoutScript.resolve_warden_cell(wall_grid, 5, 5)
+	# First roster cell is headmaster center for compute_positions index 0.
+	var center_cell := PlayerSpawnLayoutScript.resolve_headmaster_cell(wall_grid, 5, 5)
 	var expected := Vector3(
 		float(center_cell.x) * 3.0,
 		PlayerSpawnLayoutScript.PLAYER_Y,
 		float(center_cell.y) * 3.0
 	)
 	if positions[0] != expected:
-		push_error("Expected solo compute_positions[0] at warden center cell")
+		push_error("Expected solo compute_positions[0] at headmaster center cell")
 		return 1
 	return 0
 
@@ -101,11 +101,11 @@ func _test_open_spawn_cells_skip_walled_centers() -> int:
 	return 0
 
 
-func _test_warden_spawns_near_center() -> int:
+func _test_headmaster_spawns_near_center() -> int:
 	var wall_grid := _fully_open_corridors(9, 9)
-	var cell := PlayerSpawnLayoutScript.resolve_warden_cell(wall_grid, 9, 9)
+	var cell := PlayerSpawnLayoutScript.resolve_headmaster_cell(wall_grid, 9, 9)
 	if cell != Vector2i(4, 4):
-		push_error("Warden should resolve to maze center cell on an open grid")
+		push_error("Headmaster should resolve to maze center cell on an open grid")
 		return 1
 	return 0
 
@@ -127,10 +127,10 @@ func _test_apprentices_use_distinct_corners() -> int:
 		9
 	)
 	if roster.size() != 4:
-		push_error("Roster should include warden + 3 apprentices")
+		push_error("Roster should include headmaster + 3 apprentices")
 		return 1
 	if roster[0] != Vector2i(4, 4):
-		push_error("Roster[0] should be warden center")
+		push_error("Roster[0] should be headmaster center")
 		return 1
 	return 0
 

@@ -2,12 +2,18 @@ class_name SpellEffectSync
 extends RefCounted
 
 ## Generic spell effect params for solo play and multiplayer RPC payloads.
+## Persistence model: see SpellSyncLane (player_bound / ephemeral / world_object /
+## targeted). Ephemeral spawns use SpellEphemeralFx; lasting props use SpellWorldSync.
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
 const GameWorldScript := preload("res://scripts/game_world.gd")
+const SpellWorldSyncScript := preload("res://scripts/spells/spell_world_sync.gd")
+const SpellEphemeralFxScript := preload("res://scripts/spells/spell_ephemeral_fx.gd")
+const SpellSyncLaneScript := preload("res://scripts/spells/spell_sync_lane.gd")
+const FakeWallScript := preload("res://scripts/headmaster/fake_wall.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
@@ -25,7 +31,13 @@ const EFFECT_LIGHT_BALL := "light_ball"
 const EFFECT_TARGET := "target"
 const EFFECT_PULL := "pull"
 const EFFECT_FOLLOW := "follow"
-const EFFECT_STOP := "stop"
+const EFFECT_DISPELL := "dispell"
+const EFFECT_FAKE_WALL := "fake_wall"
+
+const KEY_GRID_X := "grid_x"
+const KEY_GRID_Y := "grid_y"
+const KEY_SIZE := "size"
+const KEY_SPAWN_ID := "spawn_id"
 
 const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
@@ -53,7 +65,9 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 		EFFECT_TARGET:
 			# Highlight fades itself — no right-side active-timer chrome.
 			return 0.0
-		EFFECT_PULL, EFFECT_FOLLOW, EFFECT_STOP:
+		EFFECT_PULL, EFFECT_FOLLOW, EFFECT_DISPELL:
+			return 0.0
+		EFFECT_FAKE_WALL:
 			return 0.0
 		_:
 			return 0.0
@@ -76,6 +90,7 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			params[KEY_ORIGIN] = _light_ball_origin(player)
 			params[KEY_WAND_ORIGIN] = _fireball_origin(player)
 			params[KEY_DURATION] = DEFAULT_LIGHT_BALL_DURATION
+			params[KEY_SPAWN_ID] = SpellWorldSyncScript.make_spawn_id(player)
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
 		EFFECT_TARGET:
@@ -85,8 +100,13 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			_append_looked_at_target(params, player, true)
 		EFFECT_FOLLOW:
 			_append_looked_at_target(params, player, false)
-		EFFECT_STOP:
-			pass
+		EFFECT_DISPELL:
+			if not TargetHighlightScript.has_active_highlights(player.get_tree()):
+				return {}
+			_append_dispell_target(params, player)
+		EFFECT_FAKE_WALL:
+			# Placement supplies grid/origin/size after interact confirm.
+			return {}
 		_:
 			return {}
 	return params
@@ -118,6 +138,39 @@ static func _append_looked_at_target(
 	params[KEY_ORIGIN] = desc.get("mark", Vector3.ZERO)
 
 
+static func _append_dispell_target(params: Dictionary, player: CharacterBody3D) -> void:
+	if player == null or not player.is_inside_tree():
+		return
+	var tree := player.get_tree()
+	## Dispell only acts on an active Target outline — never bare aim.
+	var target: Node3D = null
+	for anchor in TargetHighlightScript.get_highlighted_anchors(tree):
+		if anchor == null:
+			continue
+		if (
+			anchor.is_in_group(SpellWorldSyncScript.KIND_FAKE_WALL)
+			or anchor.is_in_group(SpellWorldSyncScript.KIND_LIGHT_BALL)
+		):
+			target = anchor
+			break
+	if target == null:
+		return
+	var desc: Dictionary = TargetedObjectControlScript.describe_target(target)
+	if desc.is_empty():
+		return
+	params[KEY_TARGET_KIND] = str(desc.get("kind", ""))
+	params[KEY_ORIGIN] = desc.get("mark", Vector3.ZERO)
+	var cell: Variant = target.get("grid_cell")
+	if cell is Vector2i:
+		params[KEY_GRID_X] = cell.x
+		params[KEY_GRID_Y] = cell.y
+	var object_id := SpellWorldSyncScript.get_id(target)
+	if object_id.is_empty() and cell is Vector2i:
+		object_id = SpellWorldSyncScript.make_cell_id(cell)
+	if not object_id.is_empty():
+		params[KEY_SPAWN_ID] = object_id
+
+
 static func pack_for_network(params: Dictionary) -> Dictionary:
 	var local := normalize_params(params)
 	if local.is_empty():
@@ -127,12 +180,7 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 		EFFECT_FIREBALL:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
 			var direction := coerce_vector3(local.get(KEY_DIRECTION, Vector3.FORWARD))
-			wire["origin_x"] = origin.x
-			wire["origin_y"] = origin.y
-			wire["origin_z"] = origin.z
-			wire["dir_x"] = direction.x
-			wire["dir_y"] = direction.y
-			wire["dir_z"] = direction.z
+			SpellEphemeralFxScript.pack_ray(wire, origin, direction)
 		EFFECT_HASTE:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -151,8 +199,15 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire["origin_x"] = mark.x
 			wire["origin_y"] = mark.y
 			wire["origin_z"] = mark.z
-		EFFECT_STOP:
-			pass
+		EFFECT_DISPELL:
+			wire[KEY_TARGET_KIND] = str(local.get(KEY_TARGET_KIND, ""))
+			var mark := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			wire["origin_x"] = mark.x
+			wire["origin_y"] = mark.y
+			wire["origin_z"] = mark.z
+			wire[KEY_GRID_X] = int(local.get(KEY_GRID_X, -1))
+			wire[KEY_GRID_Y] = int(local.get(KEY_GRID_Y, -1))
+			wire[KEY_SPAWN_ID] = str(local.get(KEY_SPAWN_ID, ""))
 		EFFECT_LIGHT_BALL:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
 			var wand_origin := coerce_vector3(local.get(KEY_WAND_ORIGIN, Vector3.ZERO))
@@ -163,8 +218,20 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire["wand_y"] = wand_origin.y
 			wire["wand_z"] = wand_origin.z
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			wire[KEY_SPAWN_ID] = str(local.get(KEY_SPAWN_ID, ""))
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
+		EFFECT_FAKE_WALL:
+			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			var size := coerce_vector3(local.get(KEY_SIZE, Vector3(3.0, 3.0, 3.0)))
+			wire[KEY_GRID_X] = int(local.get(KEY_GRID_X, -1))
+			wire[KEY_GRID_Y] = int(local.get(KEY_GRID_Y, -1))
+			wire["origin_x"] = origin.x
+			wire["origin_y"] = origin.y
+			wire["origin_z"] = origin.z
+			wire["size_x"] = size.x
+			wire["size_y"] = size.y
+			wire["size_z"] = size.z
 		_:
 			return {}
 	return wire
@@ -177,16 +244,9 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 	var params := {KEY_EFFECT_ID: effect_id}
 	match effect_id:
 		EFFECT_FIREBALL:
-			params[KEY_ORIGIN] = Vector3(
-				float(wire.get("origin_x", 0.0)),
-				float(wire.get("origin_y", 0.0)),
-				float(wire.get("origin_z", 0.0))
-			)
-			params[KEY_DIRECTION] = Vector3(
-				float(wire.get("dir_x", 0.0)),
-				float(wire.get("dir_y", 0.0)),
-				float(wire.get("dir_z", 0.0))
-			).normalized()
+			var ray := SpellEphemeralFxScript.unpack_ray(wire)
+			params[KEY_ORIGIN] = ray[SpellEphemeralFxScript.KEY_ORIGIN]
+			params[KEY_DIRECTION] = ray[SpellEphemeralFxScript.KEY_DIRECTION]
 		EFFECT_HASTE:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -207,8 +267,16 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 				float(wire.get("origin_y", 0.0)),
 				float(wire.get("origin_z", 0.0))
 			)
-		EFFECT_STOP:
-			pass
+		EFFECT_DISPELL:
+			params[KEY_TARGET_KIND] = str(wire.get(KEY_TARGET_KIND, ""))
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+			params[KEY_GRID_X] = int(wire.get(KEY_GRID_X, -1))
+			params[KEY_GRID_Y] = int(wire.get(KEY_GRID_Y, -1))
+			params[KEY_SPAWN_ID] = str(wire.get(KEY_SPAWN_ID, ""))
 		EFFECT_LIGHT_BALL:
 			params[KEY_ORIGIN] = Vector3(
 				float(wire.get("origin_x", 0.0)),
@@ -221,8 +289,22 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 				float(wire.get("wand_z", 0.0))
 			)
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			params[KEY_SPAWN_ID] = str(wire.get(KEY_SPAWN_ID, ""))
 		EFFECT_FLASHLIGHT_TOGGLE:
 			pass
+		EFFECT_FAKE_WALL:
+			params[KEY_GRID_X] = int(wire.get(KEY_GRID_X, -1))
+			params[KEY_GRID_Y] = int(wire.get(KEY_GRID_Y, -1))
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+			params[KEY_SIZE] = Vector3(
+				float(wire.get("size_x", 3.0)),
+				float(wire.get("size_y", 3.0)),
+				float(wire.get("size_z", 3.0))
+			)
 		_:
 			return {}
 	return params
@@ -238,7 +320,7 @@ static func normalize_params(params: Dictionary) -> Dictionary:
 
 static func is_network_format(params: Dictionary) -> bool:
 	var effect_id := str(params.get(KEY_EFFECT_ID, ""))
-	if effect_id == EFFECT_FIREBALL and params.has("origin_x") and params.has("dir_x"):
+	if effect_id == EFFECT_FIREBALL and SpellEphemeralFxScript.is_ray_wire(params):
 		return true
 	if effect_id == EFFECT_LIGHT_BALL and params.has("origin_x") and not params.has(KEY_ORIGIN):
 		return true
@@ -247,7 +329,14 @@ static func is_network_format(params: Dictionary) -> bool:
 			effect_id == EFFECT_PULL
 			or effect_id == EFFECT_FOLLOW
 			or effect_id == EFFECT_TARGET
+			or effect_id == EFFECT_DISPELL
 		)
+		and params.has("origin_x")
+		and not params.has(KEY_ORIGIN)
+	):
+		return true
+	if (
+		effect_id == EFFECT_FAKE_WALL
 		and params.has("origin_x")
 		and not params.has(KEY_ORIGIN)
 	):
@@ -265,6 +354,14 @@ static func resolve_network_params(
 		return {}
 	if str(params.get(KEY_EFFECT_ID, "")) != spell.effect_id:
 		params[KEY_EFFECT_ID] = spell.effect_id
+	if spell.effect_id == EFFECT_DISPELL and player != null:
+		## Require an active Target outline; refill destroy id if the wire omitted it.
+		if not TargetHighlightScript.has_active_highlights(player.get_tree()):
+			return {}
+		var has_wall := int(params.get(KEY_GRID_X, -1)) >= 0
+		var has_kind := not str(params.get(KEY_TARGET_KIND, "")).is_empty()
+		if not has_wall and not has_kind:
+			_append_dispell_target(params, player)
 	if spell.effect_id != EFFECT_FIREBALL:
 		return params
 	if not is_valid_fireball_params(params):
@@ -318,8 +415,10 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			_apply_pull(player, params)
 		EFFECT_FOLLOW:
 			_apply_follow(player, params)
-		EFFECT_STOP:
-			_apply_stop()
+		EFFECT_DISPELL:
+			_apply_dispell(player, params)
+		EFFECT_FAKE_WALL:
+			_apply_fake_wall(player, params)
 		_:
 			push_warning(
 				"SpellEffectSync: unknown effect '%s'" % str(params.get(KEY_EFFECT_ID, ""))
@@ -362,11 +461,49 @@ static func _apply_follow(player: CharacterBody3D, params: Dictionary) -> void:
 	TargetedObjectControlScript.start_follow(player, target)
 
 
-static func _apply_stop() -> void:
-	var tree := Engine.get_main_loop()
-	if tree == null or not (tree is SceneTree):
+static func _apply_dispell(player: CharacterBody3D, params: Dictionary) -> void:
+	var scene_tree: SceneTree = null
+	if player != null and player.is_inside_tree():
+		scene_tree = player.get_tree()
+	else:
+		var loop := Engine.get_main_loop()
+		if loop is SceneTree:
+			scene_tree = loop as SceneTree
+	if scene_tree == null:
 		return
-	TargetedObjectControlScript.stop_all(tree as SceneTree)
+	var mark := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var kind := str(params.get(KEY_TARGET_KIND, ""))
+	var object_id := str(params.get(KEY_SPAWN_ID, ""))
+	var cell := Vector2i(int(params.get(KEY_GRID_X, -1)), int(params.get(KEY_GRID_Y, -1)))
+	if object_id.is_empty() and cell.x >= 0:
+		object_id = SpellWorldSyncScript.make_cell_id(cell)
+		if kind.is_empty():
+			kind = SpellWorldSyncScript.KIND_FAKE_WALL
+	var destroyed := false
+	if not kind.is_empty() or not object_id.is_empty():
+		var resolved := SpellWorldSyncScript.resolve(scene_tree, kind, object_id, mark)
+		if resolved != null and resolved.has_method("destroy_from_spell"):
+			resolved.call("destroy_from_spell", true)
+			destroyed = true
+	if not destroyed:
+		## Fallback when the cast wire has no target: remove highlighted
+		## dispellable objects and broadcast so peers still clear them.
+		_dispell_highlighted_objects(scene_tree)
+	TargetedObjectControlScript.stop_all(scene_tree)
+
+
+static func _dispell_highlighted_objects(tree: SceneTree) -> void:
+	if tree == null:
+		return
+	for anchor in TargetHighlightScript.get_highlighted_anchors(tree):
+		if anchor == null:
+			continue
+		if (
+			anchor.is_in_group(SpellWorldSyncScript.KIND_FAKE_WALL)
+			or anchor.is_in_group(SpellWorldSyncScript.KIND_LIGHT_BALL)
+		):
+			if anchor.has_method("destroy_from_spell"):
+				anchor.call("destroy_from_spell", false)
 
 
 static func _resolve_targeted_object(
@@ -393,17 +530,11 @@ static func _resolve_targeted_object(
 
 
 static func is_supported_effect(effect_id: String) -> bool:
-	return effect_id in [
-		EFFECT_HASTE,
-		EFFECT_LIGHT,
-		EFFECT_FIREBALL,
-		EFFECT_FLASHLIGHT_TOGGLE,
-		EFFECT_LIGHT_BALL,
-		EFFECT_TARGET,
-		EFFECT_PULL,
-		EFFECT_FOLLOW,
-		EFFECT_STOP,
-	]
+	return SpellSyncLaneScript.is_known(effect_id)
+
+
+static func sync_lane_for(effect_id: String) -> String:
+	return SpellSyncLaneScript.for_effect(effect_id)
 
 
 static func _fireball_direction(player: CharacterBody3D) -> Vector3:
@@ -432,16 +563,38 @@ static func _fireball_origin(player: CharacterBody3D) -> Vector3:
 static func _apply_fireball(player: CharacterBody3D, params: Dictionary) -> void:
 	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
 	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.FORWARD))
-	if direction.length_squared() <= 0.01:
+	SpellEphemeralFxScript.spawn_at(
+		player,
+		origin,
+		direction,
+		Callable(FireballProjectileScript, "spawn")
+	)
+
+
+static func _apply_fake_wall(player: CharacterBody3D, params: Dictionary) -> void:
+	if player == null or not player.is_inside_tree():
 		return
-	var world: Node = null
-	if player.is_inside_tree():
-		world = GameWorldScript.find_match_root(player.get_tree())
+	var cell := Vector2i(int(params.get(KEY_GRID_X, -1)), int(params.get(KEY_GRID_Y, -1)))
+	if cell.x < 0 or cell.y < 0:
+		return
+	var cell_id := SpellWorldSyncScript.make_cell_id(cell)
+	if SpellWorldSyncScript.find(
+		player.get_tree(), SpellWorldSyncScript.KIND_FAKE_WALL, cell_id
+	) != null:
+		return
+	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var size := coerce_vector3(params.get(KEY_SIZE, Vector3(3.0, 3.0, 3.0)))
+	if size.length_squared() < 0.01:
+		size = Vector3(3.0, 3.0, 3.0)
+	var world: Node = GameWorldScript.find_match_root(player.get_tree())
 	if world == null:
 		world = player.get_parent()
 	if world == null:
 		return
-	FireballProjectileScript.spawn(world, origin, direction.normalized())
+	var bucket := SpellWorldSyncScript.ensure_bucket(
+		world, SpellWorldSyncScript.BUCKET_FAKE_WALLS
+	)
+	FakeWallScript.spawn(bucket, origin, size, cell)
 
 
 static func _toggle_flashlight(player: CharacterBody3D) -> void:
@@ -474,11 +627,18 @@ static func _apply_light_ball(player: CharacterBody3D, params: Dictionary) -> vo
 		world = player.get_parent()
 	if world == null:
 		return
+	var bucket := SpellWorldSyncScript.ensure_bucket(
+		world, SpellWorldSyncScript.BUCKET_LIGHT_BALLS
+	)
+	var orb_spawn_id := str(params.get(KEY_SPAWN_ID, ""))
+	if orb_spawn_id.is_empty():
+		orb_spawn_id = SpellWorldSyncScript.make_spawn_id(player)
 	LightBallOrbScript.spawn_cast(
-		world,
+		bucket,
 		wand_origin,
 		target,
-		float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+		float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION)),
+		orb_spawn_id
 	)
 
 

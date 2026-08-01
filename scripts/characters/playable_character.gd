@@ -17,6 +17,7 @@ const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
+const FakeWallPlacementScript := preload("res://scripts/headmaster/fake_wall_placement.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -29,6 +30,7 @@ var _speed_boost_multiplier: float = 1.0
 var _speed_boost_timer: float = 0.0
 var _wand: PlayerWand
 var _casting_lmb_held := false
+var _fake_wall_placement: Node
 
 @onready var camera_pivot: Node3D = %CameraPivot
 @onready var spell_loadout: Node = %CharacterSpellLoadout
@@ -104,7 +106,7 @@ func _preview_tint() -> Color:
 	):
 		return Color(0.55, 0.2, 0.7)
 	var scr := get_script() as Script
-	if scr != null and scr.resource_path.ends_with("warden.gd"):
+	if scr != null and scr.resource_path.ends_with("headmaster.gd"):
 		return Color(0.55, 0.2, 0.7)
 	return Color(0.25, 0.65, 0.95)
 
@@ -169,6 +171,39 @@ func get_casting_session() -> SpellCastingSession:
 
 func get_effect_applier() -> Node:
 	return effect_applier
+
+
+func _begin_fake_wall_placement(spell: SpellDefinition) -> bool:
+	if spell == null or _spell_loadout == null:
+		return false
+	if _spell_loadout.has_method("is_on_cooldown") and _spell_loadout.is_on_cooldown(spell.id):
+		return false
+	if _fake_wall_placement == null:
+		_fake_wall_placement = FakeWallPlacementScript.new()
+		_fake_wall_placement.name = "FakeWallPlacement"
+		add_child(_fake_wall_placement)
+		_fake_wall_placement.configure(self)
+	return _fake_wall_placement.begin(spell)
+
+
+func _is_fake_wall_placing() -> bool:
+	return _fake_wall_placement != null and _fake_wall_placement.is_active()
+
+
+func _confirm_fake_wall_placement(spell: SpellDefinition, params: Dictionary) -> void:
+	if spell == null or params.is_empty():
+		return
+	var applier: Node = _effect_applier
+	if applier == null:
+		applier = get_effect_applier()
+	if applier == null:
+		return
+	if _spell_loadout != null and _spell_loadout.has_method("start_cooldown"):
+		_spell_loadout.start_cooldown(spell.id)
+	if applier.has_method("cast_spell_with_params"):
+		applier.cast_spell_with_params(self, spell, params)
+	elif applier.has_method("cast_spell"):
+		applier.cast_spell(self, spell)
 
 
 func apply_speed_boost(duration: float, multiplier: float) -> void:
@@ -356,7 +391,10 @@ func _separate_from_players() -> void:
 
 
 func _try_interact() -> void:
-	TomeDebug.log("PlayableCharacter", "F pressed — try_interact")
+	TomeDebug.log("PlayableCharacter", "interact pressed — try_interact")
+	if _is_fake_wall_placing():
+		_fake_wall_placement.try_confirm()
+		return
 	if _casting_session != null and _casting_session.is_active():
 		return
 
@@ -394,6 +432,9 @@ func stop_casting_for_relic_carry() -> void:
 
 func _on_wand_button_pressed() -> void:
 	if not is_multiplayer_authority():
+		return
+	if _is_fake_wall_placing():
+		_fake_wall_placement.cancel()
 		return
 	if is_carrying_relic():
 		stop_casting_for_relic_carry()
@@ -450,16 +491,21 @@ func _filter_free_cast_candidates(known: Array[SpellDefinition]) -> Array[SpellD
 	var filtered: Array[SpellDefinition] = []
 	var tree := get_tree()
 	var target_active := TargetHighlightScript.has_active_highlights(tree)
-	var follow_active := TargetedObjectControlScript.has_active_follows(tree)
 	for spell in known:
 		if spell == null:
+			continue
+		if (
+			_spell_loadout != null
+			and _spell_loadout.has_method("is_on_cooldown")
+			and _spell_loadout.is_on_cooldown(spell.id)
+		):
 			continue
 		match spell.id:
 			"pull", "follow":
 				if not target_active:
 					continue
-			"stop":
-				if not target_active and not follow_active:
+			"dispell":
+				if not target_active:
 					continue
 		filtered.append(spell)
 	return filtered
@@ -507,34 +553,34 @@ func _find_delivery_objective() -> DeliveryObjective:
 func _update_interaction_prompt() -> void:
 	if _game_hud == null or not _game_hud.has_method("set_interaction_prompt"):
 		return
+	_game_hud.set_interaction_prompt(_resolve_interaction_prompt())
+
+
+func _resolve_interaction_prompt() -> String:
+	if _is_fake_wall_placing():
+		return _fake_wall_placement.get_prompt()
 	if _casting_session != null and _casting_session.is_tome_teaching():
-		_game_hud.set_interaction_prompt(
-			InputPromptScript.with_action("interact", "Leave tome")
-		)
-		return
+		return InputPromptScript.with_action("interact", "Leave tome")
 	if _casting_session != null and _casting_session.is_active():
-		_game_hud.set_interaction_prompt("")
-		return
+		return ""
+	var prompt := ""
 	var objective := _find_delivery_objective()
 	if objective != null:
-		var objective_prompt := objective.get_interaction_prompt(self)
-		if not objective_prompt.is_empty():
-			_game_hud.set_interaction_prompt(objective_prompt)
-			return
-	var maze: Node = null
-	var match_root: Node = GameWorldScript.find_match_root(get_tree())
-	if match_root != null:
-		maze = match_root.get_node_or_null("MazeGenerator")
-	if maze != null and maze.has_method("get_exit_approach_prompt"):
-		var exit_prompt: String = maze.call("get_exit_approach_prompt", self)
-		if not exit_prompt.is_empty():
-			_game_hud.set_interaction_prompt(exit_prompt)
-			return
-	var interactable: Interactable = _find_nearest_interactable()
-	if interactable != null:
-		_game_hud.set_interaction_prompt(interactable.get_prompt())
-		return
-	_game_hud.set_interaction_prompt(_default_cast_prompt())
+		prompt = objective.get_interaction_prompt(self)
+	if prompt.is_empty():
+		var maze: Node = null
+		var match_root: Node = GameWorldScript.find_match_root(get_tree())
+		if match_root != null:
+			maze = match_root.get_node_or_null("MazeGenerator")
+		if maze != null and maze.has_method("get_exit_approach_prompt"):
+			prompt = str(maze.call("get_exit_approach_prompt", self))
+	if prompt.is_empty():
+		var interactable: Interactable = _find_nearest_interactable()
+		if interactable != null:
+			prompt = interactable.get_prompt()
+	if prompt.is_empty():
+		prompt = _default_cast_prompt()
+	return prompt
 
 
 func _default_cast_prompt() -> String:

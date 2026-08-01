@@ -53,7 +53,7 @@ func log_summary() -> void:
 			phase_name,
 			snapshot.get("anchors_activated", 0),
 			snapshot.get("anchor_count", 0),
-			snapshot.get("warden_dread", 0),
+			snapshot.get("headmaster_dread", 0),
 			snapshot.get("sealed_peers", {}).size(),
 		]
 	)

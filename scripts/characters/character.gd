@@ -2,8 +2,8 @@ class_name Character
 extends CharacterBody3D
 
 ## 3D character shell: body/head meshes, collision, and tint.
-## Inherited by PlayableCharacter (and then Apprentice / Warden).
-## CollisionShape3D is authored per character scene (Apprentice / Warden) — not rebuilt here.
+## Inherited by PlayableCharacter (and then Apprentice / Headmaster).
+## CollisionShape3D is authored per character scene (Apprentice / Headmaster) — not rebuilt here.
 
 ## Body/head render layer — wand lights use a world-only mask and skip this layer.
 const PLAYER_SELF_VISUAL_LAYER := WorldVisualLayers.PLAYER_SELF

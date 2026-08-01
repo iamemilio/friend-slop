@@ -8,7 +8,7 @@ extends Marker3D
 
 enum Role {
 	APPRENTICE,
-	WARDEN,
+	HEADMASTER,
 }
 
 const GIZMO_NAME := "SlotGizmo"
@@ -16,9 +16,9 @@ const RING_NAME := "SlotSelectRing"
 const PREVIEW_NAME := "RolePreview"
 const SPAWN_SLOT_GROUP := "player_spawn_slot"
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
-## Runtime load() — avoid preload() of apprentice/warden (circular with PlayableCharacter).
+## Runtime load() — avoid preload() of apprentice/headmaster (circular with PlayableCharacter).
 const APPRENTICE_SCENE_PATH := "res://scenes/characters/apprentice.tscn"
-const WARDEN_SCENE_PATH := "res://scenes/characters/warden.tscn"
+const HEADMASTER_SCENE_PATH := "res://scenes/characters/headmaster.tscn"
 
 @export var role: Role = Role.APPRENTICE:
 	set(value):
@@ -96,7 +96,7 @@ func _process(_delta: float) -> void:
 
 
 func get_game_role() -> int:
-	if role == Role.WARDEN:
+	if role == Role.HEADMASTER:
 		return 1
 	return 0
 
@@ -117,12 +117,12 @@ func sync_to_maze(maze: Node) -> void:
 	if maze == null or not maze.has_method("get_wall_grid"):
 		return
 	if auto_place:
-		var is_warden := role == Role.WARDEN
+		var is_headmaster := role == Role.HEADMASTER
 		var cell := (
-			PlayerSpawnLayoutScript.resolve_warden_cell(
+			PlayerSpawnLayoutScript.resolve_headmaster_cell(
 				maze.get_wall_grid(), maze.maze_width, maze.maze_height
 			)
-			if is_warden
+			if is_headmaster
 			else PlayerSpawnLayoutScript.resolve_apprentice_cell(
 				maze.get_wall_grid(),
 				maze.maze_width,
@@ -215,7 +215,7 @@ func _free_editor_meshes() -> void:
 
 
 func _ensure_role_preview() -> void:
-	## Editor-only Apprentice/Warden stand-in. Never present during match play.
+	## Editor-only Apprentice/Headmaster stand-in. Never present during match play.
 	if not Engine.is_editor_hint() or not is_inside_tree():
 		return
 	var existing := get_node_or_null(PREVIEW_NAME)
@@ -224,7 +224,7 @@ func _ensure_role_preview() -> void:
 	if existing != null:
 		existing.free()
 	var packed: PackedScene = (
-		load(WARDEN_SCENE_PATH) if role == Role.WARDEN else load(APPRENTICE_SCENE_PATH)
+		load(HEADMASTER_SCENE_PATH) if role == Role.HEADMASTER else load(APPRENTICE_SCENE_PATH)
 	) as PackedScene
 	if packed == null:
 		push_warning("PlayerSpawnSlot: missing preview scene for role %s" % role)
@@ -270,9 +270,9 @@ func _update_pillar_gizmo() -> void:
 		gizmo.set_meta("_edit_lock_", true)
 		add_child(gizmo)
 
-	var is_warden := role == Role.WARDEN
-	var base_radius := 1.25 if is_warden else 1.05
-	var base_height := 2.8 if is_warden else 2.1
+	var is_headmaster := role == Role.HEADMASTER
+	var base_radius := 1.25 if is_headmaster else 1.05
+	var base_height := 2.8 if is_headmaster else 2.1
 	if _editor_selected:
 		base_radius *= 1.35
 		base_height *= 1.25
@@ -287,7 +287,7 @@ func _update_pillar_gizmo() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	if is_warden:
+	if is_headmaster:
 		mat.albedo_color = Color(0.9, 0.3, 1.0, 0.9 if _editor_selected else 0.75)
 		mat.emission = Color(0.85, 0.2, 1.0)
 	else:
@@ -320,11 +320,11 @@ func _update_select_ring() -> void:
 	ring.position = Vector3(0.0, 0.08, 0.0)
 	ring.rotation_degrees = Vector3(90.0, 0.0, 0.0)
 
-	var is_warden := role == Role.WARDEN
+	var is_headmaster := role == Role.HEADMASTER
 	var mat := StandardMaterial3D.new()
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	if is_warden:
+	if is_headmaster:
 		mat.albedo_color = Color(1.0, 0.85, 0.2, 0.95)
 		mat.emission = Color(1.0, 0.9, 0.2)
 	else:

@@ -4,9 +4,9 @@
 
 [resource]
 script = ExtResource("1")
-id = "warden_stalk"
-display_name = "Stalk"
-incantation_words = PackedStringArray("stalk")
-syllable_cadence_ms = PackedInt32Array(0)
-cooldown_sec = 8.0
-effect_id = "light"
+id = "fake_wall"
+display_name = "Fake Wall"
+incantation_words = PackedStringArray("fake", "wall")
+syllable_cadence_ms = PackedInt32Array(0, 280)
+cooldown_sec = 50.0
+effect_id = "fake_wall"

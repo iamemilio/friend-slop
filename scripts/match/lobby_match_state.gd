@@ -42,9 +42,9 @@ func ensure_roles_for_peers(peer_ids: Array[int]) -> bool:
 
 
 func apply_role(peer_id: int, role: int) -> void:
-	if role == GameState.PlayerRole.WARDEN:
+	if role == GameState.PlayerRole.HEADMASTER:
 		for other_id in roles.keys():
-			if int(other_id) != peer_id and int(roles[other_id]) == GameState.PlayerRole.WARDEN:
+			if int(other_id) != peer_id and int(roles[other_id]) == GameState.PlayerRole.HEADMASTER:
 				roles[other_id] = GameState.PlayerRole.APPRENTICE
 				_update_config_role(int(other_id), GameState.PlayerRole.APPRENTICE)
 	roles[peer_id] = role

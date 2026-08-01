@@ -16,7 +16,7 @@ signal steam_lobby_invite_received(lobby_id: int)
 signal players_spawned
 
 const APPRENTICE_SCENE := preload("res://scenes/characters/apprentice.tscn")
-const WARDEN_SCENE := preload("res://scenes/characters/warden.tscn")
+const HEADMASTER_SCENE := preload("res://scenes/characters/headmaster.tscn")
 const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_config.tres")
 
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
@@ -399,6 +399,41 @@ func _execute_spell_cast(caster_peer_id: int, spell_id: String, params: Dictiona
 	_forward_to_main("apply_synced_spell_cast", [caster_peer_id, spell_id, params])
 
 
+@rpc("any_peer", "call_remote", "reliable")
+func _request_spell_world_event(
+	kind: String,
+	event: String,
+	object_id: String,
+	pos_x: float,
+	pos_y: float,
+	pos_z: float
+) -> void:
+	if not multiplayer.is_server() or not MatchStateManager.allows_gameplay_actions():
+		return
+	## Host has not applied this event yet (client detected it).
+	_forward_to_main(
+		"apply_spell_world_event",
+		[kind, event, object_id, pos_x, pos_y, pos_z]
+	)
+	_rpc_spell_world_event.rpc(kind, event, object_id, pos_x, pos_y, pos_z)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_spell_world_event(
+	kind: String,
+	event: String,
+	object_id: String,
+	pos_x: float,
+	pos_y: float,
+	pos_z: float
+) -> void:
+	## call_remote: sender already applied locally.
+	_forward_to_main(
+		"apply_spell_world_event",
+		[kind, event, object_id, pos_x, pos_y, pos_z]
+	)
+
+
 func request_match_victory(winner_peer_id: int) -> void:
 	if not MatchStateManager.allows_gameplay_actions():
 		TomeDebug.log("NetworkManager", "Victory blocked — gameplay actions not allowed")
@@ -646,8 +681,8 @@ func _forward_to_main(method: StringName, args: Array = []) -> void:
 
 func _instantiate_player_for_peer(peer_id: int) -> CharacterBody3D:
 	var scene := (
-		WARDEN_SCENE
-		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.WARDEN
+		HEADMASTER_SCENE
+		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.HEADMASTER
 		else APPRENTICE_SCENE
 	)
 	return scene.instantiate() as CharacterBody3D

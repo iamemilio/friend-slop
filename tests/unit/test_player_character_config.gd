@@ -9,9 +9,9 @@ const RoleLoadoutScript := preload("res://scripts/progression/role_loadout.gd")
 func run() -> int:
 	var failures := 0
 	failures += _test_default_apprentice_summary()
-	failures += _test_default_warden_summary()
+	failures += _test_default_headmaster_summary()
 	failures += _test_dict_round_trip()
-	failures += _test_warden_starting_spells()
+	failures += _test_headmaster_starting_spells()
 	failures += _test_apprentice_starting_spells()
 	return failures
 
@@ -27,37 +27,37 @@ func _test_default_apprentice_summary() -> int:
 	return 0
 
 
-func _test_default_warden_summary() -> int:
-	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.WARDEN)
-	if config.summary() != "Warden":
-		push_error("Expected warden summary to show role label")
+func _test_default_headmaster_summary() -> int:
+	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.HEADMASTER)
+	if config.summary() != "Headmaster":
+		push_error("Expected headmaster summary to show role label")
 		return 1
 	return 0
 
 
 func _test_dict_round_trip() -> int:
-	var original := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.WARDEN)
+	var original := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.HEADMASTER)
 	var restored := PlayerCharacterConfigScript.from_dict(original.to_dict())
-	if restored.role != GameStateScript.PlayerRole.WARDEN:
+	if restored.role != GameStateScript.PlayerRole.HEADMASTER:
 		push_error("Expected character config round-trip to preserve role")
 		return 1
 	return 0
 
 
-func _test_warden_starting_spells() -> int:
-	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.WARDEN)
+func _test_headmaster_starting_spells() -> int:
+	var config := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.HEADMASTER)
 	var spell_ids := config.get_starting_spell_ids()
 	var expected_size := (
 		RoleLoadoutScript.APPRENTICE_STARTER_SPELLS.size()
-		+ RoleLoadoutScript.WARDEN_STARTER_SPELLS.size()
+		+ RoleLoadoutScript.HEADMASTER_STARTER_SPELLS.size()
 	)
 	var missing := (
 		spell_ids.size() != expected_size
-		or not spell_ids.has("warden_forge")
+		or not spell_ids.has("fake_wall")
 		or not spell_ids.has("show_me")
 	)
 	if missing:
-		push_error("Expected warden config to expose union of starter spells")
+		push_error("Expected headmaster config to expose union of starter spells")
 		return 1
 	return 0
 

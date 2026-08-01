@@ -16,7 +16,7 @@ var anchor_count: int = 3
 var anchors_activated: int = 0
 var checkpoint_anchor_id: int = -1
 var sealed_peers: Dictionary = {}
-var warden_dread: int = 0
+var headmaster_dread: int = 0
 
 
 static func create_initial(config: HorrorMatchConfig) -> MatchState:
@@ -26,7 +26,7 @@ static func create_initial(config: HorrorMatchConfig) -> MatchState:
 	state.anchors_activated = 0
 	state.checkpoint_anchor_id = -1
 	state.sealed_peers = {}
-	state.warden_dread = 0
+	state.headmaster_dread = 0
 	return state
 
 
@@ -89,7 +89,7 @@ func to_snapshot() -> Dictionary:
 		"anchors_activated": anchors_activated,
 		"checkpoint_anchor_id": checkpoint_anchor_id,
 		"sealed_peers": sealed_peers.duplicate(true),
-		"warden_dread": warden_dread,
+		"headmaster_dread": headmaster_dread,
 	}
 
 
@@ -101,5 +101,5 @@ static func from_snapshot(data: Dictionary) -> MatchState:
 	state.checkpoint_anchor_id = int(data.get("checkpoint_anchor_id", -1))
 	var sealed: Variant = data.get("sealed_peers", {})
 	state.sealed_peers = sealed if sealed is Dictionary else {}
-	state.warden_dread = int(data.get("warden_dread", 0))
+	state.headmaster_dread = int(data.get("headmaster_dread", 0))
 	return state

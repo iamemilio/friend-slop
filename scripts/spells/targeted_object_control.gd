@@ -1,7 +1,7 @@
 class_name TargetedObjectControl
 extends RefCounted
 
-## Pull / follow / stop helpers for Target-highlighted light balls and the relic.
+## Pull / follow / dispell helpers for Target-highlighted objects.
 
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
@@ -29,6 +29,9 @@ const LOS_ARRIVE_TOLERANCE := 0.45
 const WORLD_COLLISION_MASK := 1
 const TARGET_KIND_LIGHT_BALL := "light_ball"
 const TARGET_KIND_RELIC := "relic"
+const TARGET_KIND_FAKE_WALL := "fake_wall"
+
+const FAKE_WALL_GROUP := "fake_wall"
 
 
 static func has_active_follows(tree: SceneTree) -> bool:
@@ -173,6 +176,11 @@ static func describe_target(node: Node3D) -> Dictionary:
 			"kind": TARGET_KIND_LIGHT_BALL,
 			"mark": node.global_position,
 		}
+	if node.is_in_group(FAKE_WALL_GROUP) or node.is_in_group("fake_wall"):
+		return {
+			"kind": TARGET_KIND_FAKE_WALL,
+			"mark": node.global_position,
+		}
 	# Relic root from DeliveryObjective.get_spell_target_nodes().
 	return {
 		"kind": TARGET_KIND_RELIC,
@@ -204,11 +212,24 @@ static func resolve_target(
 				var targets: Variant = node.call("get_spell_target_nodes")
 				if targets is Array and not targets.is_empty():
 					return targets[0] as Node3D
+	if kind == TARGET_KIND_FAKE_WALL:
+		var best: Node3D = null
+		var best_dist := INF
+		for node in tree.get_nodes_in_group(FAKE_WALL_GROUP):
+			if not node is Node3D:
+				continue
+			var dist := (node as Node3D).global_position.distance_squared_to(mark)
+			if dist < best_dist:
+				best_dist = dist
+				best = node as Node3D
+		return best
 	return null
 
 
 static func pull_object(player: CharacterBody3D, target: Node3D) -> void:
 	if player == null or target == null:
+		return
+	if target.is_in_group(FAKE_WALL_GROUP):
 		return
 	if not has_clear_line_of_sight(player, target):
 		return
@@ -223,6 +244,8 @@ static func pull_object(player: CharacterBody3D, target: Node3D) -> void:
 
 static func start_follow(player: CharacterBody3D, target: Node3D) -> void:
 	if player == null or target == null:
+		return
+	if target.is_in_group(FAKE_WALL_GROUP):
 		return
 	clear_all_follows(player.get_tree())
 	clear_pulls_on(target)

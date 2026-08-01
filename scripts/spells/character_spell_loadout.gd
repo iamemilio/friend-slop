@@ -2,7 +2,7 @@ class_name CharacterSpellLoadout
 extends Node
 
 ## Per-character known spells, split into starting kit vs spells learned in-run.
-## Casting is gated by voice recognition, not cooldowns.
+## Most casting is gated by voice recognition; spells with cooldown_sec use timers.
 
 signal spell_learned(spell_id: String)
 signal spell_unlearned(spell_id: String)
@@ -16,6 +16,8 @@ var _spell_defs: Dictionary = {}
 var _starting: Dictionary = {}
 ## spell_id -> { "learned_at": int, "source": String }
 var _learned: Dictionary = {}
+## spell_id -> cooldown end time (msec)
+var _cooldown_until_msec: Dictionary = {}
 
 
 func configure(spells: Array[SpellDefinition]) -> void:
@@ -28,7 +30,31 @@ func configure(spells: Array[SpellDefinition]) -> void:
 func reset() -> void:
 	_starting.clear()
 	_learned.clear()
+	_cooldown_until_msec.clear()
 	loadout_changed.emit()
+
+
+func is_on_cooldown(spell_id: String) -> bool:
+	return remaining_cooldown_sec(spell_id) > 0.0
+
+
+func remaining_cooldown_sec(spell_id: String) -> float:
+	if not _cooldown_until_msec.has(spell_id):
+		return 0.0
+	var remaining_msec: int = int(_cooldown_until_msec[spell_id]) - Time.get_ticks_msec()
+	if remaining_msec <= 0:
+		_cooldown_until_msec.erase(spell_id)
+		return 0.0
+	return float(remaining_msec) / 1000.0
+
+
+func start_cooldown(spell_id: String) -> void:
+	var spell: SpellDefinition = get_spell_definition(spell_id)
+	if spell == null or spell.cooldown_sec <= 0.0:
+		return
+	_cooldown_until_msec[spell_id] = (
+		Time.get_ticks_msec() + int(round(spell.cooldown_sec * 1000.0))
+	)
 
 
 func knows(spell_id: String) -> bool:

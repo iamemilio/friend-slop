@@ -1,7 +1,7 @@
 class_name PlayerSpawnLayout
 extends RefCounted
 
-## Roster spawn placement: warden near maze center, apprentices near distinct corners.
+## Roster spawn placement: headmaster near maze center, apprentices near distinct corners.
 
 const PLAYER_Y := 0.5
 const IN_CELL_SPACING := 0.85
@@ -49,20 +49,20 @@ static func collect_open_spawn_cells(
 	return cells
 
 
-## [warden_center, apprentice_corner_0, apprentice_corner_1, apprentice_corner_2]
+## [headmaster_center, apprentice_corner_0, apprentice_corner_1, apprentice_corner_2]
 static func collect_roster_spawn_cells(
 	wall_grid: Array,
 	maze_width: int,
 	maze_height: int
 ) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
-	cells.append(resolve_warden_cell(wall_grid, maze_width, maze_height))
+	cells.append(resolve_headmaster_cell(wall_grid, maze_width, maze_height))
 	for i in 3:
 		cells.append(resolve_apprentice_cell(wall_grid, maze_width, maze_height, i))
 	return cells
 
 
-static func resolve_warden_cell(
+static func resolve_headmaster_cell(
 	wall_grid: Array,
 	maze_width: int,
 	maze_height: int
@@ -82,7 +82,7 @@ static func resolve_apprentice_cell(
 
 
 static func world_position_for_roster_slot(
-	is_warden: bool,
+	is_headmaster: bool,
 	apprentice_corner_index: int,
 	wall_grid: Array,
 	maze_width: int,
@@ -90,8 +90,8 @@ static func world_position_for_roster_slot(
 	cell_to_world: Callable
 ) -> Vector3:
 	var cell: Vector2i
-	if is_warden:
-		cell = resolve_warden_cell(wall_grid, maze_width, maze_height)
+	if is_headmaster:
+		cell = resolve_headmaster_cell(wall_grid, maze_width, maze_height)
 	else:
 		cell = resolve_apprentice_cell(
 			wall_grid,

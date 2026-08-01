@@ -43,7 +43,7 @@ func _test_prepare_match() -> int:
 	state.reset_for_new_game()
 
 	var roles := {
-		1: GameStateScript.PlayerRole.WARDEN,
+		1: GameStateScript.PlayerRole.HEADMASTER,
 		2: GameStateScript.PlayerRole.APPRENTICE,
 		3: GameStateScript.PlayerRole.APPRENTICE,
 	}
@@ -58,8 +58,8 @@ func _test_prepare_match() -> int:
 	if state.run_seed != 12345:
 		push_error("Expected prepare_match to set run_seed")
 		return 1
-	if state.get_role_for_peer(1) != GameStateScript.PlayerRole.WARDEN:
-		push_error("Expected peer 1 to be Warden")
+	if state.get_role_for_peer(1) != GameStateScript.PlayerRole.HEADMASTER:
+		push_error("Expected peer 1 to be Headmaster")
 		return 1
 	var restored := state.get_character_config_for_peer(1)
 	if restored.role != GameStateScript.PlayerRole.APPRENTICE:

@@ -11,7 +11,8 @@ const LightBallSpell := preload("res://resources/spells/light_ball.tres")
 const TargetSpell := preload("res://resources/spells/target.tres")
 const PullSpell := preload("res://resources/spells/pull.tres")
 const FollowSpell := preload("res://resources/spells/follow.tres")
-const StopSpell := preload("res://resources/spells/stop.tres")
+const DispellSpell := preload("res://resources/spells/dispell.tres")
+const FakeWallSpell := preload("res://resources/spells/headmaster/fake_wall.tres")
 
 
 func run() -> int:
@@ -29,7 +30,10 @@ func run() -> int:
 	failures += _test_apply_flashlight_toggle()
 	failures += _test_build_light_ball_params()
 	failures += _test_build_target_params()
-	failures += _test_build_pull_follow_stop_params()
+	failures += _test_build_pull_follow_dispell_params()
+	failures += _test_dispell_wire_preserves_fake_wall_cell()
+	failures += _test_light_ball_network_round_trip()
+	failures += _test_fake_wall_network_round_trip()
 	return failures
 
 
@@ -99,7 +103,8 @@ func _test_all_spells_are_supported() -> int:
 		TargetSpell,
 		PullSpell,
 		FollowSpell,
-		StopSpell,
+		DispellSpell,
+		FakeWallSpell,
 	]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
@@ -286,27 +291,115 @@ func _test_build_target_params() -> int:
 	return 0
 
 
-func _test_build_pull_follow_stop_params() -> int:
+func _test_build_pull_follow_dispell_params() -> int:
 	var player := _make_player_stub()
 	var pull_params := SyncScript.build_params(PullSpell, player)
 	var follow_params := SyncScript.build_params(FollowSpell, player)
-	var stop_params := SyncScript.build_params(StopSpell, player)
+	var dispell_params := SyncScript.build_params(DispellSpell, player)
 	player.queue_free()
 	var ok := (
 		str(pull_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_PULL
 		and str(follow_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_FOLLOW
-		and str(stop_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_STOP
+		and str(dispell_params.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_DISPELL
 		and SyncScript.get_effect_duration_sec(PullSpell, pull_params) == 0.0
 		and SyncScript.get_effect_duration_sec(FollowSpell, follow_params) == 0.0
-		and SyncScript.get_effect_duration_sec(StopSpell, stop_params) == 0.0
+		and SyncScript.get_effect_duration_sec(DispellSpell, dispell_params) == 0.0
 	)
 	if not ok:
-		push_error("Expected pull/follow/stop params and zero HUD durations")
+		push_error("Expected pull/follow/dispell params and zero HUD durations")
 		return 1
 	var pull_wire := SyncScript.pack_for_network(pull_params)
 	var unpacked := SyncScript.unpack_from_network(pull_wire)
 	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_PULL:
 		push_error("Expected pull network round-trip to keep effect id")
+		return 1
+	return 0
+
+
+func _test_dispell_wire_preserves_fake_wall_cell() -> int:
+	var local := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_DISPELL,
+		SyncScript.KEY_TARGET_KIND: "fake_wall",
+		SyncScript.KEY_ORIGIN: Vector3(2.0, 1.5, 4.0),
+		SyncScript.KEY_GRID_X: 3,
+		SyncScript.KEY_GRID_Y: 8,
+	}
+	var wire := SyncScript.pack_for_network(local)
+	var unpacked := SyncScript.unpack_from_network(wire)
+	var ok := (
+		str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_DISPELL
+		and str(unpacked.get(SyncScript.KEY_TARGET_KIND, "")) == "fake_wall"
+		and int(unpacked.get(SyncScript.KEY_GRID_X, -1)) == 3
+		and int(unpacked.get(SyncScript.KEY_GRID_Y, -1)) == 8
+	)
+	if not ok:
+		push_error("Expected dispell wire to preserve fake wall cell")
+		return 1
+	return 0
+
+
+func _test_light_ball_network_round_trip() -> int:
+	var local := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_LIGHT_BALL,
+		SyncScript.KEY_ORIGIN: Vector3(1.0, 1.5, 2.0),
+		SyncScript.KEY_WAND_ORIGIN: Vector3(0.5, 1.4, 1.0),
+		SyncScript.KEY_DURATION: SyncScript.DEFAULT_LIGHT_BALL_DURATION,
+		SyncScript.KEY_SPAWN_ID: "42_99",
+	}
+	var wire := SyncScript.pack_for_network(local)
+	var unpacked := SyncScript.unpack_from_network(wire)
+	var ok := (
+		str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_LIGHT_BALL
+		and str(unpacked.get(SyncScript.KEY_SPAWN_ID, "")) == "42_99"
+		and SyncScript.coerce_vector3(unpacked.get(SyncScript.KEY_ORIGIN, Vector3.ZERO)).is_equal_approx(
+			Vector3(1.0, 1.5, 2.0)
+		)
+	)
+	if not ok:
+		push_error("Expected light_ball network round-trip to preserve spawn_id/origin")
+		return 1
+	var dispell_local := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_DISPELL,
+		SyncScript.KEY_TARGET_KIND: "light_ball",
+		SyncScript.KEY_ORIGIN: Vector3(1.0, 1.5, 2.0),
+		SyncScript.KEY_SPAWN_ID: "42_99",
+	}
+	var dispell_wire := SyncScript.pack_for_network(dispell_local)
+	var dispell_unpacked := SyncScript.unpack_from_network(dispell_wire)
+	if str(dispell_unpacked.get(SyncScript.KEY_SPAWN_ID, "")) != "42_99":
+		push_error("Expected dispell wire to preserve light ball spawn_id")
+		return 1
+	return 0
+
+
+func _test_fake_wall_network_round_trip() -> int:
+	var local := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FAKE_WALL,
+		SyncScript.KEY_GRID_X: 4,
+		SyncScript.KEY_GRID_Y: 7,
+		SyncScript.KEY_ORIGIN: Vector3(12.0, 1.5, -3.0),
+		SyncScript.KEY_SIZE: Vector3(3.0, 3.0, 1.0),
+	}
+	var wire := SyncScript.pack_for_network(local)
+	if wire.is_empty():
+		push_error("Expected fake_wall pack_for_network to produce wire params")
+		return 1
+	var unpacked := SyncScript.unpack_from_network(wire)
+	var resolved := SyncScript.resolve_network_params(FakeWallSpell, null, wire)
+	var ok := (
+		str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_FAKE_WALL
+		and int(unpacked.get(SyncScript.KEY_GRID_X, -1)) == 4
+		and int(unpacked.get(SyncScript.KEY_GRID_Y, -1)) == 7
+		and SyncScript.coerce_vector3(unpacked.get(SyncScript.KEY_ORIGIN, Vector3.ZERO)).is_equal_approx(
+			Vector3(12.0, 1.5, -3.0)
+		)
+		and SyncScript.coerce_vector3(unpacked.get(SyncScript.KEY_SIZE, Vector3.ZERO)).is_equal_approx(
+			Vector3(3.0, 3.0, 1.0)
+		)
+		and int(resolved.get(SyncScript.KEY_GRID_X, -1)) == 4
+	)
+	if not ok:
+		push_error("Expected fake_wall network round-trip to preserve cell/origin/size")
 		return 1
 	return 0
 

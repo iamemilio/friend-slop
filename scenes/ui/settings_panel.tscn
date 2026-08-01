@@ -455,10 +455,10 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Apprentice"
 
-[node name="DevWardenButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevRoleSection"]
+[node name="DevHeadmasterButton" type="Button" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox/DevRoleSection"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Warden"
+text = "Headmaster"
 
 [node name="VoiceStubCheckBox" type="CheckBox" parent="Panel/MarginContainer/VBox/TabContainer/Developer/MarginContainer/DevVBox"]
 layout_mode = 2

@@ -32,5 +32,5 @@ func _is_editing_owner_character() -> bool:
 	var edited: Node = get_tree().edited_scene_root
 	if edited == null:
 		return false
-	## Parent is the Character / PlayableCharacter / Apprentice / Warden root.
+	## Parent is the Character / PlayableCharacter / Apprentice / Headmaster root.
 	return edited == get_parent()

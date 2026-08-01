@@ -11,6 +11,8 @@ const STT_CONFUSABLES := {
 	"show": ["sho", "shaw", "shoe"],
 	"speed": ["speak", "steed"],
 	"fireball": ["firebal", "firball"],
+	"dispell": ["dispel", "dispelled", "disperse"],
+	"dispel": ["dispell", "dispelled", "disperse"],
 }
 
 

@@ -104,6 +104,7 @@ func _physics_process(delta: float) -> void:
 	if _cast_motion_hit(motion):
 		return
 	global_position += motion
+	_touch_fake_walls()
 
 
 func _cast_motion_hit(motion: Vector3) -> bool:
@@ -123,6 +124,18 @@ func _cast_motion_hit(motion: Vector3) -> bool:
 	global_position += motion * safe_fraction
 	_finish(false)
 	return true
+
+
+func _touch_fake_walls() -> void:
+	if not is_inside_tree():
+		return
+	var tree := get_tree()
+	if tree == null:
+		return
+	var radius := FireballFlight.HIT_RADIUS * 1.35
+	for node in tree.get_nodes_in_group("fake_wall"):
+		if node != null and node.has_method("notify_spell_touch"):
+			node.call("notify_spell_touch", global_position, radius)
 
 
 func _process_sky_flare(delta: float) -> void:

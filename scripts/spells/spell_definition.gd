@@ -132,8 +132,8 @@ func get_cast_success_text() -> String:
 			text = "The outlined object flies toward your gaze."
 		"follow":
 			text = "The outlined object drifts toward you along open paths."
-		"stop":
-			text = "Target and Follow dissolve."
+		"dispell":
+			text = "Target outlines, Follow, light balls, and fake walls dissolve."
 	return text
 
 
@@ -171,7 +171,7 @@ func get_codex_effect_detail() -> String:
 			)
 		"target":
 			text = (
-				"Say \"target\" to outline the light orb or delivery relic "
+				"Say \"target\" to outline the light orb, relic, or fake wall "
 				+ "closest to your aim for %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_TARGET_DURATION
 			)
@@ -185,11 +185,12 @@ func get_codex_effect_detail() -> String:
 			text = (
 				"While Target outlines are active, say \"follow\" to send the "
 				+ "looked-at object toward you at a steady speed along open paths "
-				+ "until Stop."
+				+ "until Dispell."
 			)
-		"stop":
+		"dispell":
 			text = (
-				"Say \"stop\" to clear Target outlines and end any Follow."
+				"While Target outlines are active, say \"dispel\" to clear them, "
+				+ "end Follow/Pull, and destroy a targeted light ball or fake wall."
 			)
 	return text
 

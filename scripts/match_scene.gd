@@ -3,6 +3,7 @@ extends Node3D
 
 const PlayerSpawnLayoutScript := preload("res://scripts/player_spawn_layout.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
+const SpellWorldSyncScript := preload("res://scripts/spells/spell_world_sync.gd")
 const NetworkManagerScript := preload("res://scripts/network/network_manager.gd")
 
 # Fixed seed so opening match.tscn in the editor builds the same maze/clouds
@@ -338,14 +339,14 @@ func _finish_match_layout() -> void:
 
 
 func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
-	var warden_slot: PlayerSpawnSlot = null
+	var headmaster_slot: PlayerSpawnSlot = null
 	var apprentice_slots: Array[PlayerSpawnSlot] = []
 	for child in players_root.get_children():
 		if not (child is PlayerSpawnSlot):
 			continue
 		var slot := child as PlayerSpawnSlot
-		if slot.role == PlayerSpawnSlot.Role.WARDEN:
-			warden_slot = slot
+		if slot.role == PlayerSpawnSlot.Role.HEADMASTER:
+			headmaster_slot = slot
 		else:
 			apprentice_slots.append(slot)
 
@@ -358,8 +359,8 @@ func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
 		var peer_id := _peer_id_for_player_node(player)
 		var role := GameState.get_role_for_peer(peer_id)
 		var target: PlayerSpawnSlot = null
-		if role == GameState.PlayerRole.WARDEN:
-			target = warden_slot
+		if role == GameState.PlayerRole.HEADMASTER:
+			target = headmaster_slot
 		else:
 			if apprentice_index < apprentice_slots.size():
 				target = apprentice_slots[apprentice_index]
@@ -432,7 +433,10 @@ func apply_synced_spell_cast(
 		TomeDebug.log("Match", "synced spell cast skipped: unknown spell '%s'" % spell_id)
 		return
 	var applier := player.get_effect_applier() as SpellEffectApplier
+	if applier == null and _local_player != null:
+		applier = _local_player.get_effect_applier() as SpellEffectApplier
 	if applier == null:
+		TomeDebug.log("Match", "synced spell cast skipped: no effect applier")
 		return
 	TomeDebug.log(
 		"Match",
@@ -440,6 +444,25 @@ func apply_synced_spell_cast(
 		% [caster_peer_id, spell_id, spell.effect_id]
 	)
 	applier.apply_synced_cast(player, spell, params)
+
+
+func apply_spell_world_event(
+	kind: String,
+	event: String,
+	object_id: String,
+	pos_x: float,
+	pos_y: float,
+	pos_z: float
+) -> void:
+	if not is_inside_tree():
+		return
+	SpellWorldSyncScript.apply_event(
+		get_tree(),
+		kind,
+		event,
+		object_id,
+		Vector3(pos_x, pos_y, pos_z)
+	)
 
 
 func _on_cast_state_changed(state: String, spell: SpellDefinition) -> void:
@@ -497,6 +520,15 @@ func _on_cast_succeeded(
 	else:
 		var params := SpellEffectSyncScript.build_params(spell, _local_player)
 		var effect_duration := SpellEffectSyncScript.get_effect_duration_sec(spell, params)
+		if spell.effect_id == "fake_wall":
+			if _local_player.has_method("_begin_fake_wall_placement"):
+				_local_player.call("_begin_fake_wall_placement", spell)
+			if casting_session.is_free_cast():
+				return
+			game_hud.show_cast_success(spell, validation)
+			await get_tree().create_timer(1.2).timeout
+			game_hud.hide_casting()
+			return
 		effect_applier.cast_spell(_local_player, spell)
 		if effect_duration > 0.0:
 			game_hud.show_spell_active(spell.id, effect_duration)

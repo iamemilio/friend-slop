@@ -1,7 +1,7 @@
-[gd_scene load_steps=6 format=3 uid="uid://bwardworkspace1"]
+[gd_scene format=3 uid="uid://c7nqg0cutrpks"]
 
 [ext_resource type="Script" path="res://scripts/characters/character_workspace.gd" id="1_workspace"]
-[ext_resource type="PackedScene" uid="uid://bwarden001" path="res://scenes/characters/warden.tscn" id="2_warden"]
+[ext_resource type="PackedScene" uid="uid://bheadmaster001" path="res://scenes/characters/headmaster.tscn" id="2_headmaster"]
 
 [sub_resource type="Environment" id="Environment_studio"]
 background_mode = 1
@@ -16,8 +16,8 @@ size = Vector2(4, 4)
 albedo_color = Color(0.22, 0.23, 0.26, 1)
 roughness = 0.92
 
-[node name="WardenWorkspace" type="Node3D"]
-editor_description = "View-only lit preview of Warden. To edit Inspector properties, open warden.tscn instead (Godot locks instanced scenes)."
+[node name="HeadmasterWorkspace" type="Node3D"]
+editor_description = "View-only lit preview of Headmaster. To edit Inspector properties, open headmaster.tscn instead (Godot locks instanced scenes)."
 script = ExtResource("1_workspace")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -50,6 +50,6 @@ omni_range = 5.0
 mesh = SubResource("PlaneMesh_floor")
 surface_material_override/0 = SubResource("StandardMaterial3D_floor")
 
-[node name="Warden" parent="." instance=ExtResource("2_warden")]
+[node name="Headmaster" parent="." instance=ExtResource("2_headmaster")]
 
-[editable path="Warden"]
+[editable path="Headmaster"]

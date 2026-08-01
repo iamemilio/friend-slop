@@ -185,7 +185,7 @@ func rebuild_spawn_zone_preview_from_slots(slots: Array) -> void:
 			continue
 		var spawn_slot := slot as PlayerSpawnSlot
 		var cell: Vector2i = spawn_slot.spawn_cell
-		if spawn_slot.role == PlayerSpawnSlot.Role.WARDEN:
+		if spawn_slot.role == PlayerSpawnSlot.Role.HEADMASTER:
 			root.add_child(
 				_make_spawn_zone_marker(
 					cell,
@@ -193,7 +193,7 @@ func rebuild_spawn_zone_preview_from_slots(slots: Array) -> void:
 					0.35,
 					Color(0.85, 0.25, 0.95, 0.55),
 					Color(0.7, 0.15, 0.9),
-					"WardenZone"
+					"HeadmasterZone"
 				)
 			)
 		else:
@@ -412,7 +412,7 @@ func _build_exit_marker(exit_position: Vector3) -> void:
 
 
 func _build_spawn_zone_preview() -> void:
-	## Editor-only: large role-colored pads at warden center + apprentice corners.
+	## Editor-only: large role-colored pads at headmaster center + apprentice corners.
 	var roster: Array[Vector2i] = PlayerSpawnLayoutScript.collect_roster_spawn_cells(
 		_wall_grid,
 		maze_width,
@@ -425,7 +425,7 @@ func _build_spawn_zone_preview() -> void:
 	root.name = SPAWN_ZONE_PREVIEW_NAME
 	add_child(root)
 
-	# Warden — magenta center pad
+	# Headmaster — magenta center pad
 	root.add_child(
 		_make_spawn_zone_marker(
 			roster[0],
@@ -433,7 +433,7 @@ func _build_spawn_zone_preview() -> void:
 			0.35,
 			Color(0.85, 0.25, 0.95, 0.55),
 			Color(0.7, 0.15, 0.9),
-			"WardenZone"
+			"HeadmasterZone"
 		)
 	)
 

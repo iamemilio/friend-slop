@@ -1,6 +1,6 @@
 # Asymmetric Horror Maze — Implementation Plan
 
-North-star game: **3 survivors + 1 Warden** cooperate (or compete) inside a procedural maze. Survivors activate **ritual anchors** using **co-op puzzles** and **proximity voice**. The Warden manipulates the maze and sows mistrust. **Nobody is eliminated** — downed players become **Sealed** and rejoin via **rescue** or **self-escape**.
+North-star game: **3 survivors + 1 Headmaster** cooperate (or compete) inside a procedural maze. Survivors activate **ritual anchors** using **co-op puzzles** and **proximity voice**. The Headmaster manipulates the maze and sows mistrust. **Nobody is eliminated** — downed players become **Sealed** and rejoin via **rescue** or **self-escape**.
 
 This document is the engineering plan: phases, architecture, testing gates, and definitions of done. Design rationale lives in chat history; this file is what we build against.
 
@@ -15,8 +15,8 @@ Every feature must pass these checks before merge:
 | **Proximity voice** | No global in-game voice. Speech is spatial; walls muffle; sealed rooms leak muffled audio. |
 | **Set back, not out** | Downed → Sealed → timer → rescue **or** self-escape → rejoin at checkpoint. No spectator mode. |
 | **Team win, personal agency** | Match outcome is shared; individual contributions tracked (rescue, self-escape, anchor, hold). |
-| **Soft puzzle failure** | Mistakes cost time / Warden dread, not run-ending resets. |
-| **Warden targets teams** | Powers punish splits and coordination loss, not focused bullying of one weak player. |
+| **Soft puzzle failure** | Mistakes cost time / Headmaster dread, not run-ending resets. |
+| **Headmaster targets teams** | Powers punish splits and coordination loss, not focused bullying of one weak player. |
 | **Tested foundation** | New systems ship with unit tests; networked flows with integration tests or documented smoke scripts. |
 
 ---
@@ -42,7 +42,7 @@ Existing test harness: `tests/run_tests.gd`, `make test`, CI via `tools/run_godo
 
 Host (server) owns:
 
-- Role assignment, anchor progress, puzzle state, sealed placements, Warden dread, maze mutations.
+- Role assignment, anchor progress, puzzle state, sealed placements, Headmaster dread, maze mutations.
 
 Clients send **requests**; server validates and **broadcasts** state deltas. Follow the existing spell RPC pattern in `NetworkManager` (`request_*` → server → `broadcast_*`).
 
@@ -50,7 +50,7 @@ Introduce a dedicated **`MatchState`** (autoload or child of `NetworkManager`) r
 
 ### 2. Data-driven content
 
-- **Anchors**, **sealed-room escape templates**, **Warden powers**, **co-op puzzles** → Resources (`.tres`) + small scripts.
+- **Anchors**, **sealed-room escape templates**, **Headmaster powers**, **co-op puzzles** → Resources (`.tres`) + small scripts.
 - Logic in code; tuning in data. Enables tests with fixture resources.
 
 ### 3. Mode flag during transition
@@ -81,19 +81,19 @@ See **`docs/adr/002-steam-p2p-transport.md`**.
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Menu / Lobby                                               │
-│  - role pick (Survivor / Warden)                            │
+│  - role pick (Survivor / Headmaster)                            │
 │  - proximity voice: FULL (pre-game only)                    │
 └──────────────────────────┬──────────────────────────────────┘
                            │ start_game(run_seed, roles)
 ┌──────────────────────────▼──────────────────────────────────┐
 │  MatchState (server authority, synced snapshot)              │
 │  - phase, anchor_progress, checkpoints                       │
-│  - sealed_players{}, warden_dread                            │
+│  - sealed_players{}, headmaster_dread                            │
 │  - puzzle_states{}, maze_mutations{}                         │
 └─────┬───────────────┬────────────────┬──────────────────────┘
       │               │                │
       ▼               ▼                ▼
- Survivor scene   Warden UI      ProximityVoiceManager
+ Survivor scene   Headmaster UI      ProximityVoiceManager
  (player.tscn)   (map + powers)  (spatial audio graph)
       │               │                │
       └───────────────┴────────────────┘
@@ -118,7 +118,7 @@ Pure logic, no scene tree or headless Godot where possible:
 - Puzzle state machines (dual lever, sealed escape).
 - Proximity voice **attenuation/occlusion** math (room graph).
 
-Naming: `test_match_state.gd`, `test_sealed_placement.gd`, `test_warden_dread.gd`, etc.
+Naming: `test_match_state.gd`, `test_sealed_placement.gd`, `test_headmaster_dread.gd`, etc.
 
 ### Integration tests (`tests/integration/`)
 
@@ -214,12 +214,12 @@ Headless Godot scenes:
 ### Deliverables
 
 1. **`GameMode` enum** on `GameState` + `prepare_asymmetric_match(seed, roles)`.
-2. **`PlayerRole` enum:** `SURVIVOR`, `WARDEN`.
+2. **`PlayerRole` enum:** `SURVIVOR`, `HEADMASTER`.
 3. **`MatchState` resource + manager**
    - Phases: `LOBBY`, `BRIEFING`, `ACTIVE`, `RESOLVING`, `ENDED`.
    - Fields: `anchor_count`, `anchors_activated`, `checkpoint_anchor_id`, `sealed_peers: Dictionary`.
 4. **Lobby role selection** in `lobby_panel.gd`
-   - Exactly one Warden before start; 2–3 Survivors (support 3+1 for `MAX_PLAYERS=4`).
+   - Exactly one Headmaster before start; 2–3 Survivors (support 3+1 for `MAX_PLAYERS=4`).
    - Host cannot start without valid roster.
 5. **Network sync:** `MatchStateSnapshot` (packed dict or custom codec) broadcast on change; clients apply read-only view.
 
@@ -235,7 +235,7 @@ Headless Godot scenes:
 ### Tests
 
 - `tests/unit/test_match_state.gd` — phase transitions, invalid transitions rejected.
-- `tests/unit/test_role_assignment.gd` — one warden, peer count edges.
+- `tests/unit/test_role_assignment.gd` — one headmaster, peer count edges.
 - Extend `tests/unit/test_network_manager.gd` — start game passes roles.
 
 ### Exit criteria
@@ -304,8 +304,8 @@ Document choice in `docs/adr/001-proximity-voice.md`:
 
 1. **`AnchorDefinition` resource** — id, display name, world hint, activation requirements.
 2. **`AnchorInteractable`** — extends `Interactable`; server validates activation; increments `MatchState.anchors_activated`.
-3. **Win condition:** all anchors active → `MatchState.phase = RESOLVING` → survivor win (Warden loss).
-4. **Lose condition (v1):** time limit **or** Warden dread threshold (pick one for MVP; tune later).
+3. **Win condition:** all anchors active → `MatchState.phase = RESOLVING` → survivor win (Headmaster loss).
+4. **Lose condition (v1):** time limit **or** Headmaster dread threshold (pick one for MVP; tune later).
 5. **Checkpoints:** on anchor activation, save `checkpoint_anchor_id`; sealed rejoin spawns near checkpoint region.
 6. **Spawn plan:** extend `DiscoverableSpawnPlan` or parallel `AnchorSpawnPlan` with min-distance rules.
 
@@ -347,13 +347,13 @@ ACTIVE → DOWNED (brief) → SEALED_WAIT (timer) → SEALED_ACTIVE → ACTIVE
 
 1. **`SealedController`** (server) — triggers on downed event; picks cell via **`SealedPlacementPolicy`**:
    - Min graph distance from living survivors (config: 8–15 cells).
-   - Not in Warden-blocked zone / final anchor room.
+   - Not in Headmaster-blocked zone / final anchor room.
    - First seal per player: softer (closer, shorter timer).
 2. **`SealedRoom` scene** — enclosed cell + door marker + leak audio emitter.
 3. **Timer:** `SEALED_WAIT` 30–45s; player can speak (leaks); emote whispers slightly farther.
 4. **Self-escape v1:** one template — voice incantation OR hold channel (data-driven via `SealedEscapeDefinition`).
 5. **Rescue v1:** teammate at door, hold 4s; dual-hold optional bonus (faster).
-6. **Rejoin:** teleport to checkpoint region; brief invuln or Warden stun (0.5s dread pause).
+6. **Rejoin:** teleport to checkpoint region; brief invuln or Headmaster stun (0.5s dread pause).
 7. **Proximity:** muffled voice through door; volume rises as rescuer approaches (tie to Phase 1).
 
 ### Key files
@@ -397,20 +397,20 @@ ACTIVE → DOWNED (brief) → SEALED_WAIT (timer) → SEALED_ACTIVE → ACTIVE
 ### Exit criteria
 
 - Puzzle state survives reconnect (host stores state).
-- Failure increments Warden dread slightly (hook for Phase 5).
+- Failure increments Headmaster dread slightly (hook for Phase 5).
 
 ---
 
-## Phase 5 — Warden client (dread + three powers)
+## Phase 5 — Headmaster client (dread + three powers)
 
-> **Updated direction:** See [`WARDEN_TRICKSTER_PLAN.md`](WARDEN_TRICKSTER_PLAN.md) for the trickster-director Warden, Chime acts, fling/cut/false-wall mechanics, and dual win (time tax + Spectacle). The deliverables below remain a useful baseline; implementation should follow the trickster plan.
+> **Updated direction:** See [`HEADMASTER_TRICKSTER_PLAN.md`](HEADMASTER_TRICKSTER_PLAN.md) for the trickster-director Headmaster, Chime acts, fling/cut/false-wall mechanics, and dual win (time tax + Spectacle). The deliverables below remain a useful baseline; implementation should follow the trickster plan.
 
 **Goal:** Asymmetric antagonist with readable UI and bounded power.
 
 ### Deliverables
 
-1. **`WardenView`** scene — abstract maze map, delayed survivor blips (2s), dread meter.
-2. **`WardenDread` economy** — gain on team split, puzzle stall, failed lever; spend on powers; cap + regen rules.
+1. **`HeadmasterView`** scene — abstract maze map, delayed survivor blips (2s), dread meter.
+2. **`HeadmasterDread` economy** — gain on team split, puzzle stall, failed lever; spend on powers; cap + regen rules.
 3. **Powers MVP:**
 
    | Power | Cost | Effect |
@@ -420,25 +420,25 @@ ACTIVE → DOWNED (brief) → SEALED_WAIT (timer) → SEALED_ACTIVE → ACTIVE
    | **Whisper** | medium | Fake ping or muffled false line to one survivor |
 
 4. **`MazeMutationService`** — server validates graph edits; `MazeGenerator` exposes edge seal/unseal API.
-5. **Anti-bully:** immunity after 2 seals in 120s; Warden cannot seal same player’s room twice in a row.
+5. **Anti-bully:** immunity after 2 seals in 120s; Headmaster cannot seal same player’s room twice in a row.
 
 ### Key files
 
 | Action | Path |
 |--------|------|
-| Create | `scripts/warden/warden_dread.gd`, `warden_powers.gd`, `maze_mutation_service.gd` |
-| Create | `scenes/warden/warden_view.tscn`, `scripts/warden/warden_view.gd` |
+| Create | `scripts/headmaster/headmaster_dread.gd`, `headmaster_powers.gd`, `maze_mutation_service.gd` |
+| Create | `scenes/headmaster/headmaster_view.tscn`, `scripts/headmaster/headmaster_view.gd` |
 | Extend | `scripts/maze_generator.gd` / carver — mutation hooks |
 
 ### Tests
 
-- `tests/unit/test_warden_dread.gd`
+- `tests/unit/test_headmaster_dread.gd`
 - `tests/unit/test_maze_mutation_service.gd` — invalid edge rejected
-- `tests/unit/test_warden_targeting_limits.gd`
+- `tests/unit/test_headmaster_targeting_limits.gd`
 
 ### Exit criteria
 
-- Warden player has distinct client UI; survivors never see map god view.
+- Headmaster player has distinct client UI; survivors never see map god view.
 - Three powers work in 4-client manual session.
 - Dread cannot spam infinite seals.
 
@@ -477,7 +477,7 @@ ACTIVE → DOWNED (brief) → SEALED_WAIT (timer) → SEALED_ACTIVE → ACTIVE
 ### Deliverables
 
 1. Menu copy + mode select (`Asymmetric Horror` default).
-2. Briefing cards (survivor vs warden goals).
+2. Briefing cards (survivor vs headmaster goals).
 3. Match length target 15–20 min (time limit + anchor count tuning).
 4. Remove or hide `LEGACY_RACE` behind dev flag.
 5. **`docs/PLAYTEST.md`** — session script, balance knobs, known issues.
@@ -505,7 +505,7 @@ Phase 0A (Steam P2P) ──► Phase 0 (match model)
                                │
                     ┌──────────┴──────────┐
                     ▼                     ▼
-              Phase 4 (puzzles)     Phase 5 (warden)
+              Phase 4 (puzzles)     Phase 5 (headmaster)
                     │                     │
                     └──────────┬──────────┘
                                ▼
@@ -529,7 +529,7 @@ Phase 0A (Steam P2P) ──► Phase 0 (match model)
 | Proximity VoIP NAT failures | Signaling over existing Steam P2P host; fallback emote wheel |
 | Mic + VoIP echo | Push-to-talk streamer mode; document headset requirement |
 | Maze mutation desync | Server-only graph; clients receive delta list; unit test mutations |
-| Sealed player griefing (Warden camps body) | Rescue leak audio from distance; self-escape always valid; targeting limits |
+| Sealed player griefing (Headmaster camps body) | Rescue leak audio from distance; self-escape always valid; targeting limits |
 | Scope creep on puzzles | One reference puzzle per phase; data-driven templates after |
 | gdvosk headless crashes | Keep existing test disable pattern; sealed voice puzzles use same STT path with integration test |
 
@@ -541,7 +541,7 @@ Create `resources/match/horror_tuning.tres` (or `horror_tuning.gd` constants) fo
 
 - `sealed_wait_seconds`, `sealed_min_distance_cells`, `coordination_radius`
 - `proximity_full_volume_m`, `proximity_silent_m`
-- `warden_dread_*` gains/costs
+- `headmaster_dread_*` gains/costs
 - `anchor_count`, `match_time_limit_seconds`
 
 Playtests adjust one file; tests lock defaults.
@@ -572,11 +572,11 @@ Playtests adjust one file; tests lock defaults.
 | Term | Meaning |
 |------|---------|
 | **Survivor** | Apprentice in the maze; activates anchors. |
-| **Warden** | Asymmetric player; maze powers + dread. |
+| **Headmaster** | Asymmetric player; maze powers + dread. |
 | **Anchor** | Ritual objective; progress + checkpoint. |
 | **Sealed** | Downed state; random chamber; wait → rescue or escape. |
 | **Binding** | Lightweight role modifier (Lantern / Scribe / Pathfinder). |
-| **Dread** | Warden resource for powers. |
+| **Dread** | Headmaster resource for powers. |
 
 ---
 

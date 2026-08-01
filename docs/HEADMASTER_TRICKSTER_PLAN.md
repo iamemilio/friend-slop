@@ -1,8 +1,8 @@
-# Warden Trickster & Chime Acts — Implementation Plan
+# Headmaster Trickster & Chime Acts — Implementation Plan
 
-Companion to [`ASYMMETRIC_HORROR_PLAN.md`](ASYMMETRIC_HORROR_PLAN.md). This document replaces the **punish-first** framing of Phase 5 with a **director / trickster** Warden and ships the first **3D comedy mechanics** + **Chime** recurring objective.
+Companion to [`ASYMMETRIC_HORROR_PLAN.md`](ASYMMETRIC_HORROR_PLAN.md). This document replaces the **punish-first** framing of Phase 5 with a **director / trickster** Headmaster and ships the first **3D comedy mechanics** + **Chime** recurring objective.
 
-North star: **Apprentices play co-op escape; the Warden plays petty maze deity.** Both sides can win. Time tax is fine. Seals and pressure exist, but **pranks and spectacle** are the main Warden fantasy.
+North star: **Apprentices play co-op escape; the Headmaster plays petty maze deity.** Both sides can win. Time tax is fine. Seals and pressure exist, but **pranks and spectacle** are the main Headmaster fantasy.
 
 ---
 
@@ -10,11 +10,11 @@ North star: **Apprentices play co-op escape; the Warden plays petty maze deity.*
 
 | Pillar | Requirement |
 |--------|-------------|
-| **Dual win** | Apprentices can finish the ritual; Warden can win on **time tax** and/or **Spectacle** even when apprentices eventually succeed. |
+| **Dual win** | Apprentices can finish the ritual; Headmaster can win on **time tax** and/or **Spectacle** even when apprentices eventually succeed. |
 | **3D comedy** | Mechanics exploit **sightlines, height, and proximity voice** (flings watched live, screams heard nearby). |
 | **Predictable slapstick** | Fling trajectories and landing pads are **fixed and authored** — funny, not random death. |
 | **Readable tells** | False walls and maze cuts have **audio + at least one visual/social tell**. |
-| **Anti-bully** | Diminishing returns on sealing the same player; Warden rewarded for **variety** and **multi-player bits**. |
+| **Anti-bully** | Diminishing returns on sealing the same player; Headmaster rewarded for **variety** and **multi-player bits**. |
 | **Server authority** | Maze edits, chime state, fling launches, and scores live on host / `MatchState`. |
 | **Tested** | Grid mutation, chime state machine, and spectacle counters get unit tests. |
 
@@ -27,12 +27,12 @@ North star: **Apprentices play co-op escape; the Warden plays petty maze deity.*
 - **Primary:** Complete ritual progress (anchors + **Chime deliveries** per act).
 - **Secondary:** Finish with time remaining on the match clock; low seal count; successful rescues.
 
-### Warden (individual)
+### Headmaster (individual)
 
 - **Primary:** **Time tax** — apprentices fail to meet act/match deadline (clock hits zero or ritual incomplete).
 - **Secondary:** **Spectacle score** — tagged comedy moments (flings witnessed, false walls fooled, chime stolen, cuts during channel, etc.).
 
-End screen shows **both** team outcome and Warden **Director's Cut** (Spectacle + highlight reel stats). Rematch incentive even when apprentices “win” the run.
+End screen shows **both** team outcome and Headmaster **Director's Cut** (Spectacle + highlight reel stats). Rematch incentive even when apprentices “win” the run.
 
 ---
 
@@ -42,14 +42,14 @@ Matches are **2–3 acts**. Each act centers on one **Chime run**.
 
 ```
 Act start → Chime spawns (periodic ping)
-         → Pickup (any role; Warden can steal)
+         → Pickup (any role; Headmaster can steal)
          → Hold to reveal delivery site (holder only)
-         → Deliver at site (channel) OR Warden stalls until act timer
+         → Deliver at site (channel) OR Headmaster stalls until act timer
          → Brief intermission (full proximity voice OK in safe hub — optional)
-         → Next act (more Warden tools unlocked)
+         → Next act (more Headmaster tools unlocked)
 ```
 
-| Act | Apprentice focus | Warden tools (suggested) |
+| Act | Apprentice focus | Headmaster tools (suggested) |
 |-----|------------------|---------------------------|
 | **1** | Learn Chime + one delivery | False wall, cheap Whisper |
 | **2** | Second delivery + coordination | Cut / open door, one fling trap |
@@ -70,7 +70,7 @@ Tuning target: **15–20 min** total match (see parent plan).
 | Trajectory | Authored per trap: `{ trap_id, from_cell, to_cell, arc_curve }`. Same every activation. |
 | Air control | **Zero** (or effectively zero). Velocity set at launch. |
 | Landing | Always a **designated pad cell** — soft landing, brief stun (0.5–1s), no damage. |
-| Telegraph | Floor plate glow + SFX ~1s before arm; optional Warden “arm trap” spell. |
+| Telegraph | Floor plate glow + SFX ~1s before arm; optional Headmaster “arm trap” spell. |
 | Spectacle | +score if ≥2 apprentices have line-of-sight to arc (server ray/zone check). |
 
 **Data:** `FlingTrapDefinition` resource + scene trigger volume.  
@@ -78,9 +78,9 @@ Tuning target: **15–20 min** total match (see parent plan).
 
 ---
 
-### 2. Cut / open doors (`warden_shift`, `warden_forge`)
+### 2. Cut / open doors (`headmaster_shift`, `headmaster_forge`)
 
-**Fantasy:** Warden opens or closes **single-cell passages** through maze walls for chase and stall.
+**Fantasy:** Headmaster opens or closes **single-cell passages** through maze walls for chase and stall.
 
 | Spell | Grid effect | Duration |
 |-------|-------------|----------|
@@ -93,7 +93,7 @@ Tuning target: **15–20 min** total match (see parent plan).
 | Validation | Only edges in `MazeCarver` **loop candidate** set (same rules as braid walls). |
 | Tell | Loud stone-grind SFX heard within N cells. |
 | Fairness | Never the **only** route to Chime delivery or sealed exit without alternate path. |
-| Warden UI | God-view map highlights **eligible edges**; apprentices learn audio tell. |
+| Headmaster UI | God-view map highlights **eligible edges**; apprentices learn audio tell. |
 
 **Implementation:** `MazeMutationService` mutates logical `_wall_grid`; `MazeGenerator` patches collision mesh locally (no full regen every cast).
 
@@ -105,8 +105,8 @@ Tuning target: **15–20 min** total match (see parent plan).
 
 | Tell | Detail |
 |------|--------|
-| Cast audio | Warden incantation + shimmer SFX (proximity audible). |
-| Footprints | Warden trail stops at wall OR shows “through-wall” decal variant. |
+| Cast audio | Headmaster incantation + shimmer SFX (proximity audible). |
+| Footprints | Headmaster trail stops at wall OR shows “through-wall” decal variant. |
 | Visual | Subtle material wrongness; **Show Me** highlights shimmer. |
 | Touch | Interact “punch wall” → hollow thunk, illusion breaks. |
 
@@ -122,19 +122,19 @@ Tuning target: **15–20 min** total match (see parent plan).
 
 ### 4. Chime object (recurring mini-game)
 
-**Fantasy:** Periodic **ping** prop; hold to reveal delivery site; Warden can steal and stall.
+**Fantasy:** Periodic **ping** prop; hold to reveal delivery site; Headmaster can steal and stall.
 
 | State | Behavior |
 |-------|----------|
 | **Idle (world)** | Ping every 3–4s, spatial audio attenuation. |
-| **Carried** | Ping from carrier position; Warden runs slower with Chime. |
+| **Carried** | Ping from carrier position; Headmaster runs slower with Chime. |
 | **Hold reveal** | ~2s hold → delivery site marker for **holder** (and faint hint for allies). |
 | **Deliver** | Channel at site (3–5s); completes act objective. |
 
 | Rule | Detail |
 |------|--------|
 | Drop on seal | Chime drops to ground if carrier sealed. |
-| Warden steal | Valid pickup; loud ping escalates if held too long (everyone hunts). |
+| Headmaster steal | Valid pickup; loud ping escalates if held too long (everyone hunts). |
 | Delivery site | Picked from reachable cells at act start; not behind permanent dead-end. |
 
 **Data:** `ChimeActDefinition` — ping interval, hold time, channel time, act index.
@@ -143,7 +143,7 @@ Tuning target: **15–20 min** total match (see parent plan).
 
 ## Economy: Mischief & Spectacle
 
-Rename in **UI copy** only initially (`warden_dread` → “Mischief”); keep field name until refactor.
+Rename in **UI copy** only initially (`headmaster_dread` → “Mischief”); keep field name until refactor.
 
 ### Mischief (spend)
 
@@ -159,10 +159,10 @@ Rename in **UI copy** only initially (`warden_dread` → “Mischief”); keep f
 
 - Apprentices split up during Chime run
 - Puzzle stall / failed coordination
-- Act timer elapses without delivery (Warden-side)
+- Act timer elapses without delivery (Headmaster-side)
 - **Variety bonus:** first use of each power type per act
 
-### Spectacle (score — Warden secondary win)
+### Spectacle (score — Headmaster secondary win)
 
 Server increments on tagged events:
 
@@ -170,7 +170,7 @@ Server increments on tagged events:
 |-------|--------|
 | `fling_witnessed` | ≥2 apprentices in sight cone |
 | `false_wall_fooled` | Walk attempt or wasted Show Me on fake |
-| `chime_stolen_sec` | Warden held Chime |
+| `chime_stolen_sec` | Headmaster held Chime |
 | `cut_during_channel` | Door closed during deliver/hold |
 | `scream_spike` | Optional: voice RMS threshold after fling |
 
@@ -187,7 +187,7 @@ MatchState (extend)
   - maze_mutations[] { edge, type, expires_at }
   - false_walls[] { cell, normal, expires_at }
   - fling_traps[] { trap_id, armed_until }
-  - warden_dread (Mischief)
+  - headmaster_dread (Mischief)
   - spectacle_score + spectacle_tallies{}
   - apprentice_time_bank (optional bonus from deliveries)
 
@@ -196,7 +196,7 @@ MazeMutationService (server)
   - apply / revert mutation
   - sync snapshot to clients
 
-WardenPowerController (server validates, client predicts VFX)
+HeadmasterPowerController (server validates, client predicts VFX)
   - cut, open, false_wall, arm_fling, steal interactions
 
 ChimeController (server)
@@ -215,18 +215,18 @@ MazeGenerator (extend)
 
 | Action | Path |
 |--------|------|
-| Create | `docs/WARDEN_TRICKSTER_PLAN.md` (this file) |
+| Create | `docs/HEADMASTER_TRICKSTER_PLAN.md` (this file) |
 | Create | `scripts/match/chime_controller.gd` |
 | Create | `scripts/match/spectacle_tracker.gd` |
-| Create | `scripts/warden/maze_mutation_service.gd` |
-| Create | `scripts/warden/warden_power_controller.gd` |
-| Create | `scripts/warden/fling_trap.gd` |
-| Create | `scripts/warden/false_wall.gd` |
+| Create | `scripts/headmaster/maze_mutation_service.gd` |
+| Create | `scripts/headmaster/headmaster_power_controller.gd` |
+| Create | `scripts/headmaster/fling_trap.gd` |
+| Create | `scripts/headmaster/false_wall.gd` |
 | Create | `resources/acts/chime_act_*.tres`, `resources/traps/fling_*.tres` |
 | Extend | `scripts/match/match_state.gd` — act + chime + spectacle fields |
 | Extend | `scripts/maze_generator.gd` — mutation patches |
 | Extend | `scripts/progression/spell_display_names.gd` — trickster copy |
-| Create | `scenes/warden/warden_view.tscn` (from parent Phase 5) |
+| Create | `scenes/headmaster/headmaster_view.tscn` (from parent Phase 5) |
 
 ---
 
@@ -234,7 +234,7 @@ MazeGenerator (extend)
 
 ### Phase T1 — Match act shell + Chime v1
 
-**Goal:** Playable Chime loop without Warden powers.
+**Goal:** Playable Chime loop without Headmaster powers.
 
 **Deliverables**
 
@@ -252,20 +252,20 @@ MazeGenerator (extend)
 **Exit criteria**
 
 - 4-player session: apprentice can pick up Chime, reveal site, deliver; act advances.
-- Warden can pick up and run with Chime (no powers yet).
+- Headmaster can pick up and run with Chime (no powers yet).
 
 ---
 
 ### Phase T2 — Maze mutation (cut / open)
 
-**Goal:** Warden chase tool on grid; timed revert.
+**Goal:** Headmaster chase tool on grid; timed revert.
 
 **Deliverables**
 
 1. `MazeMutationService` — validate + apply edge open/close on `_wall_grid`.
 2. `MazeGenerator.apply_wall_patch()` — collision mesh update.
-3. Wire `warden_shift` / `warden_forge` spell requests → server mutation.
-4. Audio tell + UI eligible-edge highlights on Warden map.
+3. Wire `headmaster_shift` / `headmaster_forge` spell requests → server mutation.
+4. Audio tell + UI eligible-edge highlights on Headmaster map.
 5. Mischief cost + auto-revert timer.
 
 **Tests**
@@ -275,7 +275,7 @@ MazeGenerator (extend)
 
 **Exit criteria**
 
-- Warden closes door during Chime chase; reopens after TTL.
+- Headmaster closes door during Chime chase; reopens after TTL.
 - Apprentices never soft-locked without alternate route (validation test).
 
 ---
@@ -289,7 +289,7 @@ MazeGenerator (extend)
 1. `FlingTrapDefinition` + scene (trigger + arc).
 2. Server launch: zero air control, fixed landing pad.
 3. One **sightline-friendly** placement in test maze (atrium or long corridor).
-4. Warden “arm trap” or always-on fixture for MVP.
+4. Headmaster “arm trap” or always-on fixture for MVP.
 5. `SpectacleTracker` increment on witnessed fling.
 
 **Tests**
@@ -310,7 +310,7 @@ MazeGenerator (extend)
 **Deliverables**
 
 1. `FalseWall` scene — blocks movement until broken or TTL.
-2. Warden cast: audio tell + footprint rule.
+2. Headmaster cast: audio tell + footprint rule.
 3. Apprentice interact: punch to dispel.
 4. Show Me interaction (optional if spell ready).
 5. Cap active walls; Mischief cost.
@@ -331,9 +331,9 @@ MazeGenerator (extend)
 
 **Deliverables**
 
-1. Match clock + time tax win for Warden.
+1. Match clock + time tax win for Headmaster.
 2. Spectacle tally → `spectacle_score`.
-3. End screen: team result + Warden highlights (flings, steals, fools).
+3. End screen: team result + Headmaster highlights (flings, steals, fools).
 4. Act 2–3 unlock table (powers per act).
 5. Anti-bully: seal diminishing returns; variety bonus for Mischief.
 
@@ -344,8 +344,8 @@ MazeGenerator (extend)
 
 **Exit criteria**
 
-- Run can end with apprentice ritual win + Warden Spectacle win displayed.
-- Warden can win on time alone.
+- Run can end with apprentice ritual win + Headmaster Spectacle win displayed.
+- Headmaster can win on time alone.
 
 ---
 
@@ -356,14 +356,14 @@ MazeGenerator (extend)
 **Deliverables**
 
 1. 2–3 fling trap placements per maze seed class.
-2. Briefing cards (apprentice vs Warden goals).
-3. Warden `Deceiver` / `Architect` tree copy aligned to trickster powers.
+2. Briefing cards (apprentice vs Headmaster goals).
+3. Headmaster `Deceiver` / `Architect` tree copy aligned to trickster powers.
 4. `docs/PLAYTEST.md` — Chime act script, balance knobs.
 5. Integration: `tests/integration/test_chime_act_flow.gd`
 
 **Exit criteria**
 
-- Full 3+1 session: 3 acts, mixed Warden pranks, dual scoreboard, `make test` green.
+- Full 3+1 session: 3 acts, mixed Headmaster pranks, dual scoreboard, `make test` green.
 
 ---
 
@@ -396,7 +396,7 @@ T2 and T3 can partially parallelize after T1.
 | `false_wall_ttl_sec` | 40 |
 | `false_wall_max_active` | 3 |
 | `fling_stun_sec` | 0.75 |
-| `warden_chime_speed_multiplier` | 0.85 |
+| `headmaster_chime_speed_multiplier` | 0.85 |
 | `spectacle_win_threshold` | Tune in playtest |
 
 ---
@@ -408,8 +408,8 @@ T2 and T3 can partially parallelize after T1.
 | Mesh patch desync | Server owns grid; clients apply same patch id |
 | Fling net jitter | Server authoritative launch; client interpolate arc |
 | False wall grief (hard lock) | Placement validator + punch interact |
-| Chime camping | Escalating ping; act timer; Warden steal |
-| Warden feels weak if apprentices always win | Spectacle + Director's Cut + time tax |
+| Chime camping | Escalating ping; act timer; Headmaster steal |
+| Headmaster feels weak if apprentices always win | Spectacle + Director's Cut + time tax |
 | Voice scream detection flaky | Spectacle optional; fling witness uses position not RMS |
 
 ---
@@ -418,13 +418,13 @@ T2 and T3 can partially parallelize after T1.
 
 | [`ASYMMETRIC_HORROR_PLAN.md`](ASYMMETRIC_HORROR_PLAN.md) | This plan |
 |----------------------------------------------------------|-----------|
-| Phase 5 Warden (Seal, Fog, Whisper) | **Superseded in tone** — keep Whisper; defer Fog; Seal rare |
+| Phase 5 Headmaster (Seal, Fog, Whisper) | **Superseded in tone** — keep Whisper; defer Fog; Seal rare |
 | Phase 4 Co-op puzzles | Still valid; optional anchor inside Act 2 |
 | Phase 3 Sealed | Still valid; Chime drops on seal |
-| `warden_skill_tree.tres` | Reframe **Deceiver + Architect** as trickster paths; Hunter optional |
+| `headmaster_skill_tree.tres` | Reframe **Deceiver + Architect** as trickster paths; Hunter optional |
 
 When Phase T5 lands, update parent plan Phase 5 exit criteria to reference this document.
 
 ---
 
-*Last updated: 2026-07-03 — trickster Warden, Chime acts, fling / cut / false wall, dual win.*
+*Last updated: 2026-07-03 — trickster Headmaster, Chime acts, fling / cut / false wall, dual win.*

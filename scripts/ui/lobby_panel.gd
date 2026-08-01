@@ -350,7 +350,7 @@ func _build_player_row(peer_id: int, local_peer_id: int) -> VBoxContainer:
 	var role := NetworkManager.lobby.get_role(peer_id)
 	if is_local:
 		row.add_child(_build_role_button("Apprentice", GameState.PlayerRole.APPRENTICE, role))
-		row.add_child(_build_role_button("Warden", GameState.PlayerRole.WARDEN, role))
+		row.add_child(_build_role_button("Headmaster", GameState.PlayerRole.HEADMASTER, role))
 	else:
 		var role_label := Label.new()
 		role_label.text = RoleAssignment.role_label(role)
@@ -450,7 +450,7 @@ func _host_ready_message() -> String:
 		return "Invite friends with Steam or share the lobby ID."
 	return (
 		"Start alone to preview, or invite friends. "
-		+ "Full matches need 3 players (1 Warden, 2 Apprentices)."
+		+ "Full matches need 3 players (1 Headmaster, 2 Apprentices)."
 	)
 
 

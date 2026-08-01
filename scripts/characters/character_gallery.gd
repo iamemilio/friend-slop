@@ -1,7 +1,7 @@
 @tool
 extends Node3D
 
-## Standalone inspect scene for PlayableCharacter / Apprentice / Warden.
+## Standalone inspect scene for PlayableCharacter / Apprentice / Headmaster.
 ## Marks the tree so nested instances stay preview-only when F6-run.
 
 

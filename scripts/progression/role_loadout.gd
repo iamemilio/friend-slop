@@ -2,7 +2,7 @@ class_name RoleLoadout
 extends RefCounted
 
 ## Role starter kits. Apprentices get APPRENTICE_STARTER_SPELLS.
-## Wardens get the union of apprentice starters and WARDEN_STARTER_SPELLS.
+## Headmasters get the union of apprentice starters and HEADMASTER_STARTER_SPELLS.
 
 const APPRENTICE_STARTER_SPELLS: Array[String] = [
 	"show_me",
@@ -13,31 +13,23 @@ const APPRENTICE_STARTER_SPELLS: Array[String] = [
 	"target",
 	"pull",
 	"follow",
-	"stop",
+	"dispell",
 ]
 
-const WARDEN_STARTER_SPELLS: Array[String] = [
-	"warden_stalk",
-	"warden_pounce",
-	"warden_mark",
-	"warden_whisper",
-	"warden_mirror",
-	"warden_fade",
-	"warden_shift",
-	"warden_seal",
-	"warden_forge",
+const HEADMASTER_STARTER_SPELLS: Array[String] = [
+	"fake_wall",
 ]
 
 
 static func role_label(role: int) -> String:
-	if role == GameState.PlayerRole.WARDEN:
-		return "Warden"
+	if role == GameState.PlayerRole.HEADMASTER:
+		return "Headmaster"
 	return "Apprentice"
 
 
 static func get_starting_spell_ids(role: int) -> Array[String]:
-	if role == GameState.PlayerRole.WARDEN:
-		return _union_spell_ids(APPRENTICE_STARTER_SPELLS, WARDEN_STARTER_SPELLS)
+	if role == GameState.PlayerRole.HEADMASTER:
+		return _union_spell_ids(APPRENTICE_STARTER_SPELLS, HEADMASTER_STARTER_SPELLS)
 	return APPRENTICE_STARTER_SPELLS.duplicate()
 
 

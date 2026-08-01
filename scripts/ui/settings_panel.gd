@@ -31,7 +31,7 @@ var _crosshair_outer_switch: CheckButton
 var _crosshair_dot_switch: CheckButton
 var _crosshair_preview: Control
 var _dev_apprentice_button: Button
-var _dev_warden_button: Button
+var _dev_headmaster_button: Button
 var _voice_stub_checkbox: CheckBox
 var _dev_spawn_relic_near_spawn_checkbox: CheckBox
 var _dev_allow_any_lobby_size_checkbox: CheckBox
@@ -80,7 +80,7 @@ func _ready() -> void:
 	_crosshair_dot_switch.toggled.connect(_on_crosshair_dot_toggled)
 	_lobby_voice_switch.toggled.connect(_on_lobby_voice_toggled)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
-	_dev_warden_button.pressed.connect(_on_dev_warden_pressed)
+	_dev_headmaster_button.pressed.connect(_on_dev_headmaster_pressed)
 	_resolution_option.item_selected.connect(_on_resolution_selected)
 	NetworkManager.lobby_roster_changed.connect(_on_lobby_roster_changed)
 	_populate_from_settings()
@@ -172,7 +172,7 @@ func _cache_node_refs() -> void:
 	_lobby_voice_hint = _audio_vbox.get_node("LobbyVoiceHint")
 	_player_voice_list = _audio_vbox.get_node_or_null("PlayerVoiceList") as VBoxContainer
 	_dev_apprentice_button = _dev_vbox.get_node("DevRoleSection/DevApprenticeButton")
-	_dev_warden_button = _dev_vbox.get_node("DevRoleSection/DevWardenButton")
+	_dev_headmaster_button = _dev_vbox.get_node("DevRoleSection/DevHeadmasterButton")
 	_voice_stub_checkbox = _dev_vbox.get_node("VoiceStubCheckBox")
 	_dev_spawn_relic_near_spawn_checkbox = _dev_vbox.get_node("DevSpawnRelicNearSpawnCheckBox")
 	_dev_allow_any_lobby_size_checkbox = _dev_vbox.get_node("DevAllowAnyLobbySizeCheckBox")
@@ -255,7 +255,7 @@ func _select_resolution(index: int) -> void:
 func _refresh_dev_solo_ui() -> void:
 	var is_apprentice := _dev_solo_role == GameState.PlayerRole.APPRENTICE
 	SelectionStyle.style_choice(_dev_apprentice_button, is_apprentice)
-	SelectionStyle.style_choice(_dev_warden_button, not is_apprentice)
+	SelectionStyle.style_choice(_dev_headmaster_button, not is_apprentice)
 
 
 func _fill_device_option(
@@ -321,8 +321,8 @@ func _on_dev_apprentice_pressed() -> void:
 	_refresh_dev_solo_ui()
 
 
-func _on_dev_warden_pressed() -> void:
-	_dev_solo_role = GameState.PlayerRole.WARDEN
+func _on_dev_headmaster_pressed() -> void:
+	_dev_solo_role = GameState.PlayerRole.HEADMASTER
 	_refresh_dev_solo_ui()
 
 

@@ -19,7 +19,7 @@ properties/2/spawn = true
 properties/2/replication_mode = 1
 
 [node name="PlayableCharacter" instance=ExtResource("1_character")]
-editor_description = "PlayableCharacter = Character + camera, shared wand, spells, sync. Edit wand pose here so Apprentice and Warden both inherit it."
+editor_description = "PlayableCharacter = Character + camera, shared wand, spells, sync. Edit wand pose here so Apprentice and Headmaster both inherit it."
 script = ExtResource("2_playable")
 
 [node name="CameraPivot" type="Node3D" parent="Head" index="1"]

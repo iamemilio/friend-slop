@@ -82,7 +82,7 @@ func _test_snapshot_round_trip() -> int:
 	original.anchors_activated = 2
 	original.checkpoint_anchor_id = 1
 	original.sealed_peers = {2: {"room_id": 5}}
-	original.warden_dread = 10
+	original.headmaster_dread = 10
 
 	var packed := MatchStateSnapshotScript.pack(original)
 	var restored := MatchStateSnapshotScript.unpack(packed)
@@ -99,7 +99,7 @@ func _test_snapshot_round_trip() -> int:
 	if int(restored.sealed_peers.get(2, {}).get("room_id", -1)) != 5:
 		push_error("Snapshot round-trip lost sealed_peers")
 		return 1
-	if restored.warden_dread != 10:
-		push_error("Snapshot round-trip lost warden_dread")
+	if restored.headmaster_dread != 10:
+		push_error("Snapshot round-trip lost headmaster_dread")
 		return 1
 	return 0

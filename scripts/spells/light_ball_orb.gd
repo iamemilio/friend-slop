@@ -5,6 +5,7 @@ extends Node3D
 
 const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 const HoveringOrbMotionScript := preload("res://scripts/spells/hovering_orb_motion.gd")
+const SpellWorldSyncScript := preload("res://scripts/spells/spell_world_sync.gd")
 
 const DEFAULT_DURATION_SEC := 30.0
 const ORB_RADIUS := 0.16
@@ -24,6 +25,7 @@ const OUTLINE_COLOR := Color(1.0, 0.94, 0.7, 0.32)
 const MIST_COLOR := Color(1.0, 0.95, 0.8, 0.7)
 
 
+var spawn_id := ""
 var _duration_sec := DEFAULT_DURATION_SEC
 var _wand_origin := Vector3.ZERO
 var _target := Vector3.ZERO
@@ -54,12 +56,14 @@ static func spawn_cast(
 	parent: Node,
 	wand_origin: Vector3,
 	target_position: Vector3,
-	duration_sec: float = DEFAULT_DURATION_SEC
+	duration_sec: float = DEFAULT_DURATION_SEC,
+	orb_spawn_id: String = ""
 ) -> LightBallOrb:
 	var orb := LightBallOrb.new()
 	orb._duration_sec = maxf(duration_sec, 0.5)
 	orb._wand_origin = wand_origin
 	orb._target = target_position
+	orb.spawn_id = orb_spawn_id
 	parent.add_child(orb)
 	var snapped_pos := snap_to_ground(orb.get_world_3d(), target_position)
 	orb._target = snapped_pos
@@ -157,11 +161,33 @@ static func _sphere_is_clear(
 
 
 func _ready() -> void:
-	add_to_group("light_ball")
+	if spawn_id.is_empty():
+		spawn_id = SpellWorldSyncScript.make_spawn_id()
+	SpellWorldSyncScript.register(self, SpellWorldSyncScript.KIND_LIGHT_BALL, spawn_id)
 	_build_outline()
 	_build_orb_visuals(false)
 	_build_mist_and_beam()
 	_play_cast_sequence()
+
+
+func get_spell_world_kind() -> String:
+	return SpellWorldSyncScript.KIND_LIGHT_BALL
+
+
+func get_spell_world_id() -> String:
+	return spawn_id
+
+
+func destroy_from_spell(from_network: bool = false) -> void:
+	if not is_inside_tree():
+		return
+	if not from_network:
+		SpellWorldSyncScript.broadcast_event(self, SpellWorldSyncScript.EVENT_REMOVE)
+	_clear_cast_fx()
+	if _lifetime_tween != null and _lifetime_tween.is_valid():
+		_lifetime_tween.kill()
+		_lifetime_tween = null
+	queue_free()
 
 
 func _process(delta: float) -> void:

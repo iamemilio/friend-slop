@@ -1,5 +1,6 @@
 res://tests/unit/test_maze_carver.gd
 res://tests/unit/test_maze_wall_mesh.gd
+res://tests/unit/test_maze_passage_query.gd
 res://tests/unit/test_discoverable_spawn_plan.gd
 res://tests/unit/test_voice_spell_validator.gd
 res://tests/unit/test_incantation_matcher.gd
@@ -31,6 +32,8 @@ res://tests/unit/test_trail_registry.gd
 res://tests/unit/test_player_spawn_layout.gd
 res://tests/unit/test_spell_log.gd
 res://tests/unit/test_spell_effect_sync.gd
+res://tests/unit/test_spell_world_sync.gd
+res://tests/unit/test_spell_sync_lane.gd
 res://tests/unit/test_guide_content.gd
 res://tests/unit/test_spell_codex.gd
 res://tests/unit/test_voice_capture_worker.gd

@@ -18,7 +18,7 @@ gravity = null
 shape = SubResource("CapsuleShape3D_apprentice")
 
 [node name="Wand" parent="Head/CameraPivot" index="1"]
-transform = Transform3D(1, 0, 0, 0, 0.92520964, -0.37945613, 0, 0.37945613, 0.92520964, 0.125774, -0.1898058, -0.12813026)
+transform = Transform3D(1, 0, 0, 0, 0.92520964, -0.37945613, 0, 0.37945613, 0.92520964, 0.125774, -0.1898058, -0.16578425)
 
 [node name="EditorStudio" parent="." index="7" unique_id=1062825711]
 editor_description = "Editor-only lighting/camera. Shows when this character scene is open for editing. Does not appear in main or at runtime."

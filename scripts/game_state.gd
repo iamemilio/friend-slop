@@ -9,7 +9,7 @@ enum PlayerForm {
 
 enum PlayerRole {
 	APPRENTICE,
-	WARDEN,
+	HEADMASTER,
 }
 
 const SNAIL_COLORS: Array[Color] = [

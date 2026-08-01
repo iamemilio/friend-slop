@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/characters/character_gallery.gd" id="1_gallery"]
 [ext_resource type="PackedScene" uid="uid://bapprentice1" path="res://scenes/characters/apprentice.tscn" id="2_apprentice"]
-[ext_resource type="PackedScene" uid="uid://bwarden001" path="res://scenes/characters/warden.tscn" id="3_warden"]
+[ext_resource type="PackedScene" uid="uid://bheadmaster001" path="res://scenes/characters/headmaster.tscn" id="3_headmaster"]
 [ext_resource type="PackedScene" uid="uid://bplayable001" path="res://scenes/characters/playable_character.tscn" id="4_playable"]
 
 [sub_resource type="Environment" id="Environment_gallery"]
@@ -19,7 +19,7 @@ albedo_color = Color(0.18, 0.19, 0.22, 1)
 roughness = 0.9
 
 [node name="CharacterGallery" type="Node3D"]
-editor_description = "Side-by-side compare PlayableCharacter / Apprentice / Warden. For close-up fine editing open apprentice_workspace.tscn or warden_workspace.tscn instead. Not used in match play."
+editor_description = "Side-by-side compare PlayableCharacter / Apprentice / Headmaster. For close-up fine editing open apprentice_workspace.tscn or headmaster_workspace.tscn instead. Not used in match play."
 script = ExtResource("1_gallery")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
@@ -56,11 +56,11 @@ text = "Apprentice"
 font_size = 48
 modulate = Color(0.45, 0.85, 1, 1)
 
-[node name="Warden" parent="." instance=ExtResource("3_warden")]
+[node name="Headmaster" parent="." instance=ExtResource("3_headmaster")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.2, 0, 0)
 
-[node name="LabelWarden" type="Label3D" parent="Warden"]
+[node name="LabelHeadmaster" type="Label3D" parent="Headmaster"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.35, 0)
-text = "Warden"
+text = "Headmaster"
 font_size = 48
 modulate = Color(0.85, 0.55, 1, 1)
