@@ -38,6 +38,7 @@ var _objective_lines: PackedStringArray = PackedStringArray()
 
 func _ready() -> void:
 	visible = false
+	set_process(false)
 	_codex_open_button.pressed.connect(_on_codex_open_pressed)
 	_back_button.pressed.connect(_on_back_pressed)
 	_show_page(Page.MAIN)
@@ -45,6 +46,18 @@ func _ready() -> void:
 
 func configure_loadout(loadout: Node) -> void:
 	_loadout = loadout
+
+
+func _process(_delta: float) -> void:
+	if not visible or _loadout == null:
+		return
+	match _page:
+		Page.CODEX:
+			_refresh_codex_cooldown_labels()
+		Page.DETAIL:
+			_refresh_spell_detail()
+		_:
+			pass
 
 
 func get_page() -> Page:
@@ -101,15 +114,38 @@ func _refresh_codex_list() -> void:
 
 	for spell_id in spell_ids:
 		var spell := _resolve_spell(spell_id)
-		var label := GuideContentScript.codex_row_label(spell, spell_id)
+		var label := GuideContentScript.codex_row_label(
+			spell, spell_id, _remaining_cooldown_sec(spell_id)
+		)
 		_add_spell_button(spell_id, label)
+
+
+func _refresh_codex_cooldown_labels() -> void:
+	for child in _spell_list_box.get_children():
+		if not child is Button:
+			continue
+		if not child.has_meta("spell_id"):
+			continue
+		var spell_id := str(child.get_meta("spell_id"))
+		var spell := _resolve_spell(spell_id)
+		(child as Button).text = GuideContentScript.codex_row_label(
+			spell, spell_id, _remaining_cooldown_sec(spell_id)
+		)
 
 
 func _refresh_spell_detail() -> void:
 	var spell := _resolve_spell(_selected_spell_id)
-	var detail := GuideContentScript.build_spell_detail(spell)
+	var detail := GuideContentScript.build_spell_detail(
+		spell, _remaining_cooldown_sec(_selected_spell_id)
+	)
 	_detail_title.text = str(detail.get("title", "Spell"))
 	_detail_body.text = str(detail.get("body", ""))
+
+
+func _remaining_cooldown_sec(spell_id: String) -> float:
+	if _loadout == null or not _loadout.has_method("remaining_cooldown_sec"):
+		return 0.0
+	return float(_loadout.remaining_cooldown_sec(spell_id))
 
 
 func _resolve_spell(spell_id: String) -> SpellDefinitionScript:
@@ -138,6 +174,7 @@ func _add_spell_button(spell_id: String, label: String) -> void:
 	button.flat = true
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.focus_mode = Control.FOCUS_NONE
+	button.set_meta("spell_id", spell_id)
 	button.add_theme_color_override("font_color", _SPELL_BUTTON_FONT_COLOR)
 	button.add_theme_font_size_override("font_size", 14)
 	button.pressed.connect(_on_spell_button_pressed.bind(spell_id))
@@ -152,6 +189,7 @@ func _show_page(page: Page) -> void:
 	_main_page.visible = is_main
 	_codex_page.visible = page == Page.CODEX
 	_detail_page.visible = page == Page.DETAIL
+	set_process(visible and (page == Page.CODEX or page == Page.DETAIL))
 
 
 func _on_codex_open_pressed() -> void:

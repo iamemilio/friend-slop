@@ -38,10 +38,25 @@ static func codex_spell_ids(loadout: Node) -> Array[String]:
 	return loadout.get_known_spell_ids()
 
 
-static func codex_row_label(spell: SpellDefinitionScript, spell_id: String) -> String:
-	if spell == null:
-		return spell_id
-	return "%s — \"%s\"" % [spell.display_name, spell.get_incantation_text()]
+static func format_cooldown_countdown(remaining_sec: float) -> String:
+	if remaining_sec <= 0.0:
+		return ""
+	## One decimal keeps long cooldowns readable without jittery whole-second jumps.
+	return "Cooldown — %.1fs" % remaining_sec
+
+
+static func codex_row_label(
+	spell: SpellDefinitionScript,
+	spell_id: String,
+	remaining_cooldown_sec: float = 0.0
+) -> String:
+	var base := spell_id
+	if spell != null:
+		base = "%s — \"%s\"" % [spell.display_name, spell.get_incantation_text()]
+	var countdown := format_cooldown_countdown(remaining_cooldown_sec)
+	if countdown.is_empty():
+		return base
+	return "%s  ·  %s" % [base, countdown]
 
 
 static func codex_empty_hint() -> String:
@@ -52,10 +67,22 @@ static func codex_list_hint() -> String:
 	return "Click a spell to read more — hold [LMB] to cast."
 
 
-static func build_spell_detail(spell: SpellDefinitionScript) -> Dictionary:
+static func build_spell_detail(
+	spell: SpellDefinitionScript,
+	remaining_cooldown_sec: float = 0.0
+) -> Dictionary:
 	if spell == null:
 		return {"title": "Spell", "body": "No details available."}
+	var lines := spell.get_codex_detail_lines()
+	var countdown := format_cooldown_countdown(remaining_cooldown_sec)
+	if not countdown.is_empty():
+		var with_cd := PackedStringArray()
+		with_cd.append(countdown)
+		with_cd.append("")
+		for line in lines:
+			with_cd.append(line)
+		lines = with_cd
 	return {
 		"title": spell.display_name,
-		"body": "\n".join(spell.get_codex_detail_lines()),
+		"body": "\n".join(lines),
 	}
