@@ -22,6 +22,7 @@ const DEFAULT_HORROR_CONFIG := preload("res://resources/match/default_horror_con
 const SteamTransportScript := preload("res://scripts/network/steam_transport.gd")
 const SpellEffectSyncScript := preload("res://scripts/spells/spell_effect_sync.gd")
 const GameWorldScript := preload("res://scripts/game_world.gd")
+const DroppedBroomScript := preload("res://scripts/headmaster/dropped_broom.gd")
 
 var transport: MultiplayerTransport
 var is_session_active: bool = false
@@ -498,6 +499,48 @@ func _request_match_victory(winner_peer_id: int) -> void:
 @rpc("authority", "call_local", "reliable")
 func _rpc_match_victory(winner_peer_id: int) -> void:
 	_forward_to_main("trigger_match_victory", [winner_peer_id])
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_broom_drop(
+	spawn_id: String,
+	pos_x: float,
+	pos_y: float,
+	pos_z: float,
+	vel_x: float,
+	vel_y: float,
+	vel_z: float
+) -> void:
+	if not multiplayer.is_server() or not MatchStateManager.allows_gameplay_actions():
+		return
+	_rpc_broom_drop.rpc(spawn_id, pos_x, pos_y, pos_z, vel_x, vel_y, vel_z)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_broom_drop(
+	spawn_id: String,
+	pos_x: float,
+	pos_y: float,
+	pos_z: float,
+	vel_x: float,
+	vel_y: float,
+	vel_z: float
+) -> void:
+	DroppedBroomScript.spawn_local(
+		spawn_id, Vector3(pos_x, pos_y, pos_z), Vector3(vel_x, vel_y, vel_z)
+	)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_broom_pickup(spawn_id: String, peer_id: int) -> void:
+	if not multiplayer.is_server() or not MatchStateManager.allows_gameplay_actions():
+		return
+	_rpc_broom_pickup.rpc(spawn_id, peer_id)
+
+
+@rpc("authority", "call_local", "reliable")
+func _rpc_broom_pickup(spawn_id: String, peer_id: int) -> void:
+	DroppedBroomScript.apply_pickup(get_tree(), spawn_id, peer_id)
 
 
 @rpc("any_peer", "call_remote", "unreliable")

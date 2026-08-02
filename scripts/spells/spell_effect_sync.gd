@@ -6,6 +6,8 @@ extends RefCounted
 ## targeted). Ephemeral spawns use SpellEphemeralFx; lasting props use SpellWorldSync.
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
+const FlareProjectileScript := preload("res://scripts/spells/flare_projectile.gd")
+const WardShieldScript := preload("res://scripts/spells/ward_shield.gd")
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
@@ -14,6 +16,7 @@ const SpellWorldSyncScript := preload("res://scripts/spells/spell_world_sync.gd"
 const SpellEphemeralFxScript := preload("res://scripts/spells/spell_ephemeral_fx.gd")
 const SpellSyncLaneScript := preload("res://scripts/spells/spell_sync_lane.gd")
 const FakeWallScript := preload("res://scripts/headmaster/fake_wall.gd")
+const RelicCloneScript := preload("res://scripts/headmaster/relic_clone.gd")
 
 const KEY_EFFECT_ID := "effect_id"
 const KEY_ORIGIN := "origin"
@@ -26,25 +29,37 @@ const KEY_TARGET_KIND := "target_kind"
 const EFFECT_HASTE := "haste"
 const EFFECT_LIGHT := "light"
 const EFFECT_FIREBALL := "fireball"
+const EFFECT_FLARE := "flare"
+const EFFECT_WARD := "ward"
 const EFFECT_FLASHLIGHT_TOGGLE := "flashlight_toggle"
 const EFFECT_LIGHT_BALL := "light_ball"
 const EFFECT_TARGET := "target"
 const EFFECT_PULL := "pull"
 const EFFECT_FOLLOW := "follow"
+const EFFECT_STOP := "stop"
 const EFFECT_DISPELL := "dispell"
 const EFFECT_FAKE_WALL := "fake_wall"
+const EFFECT_CLONE := "clone"
 
 const KEY_GRID_X := "grid_x"
 const KEY_GRID_Y := "grid_y"
 const KEY_SIZE := "size"
 const KEY_SPAWN_ID := "spawn_id"
+const KEY_SOURCE_KIND := "source_kind"
+const KEY_SOURCE_ID := "source_id"
+
+const META_HAS_BEEN_CLONED := "spell_has_been_cloned"
+const META_IS_CLONE := "spell_is_clone"
+const SOURCE_ID_RELIC := "relic"
 
 const DEFAULT_LIGHT_DURATION := 20.0
 const DEFAULT_HASTE_DURATION := 4.0
 const DEFAULT_HASTE_MULTIPLIER := 1.65
 const DEFAULT_FIREBALL_CAST_DURATION := 0.0
+const DEFAULT_WARD_DURATION := 1.0
 const DEFAULT_LIGHT_BALL_DURATION := 30.0
 const DEFAULT_TARGET_DURATION := 10.0
+const CLONE_OFFSET_DIST := 0.55
 
 
 static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary = {}) -> float:
@@ -55,8 +70,10 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 			return float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
 		EFFECT_HASTE:
 			return float(params.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
-		EFFECT_FIREBALL:
+		EFFECT_FIREBALL, EFFECT_FLARE:
 			return DEFAULT_FIREBALL_CAST_DURATION
+		EFFECT_WARD:
+			return float(params.get(KEY_DURATION, DEFAULT_WARD_DURATION))
 		EFFECT_LIGHT_BALL:
 			# Orb fades itself — no right-side active-timer chrome.
 			return 0.0
@@ -65,7 +82,7 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 		EFFECT_TARGET:
 			# Highlight fades itself — no right-side active-timer chrome.
 			return 0.0
-		EFFECT_PULL, EFFECT_FOLLOW, EFFECT_DISPELL:
+		EFFECT_PULL, EFFECT_FOLLOW, EFFECT_STOP, EFFECT_DISPELL, EFFECT_CLONE:
 			return 0.0
 		EFFECT_FAKE_WALL:
 			return 0.0
@@ -78,9 +95,11 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 		return {}
 	var params := {KEY_EFFECT_ID: spell.effect_id}
 	match spell.effect_id:
-		EFFECT_FIREBALL:
+		EFFECT_FIREBALL, EFFECT_FLARE, EFFECT_WARD:
 			params[KEY_ORIGIN] = _fireball_origin(player)
 			params[KEY_DIRECTION] = _fireball_direction(player)
+			if spell.effect_id == EFFECT_WARD:
+				params[KEY_DURATION] = DEFAULT_WARD_DURATION
 		EFFECT_LIGHT:
 			params[KEY_DURATION] = DEFAULT_LIGHT_DURATION
 		EFFECT_HASTE:
@@ -100,10 +119,17 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			_append_looked_at_target(params, player, true)
 		EFFECT_FOLLOW:
 			_append_looked_at_target(params, player, false)
+		EFFECT_STOP:
+			pass
 		EFFECT_DISPELL:
 			if not TargetHighlightScript.has_active_highlights(player.get_tree()):
 				return {}
 			_append_dispell_target(params, player)
+		EFFECT_CLONE:
+			if not TargetHighlightScript.has_active_highlights(player.get_tree()):
+				return {}
+			if not _append_clone_params(params, player):
+				return {}
 		EFFECT_FAKE_WALL:
 			# Placement supplies grid/origin/size after interact confirm.
 			return {}
@@ -141,18 +167,8 @@ static func _append_looked_at_target(
 static func _append_dispell_target(params: Dictionary, player: CharacterBody3D) -> void:
 	if player == null or not player.is_inside_tree():
 		return
-	var tree := player.get_tree()
-	## Dispell only acts on an active Target outline — never bare aim.
-	var target: Node3D = null
-	for anchor in TargetHighlightScript.get_highlighted_anchors(tree):
-		if anchor == null:
-			continue
-		if (
-			anchor.is_in_group(SpellWorldSyncScript.KIND_FAKE_WALL)
-			or anchor.is_in_group(SpellWorldSyncScript.KIND_LIGHT_BALL)
-		):
-			target = anchor
-			break
+	## Dispell only acts on Target outlines, picked by crosshair proximity.
+	var target: Node3D = TargetedObjectControlScript.pick_dispellable(player)
 	if target == null:
 		return
 	var desc: Dictionary = TargetedObjectControlScript.describe_target(target)
@@ -171,16 +187,137 @@ static func _append_dispell_target(params: Dictionary, player: CharacterBody3D) 
 		params[KEY_SPAWN_ID] = object_id
 
 
+static func _append_clone_params(params: Dictionary, player: CharacterBody3D) -> bool:
+	if player == null or not player.is_inside_tree():
+		return false
+	var source := TargetedObjectControlScript.pick_looked_at(player, false)
+	if source == null or not _is_cloneable_source(source):
+		return false
+	var desc: Dictionary = TargetedObjectControlScript.describe_target(source)
+	var source_kind := str(desc.get("kind", ""))
+	var spawn_kind := ""
+	match source_kind:
+		"light_ball":
+			spawn_kind = SpellWorldSyncScript.KIND_LIGHT_BALL
+		"relic":
+			spawn_kind = SpellWorldSyncScript.KIND_RELIC_CLONE
+		_:
+			return false
+	var source_id := _clone_source_id(source, source_kind)
+	if source_id.is_empty():
+		return false
+	var source_pos := coerce_vector3(desc.get("mark", source.global_position))
+	if source.has_method("get_hover_base"):
+		source_pos = source.call("get_hover_base")
+	var clone_pos := _clone_spawn_position(player, source_pos, spawn_kind)
+	params[KEY_TARGET_KIND] = spawn_kind
+	params[KEY_ORIGIN] = clone_pos
+	params[KEY_SPAWN_ID] = SpellWorldSyncScript.make_spawn_id(player)
+	params[KEY_SOURCE_KIND] = source_kind
+	params[KEY_SOURCE_ID] = source_id
+	if spawn_kind == SpellWorldSyncScript.KIND_LIGHT_BALL:
+		params[KEY_DURATION] = DEFAULT_LIGHT_BALL_DURATION
+		params[KEY_WAND_ORIGIN] = clone_pos
+	return true
+
+
+static func _is_cloneable_source(source: Node3D) -> bool:
+	if source == null or not is_instance_valid(source):
+		return false
+	if bool(source.get_meta(META_IS_CLONE, false)):
+		return false
+	if bool(source.get_meta(META_HAS_BEEN_CLONED, false)):
+		return false
+	if source.is_in_group(SpellWorldSyncScript.KIND_RELIC_CLONE):
+		return false
+	return true
+
+
+static func _clone_source_id(source: Node3D, source_kind: String) -> String:
+	if source_kind == TargetedObjectControlScript.TARGET_KIND_RELIC:
+		return SOURCE_ID_RELIC
+	var object_id := SpellWorldSyncScript.get_id(source)
+	if not object_id.is_empty():
+		return object_id
+	var spawn_id: Variant = source.get("spawn_id")
+	if spawn_id is String:
+		return str(spawn_id)
+	return ""
+
+
+static func _resolve_clone_source(
+	tree: SceneTree,
+	source_kind: String,
+	source_id: String,
+	mark: Vector3
+) -> Node3D:
+	if tree == null or source_kind.is_empty():
+		return null
+	if source_kind == TargetedObjectControlScript.TARGET_KIND_RELIC:
+		return TargetedObjectControlScript.resolve_target(
+			tree, TargetedObjectControlScript.TARGET_KIND_RELIC, mark
+		)
+	if not source_id.is_empty():
+		var by_id := SpellWorldSyncScript.find(tree, source_kind, source_id)
+		if by_id != null:
+			return by_id
+	return TargetedObjectControlScript.resolve_target(tree, source_kind, mark)
+
+
+static func _mark_clone_source_spent(source: Node3D) -> void:
+	if source == null or not is_instance_valid(source):
+		return
+	source.set_meta(META_HAS_BEEN_CLONED, true)
+
+
+static func _mark_spawned_clone(node: Node) -> void:
+	if node == null or not is_instance_valid(node):
+		return
+	node.set_meta(META_IS_CLONE, true)
+	node.set_meta(META_HAS_BEEN_CLONED, true)
+
+
+static func _clone_spawn_position(
+	player: CharacterBody3D,
+	source_pos: Vector3,
+	spawn_kind: String
+) -> Vector3:
+	## Offset sideways relative to look/crosshair, not the body capsule facing.
+	var right := Vector3.RIGHT
+	if player != null and player.is_inside_tree():
+		var look := Vector3.FORWARD
+		if player.has_method("get_wand_cast_direction"):
+			look = player.call("get_wand_cast_direction")
+		elif player.has_method("get_view_direction"):
+			look = player.call("get_view_direction")
+		look.y = 0.0
+		if look.length_squared() > 0.0001:
+			right = Vector3.UP.cross(look.normalized())
+			if right.length_squared() < 0.0001:
+				right = Vector3.RIGHT
+			else:
+				right = right.normalized()
+	var clone_pos := source_pos + right * CLONE_OFFSET_DIST
+	var world_3d: World3D = null
+	if player != null and player.is_inside_tree():
+		world_3d = player.get_world_3d()
+	if spawn_kind == SpellWorldSyncScript.KIND_LIGHT_BALL:
+		return LightBallOrbScript.snap_to_ground(world_3d, clone_pos)
+	return RelicCloneScript.snap_to_ground(world_3d, clone_pos)
+
+
 static func pack_for_network(params: Dictionary) -> Dictionary:
 	var local := normalize_params(params)
 	if local.is_empty():
 		return {}
 	var wire := {KEY_EFFECT_ID: str(local.get(KEY_EFFECT_ID, ""))}
 	match str(wire[KEY_EFFECT_ID]):
-		EFFECT_FIREBALL:
+		EFFECT_FIREBALL, EFFECT_FLARE, EFFECT_WARD:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
 			var direction := coerce_vector3(local.get(KEY_DIRECTION, Vector3.FORWARD))
 			SpellEphemeralFxScript.pack_ray(wire, origin, direction)
+			if str(wire[KEY_EFFECT_ID]) == EFFECT_WARD:
+				wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_WARD_DURATION))
 		EFFECT_HASTE:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -199,6 +336,8 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire["origin_x"] = mark.x
 			wire["origin_y"] = mark.y
 			wire["origin_z"] = mark.z
+		EFFECT_STOP:
+			pass
 		EFFECT_DISPELL:
 			wire[KEY_TARGET_KIND] = str(local.get(KEY_TARGET_KIND, ""))
 			var mark := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
@@ -208,6 +347,16 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			wire[KEY_GRID_X] = int(local.get(KEY_GRID_X, -1))
 			wire[KEY_GRID_Y] = int(local.get(KEY_GRID_Y, -1))
 			wire[KEY_SPAWN_ID] = str(local.get(KEY_SPAWN_ID, ""))
+		EFFECT_CLONE:
+			wire[KEY_TARGET_KIND] = str(local.get(KEY_TARGET_KIND, ""))
+			var clone_origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
+			wire["origin_x"] = clone_origin.x
+			wire["origin_y"] = clone_origin.y
+			wire["origin_z"] = clone_origin.z
+			wire[KEY_SPAWN_ID] = str(local.get(KEY_SPAWN_ID, ""))
+			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			wire[KEY_SOURCE_KIND] = str(local.get(KEY_SOURCE_KIND, ""))
+			wire[KEY_SOURCE_ID] = str(local.get(KEY_SOURCE_ID, ""))
 		EFFECT_LIGHT_BALL:
 			var origin := coerce_vector3(local.get(KEY_ORIGIN, Vector3.ZERO))
 			var wand_origin := coerce_vector3(local.get(KEY_WAND_ORIGIN, Vector3.ZERO))
@@ -243,10 +392,12 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 	var effect_id := str(wire.get(KEY_EFFECT_ID, ""))
 	var params := {KEY_EFFECT_ID: effect_id}
 	match effect_id:
-		EFFECT_FIREBALL:
+		EFFECT_FIREBALL, EFFECT_FLARE, EFFECT_WARD:
 			var ray := SpellEphemeralFxScript.unpack_ray(wire)
 			params[KEY_ORIGIN] = ray[SpellEphemeralFxScript.KEY_ORIGIN]
 			params[KEY_DIRECTION] = ray[SpellEphemeralFxScript.KEY_DIRECTION]
+			if effect_id == EFFECT_WARD:
+				params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_WARD_DURATION))
 		EFFECT_HASTE:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -267,6 +418,8 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 				float(wire.get("origin_y", 0.0)),
 				float(wire.get("origin_z", 0.0))
 			)
+		EFFECT_STOP:
+			pass
 		EFFECT_DISPELL:
 			params[KEY_TARGET_KIND] = str(wire.get(KEY_TARGET_KIND, ""))
 			params[KEY_ORIGIN] = Vector3(
@@ -277,6 +430,17 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 			params[KEY_GRID_X] = int(wire.get(KEY_GRID_X, -1))
 			params[KEY_GRID_Y] = int(wire.get(KEY_GRID_Y, -1))
 			params[KEY_SPAWN_ID] = str(wire.get(KEY_SPAWN_ID, ""))
+		EFFECT_CLONE:
+			params[KEY_TARGET_KIND] = str(wire.get(KEY_TARGET_KIND, ""))
+			params[KEY_ORIGIN] = Vector3(
+				float(wire.get("origin_x", 0.0)),
+				float(wire.get("origin_y", 0.0)),
+				float(wire.get("origin_z", 0.0))
+			)
+			params[KEY_SPAWN_ID] = str(wire.get(KEY_SPAWN_ID, ""))
+			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			params[KEY_SOURCE_KIND] = str(wire.get(KEY_SOURCE_KIND, ""))
+			params[KEY_SOURCE_ID] = str(wire.get(KEY_SOURCE_ID, ""))
 		EFFECT_LIGHT_BALL:
 			params[KEY_ORIGIN] = Vector3(
 				float(wire.get("origin_x", 0.0)),
@@ -320,7 +484,14 @@ static func normalize_params(params: Dictionary) -> Dictionary:
 
 static func is_network_format(params: Dictionary) -> bool:
 	var effect_id := str(params.get(KEY_EFFECT_ID, ""))
-	if effect_id == EFFECT_FIREBALL and SpellEphemeralFxScript.is_ray_wire(params):
+	if (
+		(
+			effect_id == EFFECT_FIREBALL
+			or effect_id == EFFECT_FLARE
+			or effect_id == EFFECT_WARD
+		)
+		and SpellEphemeralFxScript.is_ray_wire(params)
+	):
 		return true
 	if effect_id == EFFECT_LIGHT_BALL and params.has("origin_x") and not params.has(KEY_ORIGIN):
 		return true
@@ -330,6 +501,7 @@ static func is_network_format(params: Dictionary) -> bool:
 			or effect_id == EFFECT_FOLLOW
 			or effect_id == EFFECT_TARGET
 			or effect_id == EFFECT_DISPELL
+			or effect_id == EFFECT_CLONE
 		)
 		and params.has("origin_x")
 		and not params.has(KEY_ORIGIN)
@@ -362,9 +534,13 @@ static func resolve_network_params(
 		var has_kind := not str(params.get(KEY_TARGET_KIND, "")).is_empty()
 		if not has_wall and not has_kind:
 			_append_dispell_target(params, player)
-	if spell.effect_id != EFFECT_FIREBALL:
+	if (
+		spell.effect_id != EFFECT_FIREBALL
+		and spell.effect_id != EFFECT_FLARE
+		and spell.effect_id != EFFECT_WARD
+	):
 		return params
-	if not is_valid_fireball_params(params):
+	if not is_valid_ray_spell_params(params, spell.effect_id):
 		if player == null:
 			return {}
 		return build_params(spell, player)
@@ -374,7 +550,11 @@ static func resolve_network_params(
 
 
 static func is_valid_fireball_params(params: Dictionary) -> bool:
-	if str(params.get(KEY_EFFECT_ID, "")) != EFFECT_FIREBALL:
+	return is_valid_ray_spell_params(params, EFFECT_FIREBALL)
+
+
+static func is_valid_ray_spell_params(params: Dictionary, effect_id: String) -> bool:
+	if str(params.get(KEY_EFFECT_ID, "")) != effect_id:
 		return false
 	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.ZERO))
 	return direction.length_squared() > 0.01
@@ -405,6 +585,10 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			_reveal_trails(float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION)))
 		EFFECT_FIREBALL:
 			_apply_fireball(player, params)
+		EFFECT_FLARE:
+			_apply_flare(player, params)
+		EFFECT_WARD:
+			_apply_ward(player, params)
 		EFFECT_FLASHLIGHT_TOGGLE:
 			_toggle_flashlight(player)
 		EFFECT_LIGHT_BALL:
@@ -415,8 +599,12 @@ static func apply(player: CharacterBody3D, params: Dictionary) -> void:
 			_apply_pull(player, params)
 		EFFECT_FOLLOW:
 			_apply_follow(player, params)
+		EFFECT_STOP:
+			_apply_stop(player)
 		EFFECT_DISPELL:
 			_apply_dispell(player, params)
+		EFFECT_CLONE:
+			_apply_clone(player, params)
 		EFFECT_FAKE_WALL:
 			_apply_fake_wall(player, params)
 		_:
@@ -461,6 +649,21 @@ static func _apply_follow(player: CharacterBody3D, params: Dictionary) -> void:
 	TargetedObjectControlScript.start_follow(player, target)
 
 
+static func _apply_stop(player: CharacterBody3D) -> void:
+	## Clears Follow/Pull channels (and Target outlines) for every peer that
+	## receives the cast — not just the caster's own drivers.
+	var scene_tree: SceneTree = null
+	if player != null and player.is_inside_tree():
+		scene_tree = player.get_tree()
+	else:
+		var loop := Engine.get_main_loop()
+		if loop is SceneTree:
+			scene_tree = loop as SceneTree
+	if scene_tree == null:
+		return
+	TargetedObjectControlScript.stop_all(scene_tree)
+
+
 static func _apply_dispell(player: CharacterBody3D, params: Dictionary) -> void:
 	var scene_tree: SceneTree = null
 	if player != null and player.is_inside_tree():
@@ -501,6 +704,7 @@ static func _dispell_highlighted_objects(tree: SceneTree) -> void:
 		if (
 			anchor.is_in_group(SpellWorldSyncScript.KIND_FAKE_WALL)
 			or anchor.is_in_group(SpellWorldSyncScript.KIND_LIGHT_BALL)
+			or anchor.is_in_group(SpellWorldSyncScript.KIND_RELIC_CLONE)
 		):
 			if anchor.has_method("destroy_from_spell"):
 				anchor.call("destroy_from_spell", false)
@@ -538,8 +742,11 @@ static func sync_lane_for(effect_id: String) -> String:
 
 
 static func _fireball_direction(player: CharacterBody3D) -> Vector3:
+	## Shared aim for fireball / flare / any ray spell: wand → crosshair.
 	if player.has_method("get_wand_cast_direction"):
 		return player.call("get_wand_cast_direction")
+	if player.has_method("get_view_direction"):
+		return player.call("get_view_direction")
 	var camera_pivot: Node3D = player.get_node_or_null("Head/CameraPivot")
 	if camera_pivot != null:
 		var basis := camera_pivot.global_transform.basis if camera_pivot.is_inside_tree() \
@@ -567,7 +774,30 @@ static func _apply_fireball(player: CharacterBody3D, params: Dictionary) -> void
 		player,
 		origin,
 		direction,
-		Callable(FireballProjectileScript, "spawn")
+		func(parent: Node, spawn_origin: Vector3, spawn_dir: Vector3) -> Node:
+			return FireballProjectileScript.spawn(parent, spawn_origin, spawn_dir, player)
+	)
+
+
+static func _apply_flare(player: CharacterBody3D, params: Dictionary) -> void:
+	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.FORWARD))
+	SpellEphemeralFxScript.spawn_at(
+		player,
+		origin,
+		direction,
+		Callable(FlareProjectileScript, "spawn")
+	)
+
+
+static func _apply_ward(player: CharacterBody3D, params: Dictionary) -> void:
+	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.FORWARD))
+	SpellEphemeralFxScript.spawn_at(
+		player,
+		origin,
+		direction,
+		Callable(WardShieldScript, "spawn")
 	)
 
 
@@ -595,6 +825,53 @@ static func _apply_fake_wall(player: CharacterBody3D, params: Dictionary) -> voi
 		world, SpellWorldSyncScript.BUCKET_FAKE_WALLS
 	)
 	FakeWallScript.spawn(bucket, origin, size, cell)
+
+
+static func _apply_clone(player: CharacterBody3D, params: Dictionary) -> void:
+	if player == null or not player.is_inside_tree():
+		return
+	var tree := player.get_tree()
+	var spawn_kind := str(params.get(KEY_TARGET_KIND, ""))
+	var clone_pos := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
+	var clone_id := str(params.get(KEY_SPAWN_ID, ""))
+	var source_kind := str(params.get(KEY_SOURCE_KIND, ""))
+	var source_id := str(params.get(KEY_SOURCE_ID, ""))
+	if spawn_kind.is_empty() or clone_pos == Vector3.ZERO:
+		return
+	if clone_id.is_empty():
+		clone_id = SpellWorldSyncScript.make_spawn_id(player)
+	var world: Node = GameWorldScript.find_match_root(tree)
+	if world == null:
+		world = player.get_parent()
+	if world == null:
+		return
+	## Idempotent on every peer: same spawn_id from the cast wire.
+	if SpellWorldSyncScript.find(tree, spawn_kind, clone_id) != null:
+		var existing_source := _resolve_clone_source(tree, source_kind, source_id, clone_pos)
+		_mark_clone_source_spent(existing_source)
+		return
+	var source := _resolve_clone_source(tree, source_kind, source_id, clone_pos)
+	if source != null and not _is_cloneable_source(source):
+		return
+	var spawned: Node = null
+	match spawn_kind:
+		SpellWorldSyncScript.KIND_LIGHT_BALL:
+			var ball_bucket := SpellWorldSyncScript.ensure_bucket(
+				world, SpellWorldSyncScript.BUCKET_LIGHT_BALLS
+			)
+			var duration := float(params.get(KEY_DURATION, DEFAULT_LIGHT_BALL_DURATION))
+			spawned = LightBallOrbScript.spawn_cast(
+				ball_bucket, clone_pos, clone_pos, duration, clone_id
+			)
+		SpellWorldSyncScript.KIND_RELIC_CLONE:
+			var relic_bucket := SpellWorldSyncScript.ensure_bucket(
+				world, SpellWorldSyncScript.BUCKET_RELIC_CLONES
+			)
+			spawned = RelicCloneScript.spawn(relic_bucket, clone_pos, clone_id)
+		_:
+			return
+	_mark_spawned_clone(spawned)
+	_mark_clone_source_spent(source)
 
 
 static func _toggle_flashlight(player: CharacterBody3D) -> void:

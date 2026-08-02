@@ -8,6 +8,7 @@ func run() -> int:
 	failures += _test_grid_path_goes_around_wall()
 	failures += _test_grid_path_direct_when_open()
 	failures += _test_advance_path_drops_reached_waypoints()
+	failures += _test_world_height_path_keeps_goal_y()
 	return failures
 
 
@@ -79,5 +80,24 @@ func _test_advance_path_drops_reached_waypoints() -> int:
 		return 1
 	if remaining[0] != Vector3(2.0, 1.0, 0.0):
 		push_error("Expected next waypoint after advancing")
+		return 1
+	return 0
+
+
+func _test_world_height_path_keeps_goal_y() -> int:
+	## No maze / no space → direct path should preserve elevated goal Y.
+	var path := FloatingFollowPathScript.build_path(
+		Vector3(0.0, 1.15, 0.0),
+		Vector3(4.0, 7.5, 0.0),
+		null,
+		1.15,
+		null,
+		true
+	)
+	if path.is_empty():
+		push_error("Expected a direct world-height path")
+		return 1
+	if not is_equal_approx(path[path.size() - 1].y, 7.5):
+		push_error("Expected air follow path to keep elevated goal Y")
 		return 1
 	return 0

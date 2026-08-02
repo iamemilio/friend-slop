@@ -21,12 +21,16 @@ func _test_known_effects_have_lanes() -> int:
 		"flashlight_toggle": LaneScript.PLAYER_BOUND,
 		"light": LaneScript.PLAYER_BOUND,
 		"fireball": LaneScript.EPHEMERAL,
+		"flare": LaneScript.EPHEMERAL,
+		"ward": LaneScript.EPHEMERAL,
 		"light_ball": LaneScript.WORLD_OBJECT,
 		"fake_wall": LaneScript.WORLD_OBJECT,
 		"target": LaneScript.TARGETED,
 		"pull": LaneScript.TARGETED,
 		"follow": LaneScript.TARGETED,
+		"stop": LaneScript.TARGETED,
 		"dispell": LaneScript.TARGETED,
+		"clone": LaneScript.TARGETED,
 	}
 	for effect_id in expected.keys():
 		if not LaneScript.is_known(effect_id) or not SyncScript.is_supported_effect(effect_id):

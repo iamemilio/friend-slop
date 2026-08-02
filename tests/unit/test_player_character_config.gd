@@ -54,6 +54,7 @@ func _test_headmaster_starting_spells() -> int:
 	var missing := (
 		spell_ids.size() != expected_size
 		or not spell_ids.has("fake_wall")
+		or not spell_ids.has("clone")
 		or not spell_ids.has("show_me")
 	)
 	if missing:

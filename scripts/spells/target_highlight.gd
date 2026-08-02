@@ -66,6 +66,7 @@ static func collect_anchors(tree: SceneTree) -> Array[Node3D]:
 	var seen: Dictionary = {}
 	_append_unique(anchors, seen, tree.get_nodes_in_group("light_ball"))
 	_append_unique(anchors, seen, tree.get_nodes_in_group("fake_wall"))
+	_append_unique(anchors, seen, tree.get_nodes_in_group("relic_clone"))
 	for node in tree.get_nodes_in_group("delivery_objective"):
 		if node != null and node.has_method("get_spell_target_nodes"):
 			var targets: Variant = node.call("get_spell_target_nodes")

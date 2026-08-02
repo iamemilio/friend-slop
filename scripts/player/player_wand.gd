@@ -51,6 +51,12 @@ func _ready() -> void:
 		_build_wand_meshes()
 	_build_particles()
 	set_armed(false)
+	set_process(false)
+
+
+func _process(_delta: float) -> void:
+	if _flashlight_active:
+		_aim_flashlight_to_crosshair()
 
 
 func _bind_existing_meshes() -> void:
@@ -90,7 +96,8 @@ func get_cast_origin() -> Vector3:
 
 
 func get_cast_direction() -> Vector3:
-	return -global_transform.basis.z.normalized()
+	## Prefer crosshair aim (same as projectiles); fall back to wand shaft.
+	return _resolve_aim_direction()
 
 
 func play_cast_success(spell: SpellDefinition = null, keep_armed: bool = false) -> void:
@@ -109,15 +116,64 @@ func play_fizzle(keep_armed: bool = false) -> void:
 
 func set_flashlight_enabled(active: bool) -> void:
 	_flashlight_active = active
+	set_process(active)
 	if _flashlight_light == null:
 		return
 	_flashlight_light.visible = active
 	_flashlight_light.light_energy = FLASHLIGHT_ENERGY if active else 0.0
+	if active:
+		_aim_flashlight_to_crosshair()
 	_refresh_tip_light()
 
 
 func is_flashlight_active() -> bool:
 	return _flashlight_active
+
+
+func _aim_flashlight_to_crosshair() -> void:
+	if _flashlight_light == null or not is_instance_valid(_flashlight_light):
+		return
+	var dir := _resolve_aim_direction()
+	if dir.length_squared() < 0.0001:
+		return
+	dir = dir.normalized()
+	var target := _flashlight_light.global_position + dir
+	var up := Vector3.UP
+	if absf(dir.dot(up)) > 0.95:
+		up = Vector3.RIGHT
+	_flashlight_light.look_at(target, up)
+
+
+func _resolve_aim_direction() -> Vector3:
+	var player := _owner_playable()
+	if (
+		player != null
+		and player.is_multiplayer_authority()
+		and player.has_method("get_wand_cast_direction")
+	):
+		return player.call("get_wand_cast_direction") as Vector3
+	var pivot := _camera_pivot()
+	if pivot != null:
+		return -pivot.global_transform.basis.z.normalized()
+	return -global_transform.basis.z.normalized()
+
+
+func _owner_playable() -> CharacterBody3D:
+	var node: Node = self
+	while node != null:
+		if node is CharacterBody3D and node.has_method("get_wand_cast_direction"):
+			return node as CharacterBody3D
+		node = node.get_parent()
+	return null
+
+
+func _camera_pivot() -> Node3D:
+	var node: Node = get_parent()
+	while node != null:
+		if node.name == "CameraPivot" and node is Node3D:
+			return node as Node3D
+		node = node.get_parent()
+	return null
 
 
 func set_flame_glow_enabled(active: bool) -> void:
@@ -300,6 +356,11 @@ func _emit_burst(particles: CPUParticles3D, color: Color) -> void:
 		return
 	particles.color = color
 	particles.position = _tip_local_position()
+	var aim := _resolve_aim_direction()
+	if aim.length_squared() > 0.0001:
+		particles.direction = (global_transform.basis.inverse() * aim.normalized()).normalized()
+	else:
+		particles.direction = Vector3(0.0, 0.0, -1.0)
 	particles.restart()
 	particles.emitting = true
 
@@ -344,11 +405,15 @@ func _success_color_for_spell(spell: SpellDefinition) -> Color:
 	match spell.effect_id:
 		"fireball":
 			color = Color(1.0, 0.55, 0.15)
+		"flare":
+			color = Color(1.0, 0.75, 0.25)
+		"ward":
+			color = Color(0.45, 0.75, 1.0)
 		"light":
 			color = Color(1.0, 0.92, 0.55)
 		"haste":
 			color = Color(0.55, 0.82, 1.0)
-		"flashlight_toggle", "light_ball", "target", "pull", "follow", "dispell":
+		"flashlight_toggle", "light_ball", "target", "pull", "follow", "stop", "dispell", "clone":
 			color = FLASHLIGHT_COLOR
 	return color
 

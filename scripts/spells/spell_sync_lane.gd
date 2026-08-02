@@ -7,7 +7,7 @@ extends RefCounted
 ## PLAYER_BOUND — runs on the caster avatar (haste, flashlight). Wire carries
 ##   scalars only; every peer applies to that caster player node.
 ##
-## EPHEMERAL — fire-and-forget projectile or one-shot FX (fireball). Pack spawn
+## EPHEMERAL — fire-and-forget projectile or short FX (fireball, ward). Pack spawn
 ##   pose into the cast wire; every peer spawns and simulates locally. No spawn_id,
 ##   no later remove/flicker RPC. Child impact VFX ride the local sim.
 ##   Use SpellEphemeralFx.
@@ -17,8 +17,9 @@ extends RefCounted
 ##   SpellWorldSync. Mutate and despawn go through the shared world-event RPC.
 ##
 ## TARGETED — operates on an existing world object or mark (target, pull, follow,
-##   dispell). Wire carries kind + mark / spawn_id / grid; apply resolves the
+##   stop, dispell). Wire carries kind + mark / spawn_id / grid; apply resolves the
 ##   object on each peer. Despawn of world objects still uses SpellWorldSync.
+##   Stop is payload-free and clears Follow/Pull on every peer.
 
 const PLAYER_BOUND := "player_bound"
 const EPHEMERAL := "ephemeral"
@@ -31,12 +32,16 @@ const BY_EFFECT := {
 	"flashlight_toggle": PLAYER_BOUND,
 	"light": PLAYER_BOUND,
 	"fireball": EPHEMERAL,
+	"flare": EPHEMERAL,
+	"ward": EPHEMERAL,
 	"light_ball": WORLD_OBJECT,
 	"fake_wall": WORLD_OBJECT,
 	"target": TARGETED,
 	"pull": TARGETED,
 	"follow": TARGETED,
+	"stop": TARGETED,
 	"dispell": TARGETED,
+	"clone": TARGETED,
 }
 
 

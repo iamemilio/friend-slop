@@ -12,10 +12,11 @@ const CODEX_EMPTY_LIST_LABEL := "(No spells known yet)"
 static func control_hints_text() -> String:
 	return (
 		"Move — WASD\n"
-		+ "Sprint — Shift · Jump — Space\n"
-		+ "Camera — C · Interact — F\n"
+		+ "Sprint — Shift · Jump — Space · Crouch — C\n"
+		+ "Interact — F\n"
 		+ "Cast — hold LMB, speak, release\n"
-		+ "Spell codex — B · Guide — Tab"
+		+ "Spell codex — B · Guide — Tab\n"
+		+ "Broom — [1] · WASD fly · Space up · C down · Shift boost"
 	)
 
 

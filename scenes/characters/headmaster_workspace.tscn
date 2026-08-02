@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c7nqg0cutrpks"]
 
 [ext_resource type="Script" path="res://scripts/characters/character_workspace.gd" id="1_workspace"]
-[ext_resource type="PackedScene" uid="uid://bheadmaster001" path="res://scenes/characters/headmaster.tscn" id="2_headmaster"]
+[ext_resource type="PackedScene" uid="uid://cp6nppmbqrage" path="res://scenes/characters/headmaster.tscn" id="2_headmaster"]
 
 [sub_resource type="Environment" id="Environment_studio"]
 background_mode = 1

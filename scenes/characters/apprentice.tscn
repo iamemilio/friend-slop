@@ -12,7 +12,6 @@ height = 0.72
 editor_description = "Edit Apprentice Body / Head / CollisionShape3D here. Shared wand is on playable_character.tscn."
 script = ExtResource("2_apprentice")
 player_index = 0
-gravity = null
 
 [node name="CollisionShape3D" parent="." index="0" unique_id=294740946]
 shape = SubResource("CapsuleShape3D_apprentice")
@@ -20,10 +19,7 @@ shape = SubResource("CapsuleShape3D_apprentice")
 [node name="Wand" parent="Head/CameraPivot" index="1"]
 transform = Transform3D(1, 0, 0, 0, 0.92520964, -0.37945613, 0, 0.37945613, 0.92520964, 0.125774, -0.1898058, -0.16578425)
 
-[node name="EditorStudio" parent="." index="7" unique_id=1062825711]
-editor_description = "Editor-only lighting/camera. Shows when this character scene is open for editing. Does not appear in main or at runtime."
-
-[node name="PositionTrailRecorder" type="Node" parent="." index="8" unique_id=2138752126]
+[node name="PositionTrailRecorder" type="Node" parent="." index="7" unique_id=2138752126]
 script = ExtResource("3_trail")
 
 [editable path="Head/CameraPivot/Wand"]

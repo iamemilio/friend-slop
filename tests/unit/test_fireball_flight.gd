@@ -14,6 +14,8 @@ func run(tree: SceneTree) -> int:
 	failures += _test_normal_lifetime()
 	failures += _test_sky_flare_finish_conditions()
 	failures += _test_smoke_trail_fade_delay()
+	failures += _test_smoke_uses_mist_texture_without_shadows()
+	failures += _test_embers_use_fine_spark_texture()
 	failures += _test_burst_particle_defaults()
 	failures += _test_hit_radius_matches_visual()
 	failures += _test_cast_lights_use_shadows()
@@ -24,14 +26,15 @@ func run(tree: SceneTree) -> int:
 
 
 func _test_sky_flare_direction_threshold() -> int:
+	## Helpers still power the separate Flare spell's rise path.
 	if not FireballFlightScript.is_sky_flare_direction(Vector3(0.2, 0.8, 0.2)):
-		push_error("Expected steep upward fireball to count as sky flare")
+		push_error("Expected steep upward aim to count as flare rise direction")
 		return 1
 	if FireballFlightScript.is_sky_flare_direction(Vector3(1.0, 0.1, 0.0)):
-		push_error("Expected horizontal fireball to stay a normal projectile")
+		push_error("Expected shallow aim to stay below flare rise threshold")
 		return 1
 	if not FireballFlightScript.is_sky_flare_direction(Vector3(0.0, 1.0, 0.0)):
-		push_error("Expected straight-up fireball to count as sky flare")
+		push_error("Expected straight-up aim to count as flare rise direction")
 		return 1
 	return 0
 
@@ -69,6 +72,40 @@ func _test_smoke_trail_fade_delay() -> int:
 	var delay := FireballParticlesScript.smoke_trail_fade_delay_sec(2.0)
 	if not is_equal_approx(delay, 2.35):
 		push_error("Expected smoke trail fade delay to include padding")
+		return 1
+	return 0
+
+
+func _test_smoke_uses_mist_texture_without_shadows() -> int:
+	var smoke := FireballParticlesScript.make_smoke_trail_emitter()
+	if smoke.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+		push_error("Expected smoke particles to disable shadow casting")
+		return 1
+	var mat := smoke.material_override as StandardMaterial3D
+	if mat == null or mat.albedo_texture == null:
+		push_error("Expected smoke particles to use a soft mist albedo texture")
+		return 1
+	if not (mat.albedo_texture is GradientTexture2D):
+		push_error("Expected smoke mist texture to be a radial GradientTexture2D")
+		return 1
+	return 0
+
+
+func _test_embers_use_fine_spark_texture() -> int:
+	var embers := FireballParticlesScript.make_comet_spark_emitter()
+	var mat := embers.material_override as StandardMaterial3D
+	if mat == null or mat.albedo_texture == null:
+		push_error("Expected ember particles to use a soft spark albedo texture")
+		return 1
+	if mat.blend_mode != BaseMaterial3D.BLEND_MODE_ADD:
+		push_error("Expected ember particles to use additive blending")
+		return 1
+	var mesh := embers.mesh as QuadMesh
+	if mesh == null or mesh.size.x > 0.08:
+		push_error("Expected ember mesh quads to stay tiny for fine sparks")
+		return 1
+	if embers.scale_amount_max > 0.1:
+		push_error("Expected ember scale to stay fine-particle sized")
 		return 1
 	return 0
 

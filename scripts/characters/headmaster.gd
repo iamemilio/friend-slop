@@ -1,7 +1,7 @@
 class_name Headmaster
 extends PlayableCharacter
 
-## Maze Headmaster — larger silhouette with shared playable wand.
+## Maze Headmaster — larger silhouette with shared playable wand / broom.
 
 const HEADMASTER_BODY_SCALE := 1.18
 
@@ -22,7 +22,3 @@ func _apply_character_color(color: Color) -> void:
 	if body_mat != null:
 		body_mat.roughness = 0.85
 		body_mat.metallic = 0.12
-
-
-func _default_cast_prompt() -> String:
-	return ""

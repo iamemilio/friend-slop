@@ -28,15 +28,21 @@ static func build_path(
 	goal: Vector3,
 	maze: Node,
 	float_height: float,
-	space: PhysicsDirectSpaceState3D = null
+	space: PhysicsDirectSpaceState3D = null,
+	use_world_heights: bool = false
 ) -> Array[Vector3]:
+	## When use_world_heights is true, keep from/goal Y (air Follow). Otherwise
+	## flatten both to float_height for ground-locked Pull / corridor cruise.
 	var path: Array[Vector3] = []
-	var raised_from := from
-	raised_from.y = float_height
-	var raised_goal := goal
-	raised_goal.y = float_height
-	if space != null and has_line_of_sight(space, raised_from, raised_goal):
-		path.append(raised_goal)
+	var query_from := from
+	var query_goal := goal
+	if use_world_heights:
+		query_goal.y = goal.y
+	else:
+		query_from.y = float_height
+		query_goal.y = float_height
+	if space != null and has_line_of_sight(space, query_from, query_goal):
+		path.append(query_goal)
 		return path
 
 	if (
@@ -46,36 +52,37 @@ static func build_path(
 		or not maze.has_method("is_grid_open")
 		or not maze.has_method("get_wall_grid")
 	):
-		path.append(raised_goal)
+		path.append(query_goal)
 		return path
 
 	var wall_grid: Array = maze.call("get_wall_grid")
 	if wall_grid.is_empty():
-		path.append(raised_goal)
+		path.append(query_goal)
 		return path
 
 	var start_cell: Vector2i = _nearest_open_cell(
-		maze.call("world_to_cell", raised_from), maze
+		maze.call("world_to_cell", query_from), maze
 	)
 	var goal_cell: Vector2i = _nearest_open_cell(
-		maze.call("world_to_cell", raised_goal), maze
+		maze.call("world_to_cell", query_goal), maze
 	)
 	if start_cell.x < 0 or goal_cell.x < 0:
-		path.append(raised_goal)
+		path.append(query_goal)
 		return path
 
 	var cells := find_grid_path(wall_grid, start_cell, goal_cell)
 	if cells.is_empty():
-		path.append(raised_goal)
+		path.append(query_goal)
 		return path
 
+	var waypoint_y := query_goal.y if use_world_heights else float_height
 	# Skip the cell we already occupy; keep corridor centers as waypoints.
 	for i in range(1, cells.size()):
 		var world: Vector3 = maze.call("grid_to_world", cells[i].x, cells[i].y)
-		world.y = float_height
+		world.y = waypoint_y
 		path.append(world)
-	if path.is_empty() or path[path.size() - 1].distance_squared_to(raised_goal) > 0.05:
-		path.append(raised_goal)
+	if path.is_empty() or path[path.size() - 1].distance_squared_to(query_goal) > 0.05:
+		path.append(query_goal)
 	return path
 
 

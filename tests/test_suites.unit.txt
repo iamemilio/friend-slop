@@ -7,6 +7,7 @@ res://tests/unit/test_incantation_matcher.gd
 res://tests/unit/test_floating_follow_path.gd
 res://tests/unit/test_world_ground.gd
 res://tests/unit/test_hovering_orb_motion.gd
+res://tests/unit/test_ward_shield.gd
 res://tests/unit/test_spell_grammar_builder.gd
 res://tests/unit/test_spell_cast_validator.gd
 res://tests/unit/test_character_spell_loadout.gd
@@ -36,6 +37,7 @@ res://tests/unit/test_spell_world_sync.gd
 res://tests/unit/test_spell_sync_lane.gd
 res://tests/unit/test_guide_content.gd
 res://tests/unit/test_spell_codex.gd
+res://tests/unit/test_broom_flight.gd
 res://tests/unit/test_voice_capture_worker.gd
 res://tests/unit/test_steam_p2p_voice_transport.gd
 res://tests/unit/test_mic_capture_broker.gd

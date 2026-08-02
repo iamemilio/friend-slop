@@ -18,9 +18,17 @@ const NetworkManagerScript := preload("res://scripts/network/network_manager.gd"
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
 const TargetedObjectControlScript := preload("res://scripts/spells/targeted_object_control.gd")
 const FakeWallPlacementScript := preload("res://scripts/headmaster/fake_wall_placement.gd")
+const BroomFlightScript := preload("res://scripts/headmaster/broom_flight.gd")
+const BroomLocomotionScript := preload("res://scripts/headmaster/broom_locomotion.gd")
 
 @export var player_index: int = 0
 @export var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+
+## Replicated so remotes show/hide the mounted broom mesh.
+var broom_active := false:
+	set(value):
+		broom_active = value
+		_refresh_broom_visual()
 
 var _spell_loadout: Node
 var _casting_session: SpellCastingSession
@@ -31,6 +39,9 @@ var _speed_boost_timer: float = 0.0
 var _wand: PlayerWand
 var _casting_lmb_held := false
 var _fake_wall_placement: Node
+var _knockback_vel := Vector3.ZERO
+var _knockback_timer := 0.0
+var _broom_active_visual := false
 
 @onready var camera_pivot: Node3D = %CameraPivot
 @onready var spell_loadout: Node = %CharacterSpellLoadout
@@ -310,6 +321,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		## Yaw on Head (look L/R); Body mirrors yaw so broom/torso turn as one.
+		## Pitch stays on CameraPivot only — never tips the body or broom.
 		head.rotate_y(-event.relative.x * MOUSE_SENSITIVITY)
 		camera_pivot.rotate_x(-event.relative.y * MOUSE_SENSITIVITY)
 		camera_pivot.rotation.x = clampf(
@@ -317,6 +330,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			deg_to_rad(-70.0),
 			deg_to_rad(70.0)
 		)
+		_sync_body_yaw_to_head()
 
 	if event.is_action_pressed("spellbook"):
 		if _casting_session != null \
@@ -504,7 +518,7 @@ func _filter_free_cast_candidates(known: Array[SpellDefinition]) -> Array[SpellD
 			"pull", "follow":
 				if not target_active:
 					continue
-			"dispell":
+			"dispell", "clone":
 				if not target_active:
 					continue
 		filtered.append(spell)
@@ -559,6 +573,14 @@ func _update_interaction_prompt() -> void:
 func _resolve_interaction_prompt() -> String:
 	if _is_fake_wall_placing():
 		return _fake_wall_placement.get_prompt()
+	var flight := _get_broom_flight()
+	if (
+		flight != null
+		and flight.has_method("is_active")
+		and bool(flight.call("is_active"))
+		and flight.has_method("get_prompt")
+	):
+		return str(flight.call("get_prompt"))
 	if _casting_session != null and _casting_session.is_tome_teaching():
 		return InputPromptScript.with_action("interact", "Leave tome")
 	if _casting_session != null and _casting_session.is_active():
@@ -578,22 +600,76 @@ func _resolve_interaction_prompt() -> String:
 		var interactable: Interactable = _find_nearest_interactable()
 		if interactable != null:
 			prompt = interactable.get_prompt()
+	if prompt.is_empty() and flight != null and flight.has_method("get_prompt"):
+		prompt = str(flight.call("get_prompt"))
 	if prompt.is_empty():
 		prompt = _default_cast_prompt()
 	return prompt
 
 
 func _default_cast_prompt() -> String:
+	var flight := _get_broom_flight()
+	if flight != null and flight.has_method("get_prompt"):
+		var broom_prompt := str(flight.call("get_prompt"))
+		if not broom_prompt.is_empty():
+			return broom_prompt
 	return ""
 
 
+func apply_fireball_knockback(fireball_dir: Vector3) -> void:
+	if not is_multiplayer_authority() and GameState.is_multiplayer:
+		return
+	var impulse := BroomLocomotionScript.knockback_impulse(fireball_dir)
+	if broom_active:
+		var flight := _get_broom_flight()
+		if flight != null and flight.has_method("knock_off"):
+			flight.call("knock_off", fireball_dir)
+	_knockback_vel = impulse
+	_knockback_timer = 0.35
+	velocity += impulse
+
+
+func _get_broom_flight() -> Node:
+	return get_node_or_null("BroomFlight")
+
+
+func _refresh_broom_visual() -> void:
+	if _broom_active_visual == broom_active:
+		return
+	_broom_active_visual = broom_active
+	var flight := _get_broom_flight()
+	if flight == null and broom_active:
+		flight = BroomFlightScript.ensure_on(self, true)
+	if flight != null and flight.has_method("set_active_visual"):
+		flight.call("set_active_visual", broom_active)
+
+
+func _sync_body_yaw_to_head() -> void:
+	## Body (and BroomMount under it) yaw with look; pitch never touches them.
+	var body := get_node_or_null("Body") as Node3D
+	if body == null or head == null:
+		return
+	body.rotation.y = head.rotation.y
+
+
 func _physics_process(delta: float) -> void:
+	_sync_body_yaw_to_head()
 	if not is_multiplayer_authority():
+		_refresh_broom_visual()
 		return
 	if _speed_boost_timer > 0.0:
 		_speed_boost_timer -= delta
 		if _speed_boost_timer <= 0.0:
 			_speed_boost_multiplier = 1.0
+
+	var flight := _get_broom_flight()
+	if flight != null and flight.has_method("is_active") and bool(flight.call("is_active")):
+		flight.call("apply_locomotion", self, delta, _speed_boost_multiplier)
+		_apply_knockback_bleed(delta)
+		move_and_slide()
+		_separate_from_players()
+		_update_interaction_prompt()
+		return
 
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -612,7 +688,17 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, speed)
 		velocity.z = move_toward(velocity.z, 0.0, speed)
+	_apply_knockback_bleed(delta)
 
 	move_and_slide()
 	_separate_from_players()
 	_update_interaction_prompt()
+
+
+func _apply_knockback_bleed(delta: float) -> void:
+	if _knockback_timer <= 0.0:
+		return
+	_knockback_timer -= delta
+	velocity.x += _knockback_vel.x * 0.35
+	velocity.z += _knockback_vel.z * 0.35
+	_knockback_vel = _knockback_vel.move_toward(Vector3.ZERO, 28.0 * delta)

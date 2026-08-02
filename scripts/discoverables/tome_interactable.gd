@@ -194,17 +194,19 @@ func _apply_tome_color(color: Color) -> void:
 
 
 func _spell_color_for(spell_id: String) -> Color:
+	var color := Color(0.7, 0.45, 0.95)
 	match spell_id:
 		"show_me":
-			return Color(0.95, 0.85, 0.35)
-		"haste":
-			return Color(0.35, 0.85, 0.95)
+			color = Color(0.95, 0.85, 0.35)
+		"haste", "ward":
+			color = Color(0.45, 0.75, 1.0) if spell_id == "ward" else Color(0.35, 0.85, 0.95)
 		"fireball":
-			return Color(1.0, 0.45, 0.12)
-		"light", "light_ball", "target", "pull", "follow", "dispell":
-			return Color(1.0, 0.95, 0.7)
-		_:
-			return Color(0.7, 0.45, 0.95)
+			color = Color(1.0, 0.45, 0.12)
+		"flare":
+			color = Color(1.0, 0.75, 0.25)
+		"light", "light_ball", "target", "pull", "follow", "stop", "dispell", "clone":
+			color = Color(1.0, 0.95, 0.7)
+	return color
 
 
 func consume_with_vfx() -> void:

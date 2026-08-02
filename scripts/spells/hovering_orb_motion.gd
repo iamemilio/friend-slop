@@ -66,13 +66,32 @@ static func cruise_base_toward(
 	return snap_base(world_3d, next, height_above_ground)
 
 
+static func cruise_pull_toward(
+	from_base: Vector3,
+	dest: Vector3,
+	delta: float,
+	world_3d: World3D,
+	height_above_ground: float,
+	speed: float
+) -> Vector3:
+	## Ground-plane pull step at a caller-chosen speed (fast far / slow near).
+	var flat_from := Vector3(from_base.x, 0.0, from_base.z)
+	var flat_to := Vector3(dest.x, 0.0, dest.z)
+	var dist := flat_from.distance_to(flat_to)
+	if dist <= 0.0001:
+		return snap_base(world_3d, from_base, height_above_ground)
+	var step := minf(maxf(speed, 0.0) * delta, dist)
+	var next := flat_from.move_toward(flat_to, step)
+	return snap_base(world_3d, Vector3(next.x, from_base.y, next.z), height_above_ground)
+
+
 static func smooth_goal(
 	current_goal: Vector3,
 	ideal_goal: Vector3,
 	delta: float,
 	smooth_rate: float = GOAL_SMOOTH
 ) -> Vector3:
-	## Soften the follow/pull chase point so path targets don't jerk.
+	## Soften the follow chase point on XZ; keep ideal height for path queries.
 	var flat_current := Vector3(current_goal.x, 0.0, current_goal.z)
 	var flat_ideal := Vector3(ideal_goal.x, 0.0, ideal_goal.z)
 	var t := 1.0 - exp(-smooth_rate * delta)

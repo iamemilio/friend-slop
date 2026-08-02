@@ -7,17 +7,21 @@ extends RefCounted
 const APPRENTICE_STARTER_SPELLS: Array[String] = [
 	"show_me",
 	"fireball",
+	"flare",
+	"ward",
 	"haste",
 	"light",
 	"light_ball",
 	"target",
 	"pull",
 	"follow",
+	"stop",
 	"dispell",
 ]
 
 const HEADMASTER_STARTER_SPELLS: Array[String] = [
 	"fake_wall",
+	"clone",
 ]
 
 

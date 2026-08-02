@@ -122,6 +122,10 @@ func get_cast_success_text() -> String:
 			text = "You surge forward — movement speed increased!"
 		"fireball":
 			text = "A blazing fireball launches from your wand!"
+		"flare":
+			text = "A signal flare streaks upward and bursts in the sky!"
+		"ward":
+			text = "A blue ward blooms ahead — ready to catch a spell."
 		"flashlight_toggle":
 			text = "Your wand light toggles."
 		"light_ball":
@@ -132,8 +136,17 @@ func get_cast_success_text() -> String:
 			text = "The outlined object flies toward your gaze."
 		"follow":
 			text = "The outlined object drifts toward you along open paths."
+		"stop":
+			text = "Follow, Pull, and Target outlines dissolve for everyone."
 		"dispell":
 			text = "Target outlines, Follow, light balls, and fake walls dissolve."
+		"fake_wall":
+			text = "A corridor decoy wall waits for your Interact confirm."
+		"clone":
+			text = (
+				"A duplicate of the targeted light ball or relic appears beside it. "
+				+ "Each object can be cloned only once."
+			)
 	return text
 
 
@@ -156,7 +169,18 @@ func get_codex_effect_detail() -> String:
 		"fireball":
 			text = (
 				"Launches a blazing fireball from your wand. "
-				+ "Shots explode on impact with sparks and smoke."
+				+ "Shots explode on impact and knock players back."
+			)
+		"flare":
+			text = (
+				"Say \"flare\" to launch a signal spark toward your crosshair that "
+				+ "bursts into a bright beacon for several seconds."
+			)
+		"ward":
+			text = (
+				"Say \"ward\" to cast a translucent blue 1/3-sphere shield toward "
+				+ "your crosshair. It lasts 1 second and blocks one fireball. "
+				+ "1.5 second cooldown."
 			)
 		"flashlight_toggle":
 			text = (
@@ -165,32 +189,50 @@ func get_codex_effect_detail() -> String:
 			)
 		"light_ball":
 			text = (
-				"Say \"light ball\" to leave a glowing orb ahead of you. "
+				"Say \"light ball\" to leave a glowing orb toward your crosshair. "
 				+ "It fades away after %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_LIGHT_BALL_DURATION
 			)
 		"target":
 			text = (
-				"Say \"target\" to outline the light orb, relic, or fake wall "
-				+ "closest to your aim for %.0f seconds."
+				"Say \"target\" to outline the light orb, relic, fake wall, or "
+				+ "relic clone closest to your aim for %.0f seconds."
 				% SpellEffectSyncScript.DEFAULT_TARGET_DURATION
 			)
 		"pull":
 			text = (
-				"While Target outlines are active, say \"pull\" to draw the "
-				+ "object nearest your aim toward your camera along open paths. "
-				+ "Requires clear line of sight."
+				"While Target outlines are active, say \"pull\" to yank the "
+				+ "object nearest your aim along the ground toward you — fast "
+				+ "at first, then easing to a stop. Requires clear line of sight."
 			)
 		"follow":
 			text = (
 				"While Target outlines are active, say \"follow\" to send the "
-				+ "looked-at object toward you at a steady speed along open paths "
-				+ "until Dispell."
+				+ "looked-at object toward you along open maze paths at a brisk "
+				+ "pace until Stop or Dispell."
+			)
+		"stop":
+			text = (
+				"Say \"stop\" to end Follow/Pull for all players and clear "
+				+ "Target outlines. Does not destroy light balls or fake walls."
 			)
 		"dispell":
 			text = (
 				"While Target outlines are active, say \"dispel\" to clear them, "
-				+ "end Follow/Pull, and destroy a targeted light ball or fake wall."
+				+ "end Follow/Pull, and destroy a targeted light ball, fake wall, "
+				+ "or relic clone."
+			)
+		"fake_wall":
+			text = (
+				"Preview an open corridor, then confirm with Interact to place a "
+				+ "lookalike wall decoy. Contact flickers it; Dispell destroys it."
+			)
+		"clone":
+			text = (
+				"While Target outlines are active, say \"clone\" to duplicate a "
+				+ "targeted light ball or the relic once. Relic clones look real "
+				+ "but cannot be picked up; Dispell destroys them. Clones and "
+				+ "already-cloned objects cannot be cloned again."
 			)
 	return text
 

@@ -154,14 +154,21 @@ func _ensure_ghost() -> void:
 
 
 func _aim_world_point() -> Vector3:
+	## Prefer reticle hit; fall back to wand→crosshair ray.
 	if _player != null and _player.has_method("_crosshair_world_point"):
 		return _player.call("_crosshair_world_point")
-	if _player != null and _player.has_method("get_view_origin"):
-		var origin: Vector3 = _player.call("get_view_origin")
+	if _player != null and _player.has_method("get_wand_cast_origin"):
+		var origin: Vector3 = _player.call("get_wand_cast_origin")
 		var look := Vector3.FORWARD
-		if _player.has_method("get_view_direction"):
-			look = _player.call("get_view_direction")
+		if _player.has_method("get_wand_cast_direction"):
+			look = _player.call("get_wand_cast_direction")
 		return origin + look * 8.0
+	if _player != null and _player.has_method("get_view_origin"):
+		var view_origin: Vector3 = _player.call("get_view_origin")
+		var view_look := Vector3.FORWARD
+		if _player.has_method("get_view_direction"):
+			view_look = _player.call("get_view_direction")
+		return view_origin + view_look * 8.0
 	return _player.global_position if _player != null else Vector3.ZERO
 
 

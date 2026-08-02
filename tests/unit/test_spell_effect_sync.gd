@@ -11,8 +11,12 @@ const LightBallSpell := preload("res://resources/spells/light_ball.tres")
 const TargetSpell := preload("res://resources/spells/target.tres")
 const PullSpell := preload("res://resources/spells/pull.tres")
 const FollowSpell := preload("res://resources/spells/follow.tres")
+const StopSpell := preload("res://resources/spells/stop.tres")
 const DispellSpell := preload("res://resources/spells/dispell.tres")
 const FakeWallSpell := preload("res://resources/spells/headmaster/fake_wall.tres")
+const CloneSpell := preload("res://resources/spells/headmaster/clone.tres")
+const FlareSpell := preload("res://resources/spells/flare.tres")
+const WardSpell := preload("res://resources/spells/ward.tres")
 
 
 func run() -> int:
@@ -31,9 +35,15 @@ func run() -> int:
 	failures += _test_build_light_ball_params()
 	failures += _test_build_target_params()
 	failures += _test_build_pull_follow_dispell_params()
+	failures += _test_build_stop_params()
 	failures += _test_dispell_wire_preserves_fake_wall_cell()
 	failures += _test_light_ball_network_round_trip()
 	failures += _test_fake_wall_network_round_trip()
+	failures += _test_clone_requires_target_highlight()
+	failures += _test_clone_network_round_trip()
+	failures += _test_clone_source_eligibility_meta()
+	failures += _test_flare_is_supported()
+	failures += _test_build_ward_params()
 	return failures
 
 
@@ -103,8 +113,12 @@ func _test_all_spells_are_supported() -> int:
 		TargetSpell,
 		PullSpell,
 		FollowSpell,
+		StopSpell,
 		DispellSpell,
 		FakeWallSpell,
+		CloneSpell,
+		FlareSpell,
+		WardSpell,
 	]:
 		if not SyncScript.is_supported_effect(spell.effect_id):
 			push_error("Expected effect '%s' to be supported for sync" % spell.effect_id)
@@ -316,6 +330,24 @@ func _test_build_pull_follow_dispell_params() -> int:
 	return 0
 
 
+func _test_build_stop_params() -> int:
+	var player := _make_player_stub()
+	var stop_params := SyncScript.build_params(StopSpell, player)
+	player.queue_free()
+	if str(stop_params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_STOP:
+		push_error("Expected stop params to carry effect id")
+		return 1
+	if SyncScript.get_effect_duration_sec(StopSpell, stop_params) != 0.0:
+		push_error("Expected stop to hide HUD active timer")
+		return 1
+	var wire := SyncScript.pack_for_network(stop_params)
+	var unpacked := SyncScript.unpack_from_network(wire)
+	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_STOP:
+		push_error("Expected stop network round-trip to keep effect id")
+		return 1
+	return 0
+
+
 func _test_dispell_wire_preserves_fake_wall_cell() -> int:
 	var local := {
 		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_DISPELL,
@@ -401,6 +433,109 @@ func _test_fake_wall_network_round_trip() -> int:
 	if not ok:
 		push_error("Expected fake_wall network round-trip to preserve cell/origin/size")
 		return 1
+	return 0
+
+
+func _test_clone_requires_target_highlight() -> int:
+	var player := _make_player_stub()
+	var params := SyncScript.build_params(CloneSpell, player)
+	player.queue_free()
+	if not params.is_empty():
+		push_error("Expected clone without Target outline to produce empty params")
+		return 1
+	if SyncScript.get_effect_duration_sec(CloneSpell, {}) != 0.0:
+		push_error("Expected clone to hide HUD active timer")
+		return 1
+	return 0
+
+
+func _test_clone_network_round_trip() -> int:
+	var local := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_CLONE,
+		SyncScript.KEY_TARGET_KIND: "relic_clone",
+		SyncScript.KEY_ORIGIN: Vector3(5.0, 1.1, -2.0),
+		SyncScript.KEY_SPAWN_ID: "7_123",
+		SyncScript.KEY_DURATION: 30.0,
+		SyncScript.KEY_SOURCE_KIND: "relic",
+		SyncScript.KEY_SOURCE_ID: SyncScript.SOURCE_ID_RELIC,
+	}
+	var wire := SyncScript.pack_for_network(local)
+	if wire.is_empty():
+		push_error("Expected clone pack_for_network to produce wire params")
+		return 1
+	var unpacked := SyncScript.unpack_from_network(wire)
+	var ok := (
+		str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) == SyncScript.EFFECT_CLONE
+		and str(unpacked.get(SyncScript.KEY_TARGET_KIND, "")) == "relic_clone"
+		and str(unpacked.get(SyncScript.KEY_SPAWN_ID, "")) == "7_123"
+		and str(unpacked.get(SyncScript.KEY_SOURCE_KIND, "")) == "relic"
+		and str(unpacked.get(SyncScript.KEY_SOURCE_ID, "")) == SyncScript.SOURCE_ID_RELIC
+		and SyncScript.coerce_vector3(
+			unpacked.get(SyncScript.KEY_ORIGIN, Vector3.ZERO)
+		).is_equal_approx(Vector3(5.0, 1.1, -2.0))
+	)
+	if not ok:
+		push_error("Expected clone network round-trip to preserve kind/origin/source/id")
+		return 1
+	return 0
+
+
+func _test_build_ward_params() -> int:
+	var player := _make_player_stub()
+	var params := SyncScript.build_params(WardSpell, player)
+	player.queue_free()
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_WARD:
+		push_error("Expected ward build_params to set effect id")
+		return 1
+	if not params.has(SyncScript.KEY_ORIGIN) or not params.has(SyncScript.KEY_DIRECTION):
+		push_error("Expected ward aim origin and direction")
+		return 1
+	if SyncScript.get_effect_duration_sec(WardSpell, params) != SyncScript.DEFAULT_WARD_DURATION:
+		push_error("Expected ward HUD duration of 1 second")
+		return 1
+	var wire := SyncScript.pack_for_network(params)
+	var unpacked := SyncScript.unpack_from_network(wire)
+	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_WARD:
+		push_error("Expected ward network round-trip to keep effect id")
+		return 1
+	return 0
+
+
+func _test_flare_is_supported() -> int:
+	var player := _make_player_stub()
+	var params := SyncScript.build_params(FlareSpell, player)
+	player.queue_free()
+	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLARE:
+		push_error("Expected flare build_params to set effect id")
+		return 1
+	var wire := SyncScript.pack_for_network(params)
+	var unpacked := SyncScript.unpack_from_network(wire)
+	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLARE:
+		push_error("Expected flare network round-trip to keep effect id")
+		return 1
+	return 0
+
+
+func _test_clone_source_eligibility_meta() -> int:
+	var source := Node3D.new()
+	if not SyncScript._is_cloneable_source(source):
+		source.queue_free()
+		push_error("Expected fresh source to be cloneable")
+		return 1
+	SyncScript._mark_clone_source_spent(source)
+	if SyncScript._is_cloneable_source(source):
+		source.queue_free()
+		push_error("Expected spent source to reject further clones")
+		return 1
+	var clone_node := Node3D.new()
+	SyncScript._mark_spawned_clone(clone_node)
+	if SyncScript._is_cloneable_source(clone_node):
+		source.queue_free()
+		clone_node.queue_free()
+		push_error("Expected spawned clone to reject further clones")
+		return 1
+	source.queue_free()
+	clone_node.queue_free()
 	return 0
 
 

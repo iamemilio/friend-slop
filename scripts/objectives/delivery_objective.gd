@@ -164,11 +164,14 @@ func spell_follow_relic_to(world_pos: Vector3, blend: float = 1.0) -> void:
 	_sync_item_transform()
 
 
-func spell_set_guided_relic_position(world_pos: Vector3) -> void:
+func spell_set_guided_relic_position(world_pos: Vector3, lock_to_ground: bool = true) -> void:
 	## Update cruise base; bobbing continues on top via _update_world_bob.
 	if state.phase != DeliveryObjectiveState.Phase.SEEK_ITEM:
 		return
-	_item_world_pos = _snap_relic_to_ground(world_pos)
+	if lock_to_ground:
+		_item_world_pos = _snap_relic_to_ground(world_pos)
+	else:
+		_item_world_pos = world_pos
 	_update_world_bob()
 
 

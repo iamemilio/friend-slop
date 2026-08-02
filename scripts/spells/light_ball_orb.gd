@@ -73,7 +73,7 @@ static func spawn_cast(
 
 
 static func resolve_placement(player: CharacterBody3D) -> Vector3:
-	## Ideal spot ahead of the caster, pulled back so the orb clears walls.
+	## Place along wand → crosshair aim (not body-forward), then clear + ground-snap.
 	if player == null or not player.is_inside_tree():
 		return Vector3.ZERO
 	var wand_origin := player.global_position + Vector3(0.0, PLACE_HEIGHT, 0.0)
@@ -82,15 +82,23 @@ static func resolve_placement(player: CharacterBody3D) -> Vector3:
 		wand_origin = player.call("get_wand_cast_origin")
 	if player.has_method("get_wand_cast_direction"):
 		forward = player.call("get_wand_cast_direction")
-	forward.y = 0.0
 	if forward.length_squared() < 0.0001:
 		forward = -player.global_transform.basis.z
-		forward.y = 0.0
 	forward = forward.normalized()
 	var desired := wand_origin + forward * PLACE_FORWARD
-	desired.y = player.global_position.y + PLACE_HEIGHT
-	var clear := find_clear_point(player.get_world_3d(), wand_origin, desired)
-	return snap_to_ground(player.get_world_3d(), clear)
+	## Prefer the first surface under the crosshair within place range.
+	var world_3d := player.get_world_3d()
+	if world_3d != null and world_3d.direct_space_state != null:
+		var ray := PhysicsRayQueryParameters3D.create(
+			wand_origin, wand_origin + forward * PLACE_FORWARD
+		)
+		ray.collision_mask = WORLD_COLLISION_MASK
+		ray.hit_from_inside = true
+		var hit := world_3d.direct_space_state.intersect_ray(ray)
+		if not hit.is_empty():
+			desired = hit.position
+	var clear := find_clear_point(world_3d, wand_origin, desired)
+	return snap_to_ground(world_3d, clear)
 
 
 static func snap_to_ground(world_3d: World3D, pos: Vector3) -> Vector3:
@@ -427,10 +435,10 @@ func get_hover_base() -> Vector3:
 	return _hover_base
 
 
-func spell_set_guided_position(world_pos: Vector3) -> void:
+func spell_set_guided_position(world_pos: Vector3, lock_to_ground: bool = true) -> void:
 	## Update cruise base; bobbing continues on top via _process.
 	var snapped_pos := world_pos
-	if is_inside_tree():
+	if lock_to_ground and is_inside_tree():
 		snapped_pos = snap_to_ground(get_world_3d(), world_pos)
 	_hover_base = snapped_pos
 	if _hovering:

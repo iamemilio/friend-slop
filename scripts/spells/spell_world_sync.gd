@@ -7,6 +7,7 @@ extends RefCounted
 
 const KIND_FAKE_WALL := "fake_wall"
 const KIND_LIGHT_BALL := "light_ball"
+const KIND_RELIC_CLONE := "relic_clone"
 
 const EVENT_REMOVE := "remove"
 const EVENT_FLICKER := "flicker"
@@ -14,6 +15,7 @@ const EVENT_FLICKER := "flicker"
 const GROUP_NAME := "spell_world_object"
 const BUCKET_FAKE_WALLS := "FakeWalls"
 const BUCKET_LIGHT_BALLS := "LightBalls"
+const BUCKET_RELIC_CLONES := "RelicClones"
 
 const LIGHT_BALL_FIND_DIST := 2.25
 
@@ -122,7 +124,7 @@ static func resolve(
 	var found := find(tree, kind, object_id)
 	if found != null:
 		return found
-	if kind == KIND_LIGHT_BALL:
+	if kind == KIND_LIGHT_BALL or kind == KIND_RELIC_CLONE:
 		return find_nearest(tree, kind, mark)
 	if kind == KIND_FAKE_WALL:
 		var cell := parse_cell_id(object_id)

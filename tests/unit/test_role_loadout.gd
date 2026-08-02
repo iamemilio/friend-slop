@@ -22,9 +22,11 @@ func _test_headmaster_gets_union_of_starters() -> int:
 	var missing := (
 		spell_ids.size() != expected_size
 		or not spell_ids.has("fake_wall")
+		or not spell_ids.has("clone")
 		or not spell_ids.has("show_me")
 		or not spell_ids.has("fireball")
 		or not spell_ids.has("dispell")
+		or not spell_ids.has("flare")
 	)
 	if missing:
 		push_error("Expected headmaster loadout to be union of apprentice and headmaster starters")
@@ -44,7 +46,10 @@ func _test_apprentice_starter_kit() -> int:
 		or not spell_ids.has("target")
 		or not spell_ids.has("pull")
 		or not spell_ids.has("follow")
+		or not spell_ids.has("stop")
 		or not spell_ids.has("dispell")
+		or not spell_ids.has("flare")
+		or not spell_ids.has("ward")
 	)
 	var has_headmaster_spell := false
 	for headmaster_id in RoleLoadoutScript.HEADMASTER_STARTER_SPELLS:

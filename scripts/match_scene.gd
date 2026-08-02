@@ -530,6 +530,12 @@ func _on_cast_succeeded(
 			game_hud.hide_casting()
 			return
 		effect_applier.cast_spell(_local_player, spell)
+		if (
+			spell.id == "clone"
+			and not params.is_empty()
+			and loadout.has_method("start_cooldown")
+		):
+			loadout.start_cooldown(spell.id)
 		if effect_duration > 0.0:
 			game_hud.show_spell_active(spell.id, effect_duration)
 		if casting_session.is_free_cast():

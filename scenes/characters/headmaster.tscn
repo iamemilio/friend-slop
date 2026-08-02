@@ -18,10 +18,9 @@ metallic = 0.05
 roughness = 0.62
 
 [node name="Headmaster" unique_id=1493913747 instance=ExtResource("1_base")]
-editor_description = "Edit Headmaster Body / Head / CollisionShape3D here. Note root scale 1.18 also enlarges collision in-world."
+editor_description = "Edit Headmaster Body / Head / CollisionShape3D here. Note root scale 1.18 also enlarges collision in-world. Broom lives on playable_character.tscn."
 script = ExtResource("2_headmaster")
 player_index = 0
-gravity = null
 
 [node name="CollisionShape3D" parent="." index="0" unique_id=294740946]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.39127442, 0)
@@ -40,4 +39,5 @@ surface_material_override/0 = SubResource("StandardMaterial3D_head")
 [node name="Wand" parent="Head/CameraPivot" index="1"]
 transform = Transform3D(0.99999964, 0, 0, 0, 0.8589596, -0.5120427, 0, 0.5120427, 0.8589596, 0.1601954, -0.21445581, -0.16171198)
 
+[editable path="Body/BroomMount/Broom"]
 [editable path="Head/CameraPivot/Wand"]
