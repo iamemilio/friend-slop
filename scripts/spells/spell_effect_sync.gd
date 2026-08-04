@@ -122,11 +122,13 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 		EFFECT_STOP:
 			pass
 		EFFECT_DISPELL:
-			if not TargetHighlightScript.has_active_highlights(player.get_tree()):
+			var tree := player.get_tree() if player.is_inside_tree() else null
+			if tree != null and not TargetHighlightScript.has_active_highlights(tree):
 				return {}
 			_append_dispell_target(params, player)
 		EFFECT_CLONE:
-			if not TargetHighlightScript.has_active_highlights(player.get_tree()):
+			var tree := player.get_tree() if player.is_inside_tree() else null
+			if tree != null and not TargetHighlightScript.has_active_highlights(tree):
 				return {}
 			if not _append_clone_params(params, player):
 				return {}

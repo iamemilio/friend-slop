@@ -26,13 +26,13 @@ const HEADMASTER_STARTER_SPELLS: Array[String] = [
 
 
 static func role_label(role: int) -> String:
-	if role == GameState.PlayerRole.HEADMASTER:
+	if role == 1: ## GameState.PlayerRole.HEADMASTER
 		return "Headmaster"
 	return "Apprentice"
 
 
 static func get_starting_spell_ids(role: int) -> Array[String]:
-	if role == GameState.PlayerRole.HEADMASTER:
+	if role == 1: ## GameState.PlayerRole.HEADMASTER
 		return _union_spell_ids(APPRENTICE_STARTER_SPELLS, HEADMASTER_STARTER_SPELLS)
 	return APPRENTICE_STARTER_SPELLS.duplicate()
 

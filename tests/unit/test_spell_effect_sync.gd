@@ -186,10 +186,7 @@ func _test_fireball_params_spawn_projectile() -> int:
 	}
 	SyncScript.apply(player, params)
 
-	var projectile_count := 0
-	for child in root.get_children():
-		if child.get_script() == FireballProjectileScript:
-			projectile_count += 1
+	var projectile_count := _count_fireball_projectiles(root)
 
 	player.queue_free()
 	root.queue_free()
@@ -199,6 +196,19 @@ func _test_fireball_params_spawn_projectile() -> int:
 		push_error("Expected synced fireball params to spawn one projectile")
 		return 1
 	return 0
+
+
+func _count_fireball_projectiles(root: Node) -> int:
+	var count := 0
+	var bucket := root.get_node_or_null("SpellProjectiles")
+	var nodes: Array[Node] = [root]
+	if bucket != null:
+		nodes.append(bucket)
+	for node in nodes:
+		for child in node.get_children():
+			if child.get_script() == FireballProjectileScript:
+				count += 1
+	return count
 
 
 func _test_fireball_network_round_trip() -> int:
@@ -235,10 +245,7 @@ func _test_fireball_wire_params_spawn_projectile() -> int:
 	})
 	SyncScript.apply(player, SyncScript.resolve_network_params(FireballSpell, player, wire))
 
-	var projectile_count := 0
-	for child in root.get_children():
-		if child.get_script() == FireballProjectileScript:
-			projectile_count += 1
+	var projectile_count := _count_fireball_projectiles(root)
 
 	player.queue_free()
 	root.queue_free()

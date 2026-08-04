@@ -321,6 +321,11 @@ func _begin_listening() -> void:
 
 	var listener := SteamProximityVoiceHub.get_spellcasting_listener()
 	if listener == null:
+		## Headless --script tests have no GameApp Match VoiceSession; inject samples instead.
+		if TestEnv.is_active():
+			_sample_rate = int(AudioServer.get_mix_rate())
+			_emit_listen_coaching()
+			return
 		_fail_mic_setup("Match Listeners/Spellcasting missing")
 		return
 	if not listener.listening:
@@ -359,6 +364,10 @@ func _begin_listening() -> void:
 	):
 		broker.call("diagnose_capture")
 
+	_emit_listen_coaching()
+
+
+func _emit_listen_coaching() -> void:
 	if _free_cast:
 		listen_coaching_changed.emit(_free_cast_coaching_text())
 	elif _spell != null:

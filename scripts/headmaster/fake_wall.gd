@@ -144,7 +144,12 @@ func _on_body_entered(body: Node3D) -> void:
 	if body == null or not body.is_in_group("player"):
 		return
 	## Only the owning peer of the walker broadcasts; remote puppets skip.
-	if GameState.is_multiplayer and not body.is_multiplayer_authority():
+	var game_state := get_tree().root.get_node_or_null("GameState") if get_tree() else null
+	if (
+		game_state != null
+		and bool(game_state.get("is_multiplayer"))
+		and not body.is_multiplayer_authority()
+	):
 		return
 	flicker(false, true)
 

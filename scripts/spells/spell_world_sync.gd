@@ -166,7 +166,7 @@ static func apply_event(
 static func broadcast_event(node: Node, event: String) -> void:
 	if node == null or event.is_empty():
 		return
-	if not GameState.is_multiplayer or not MatchStateManager.allows_gameplay_actions():
+	if not _is_multiplayer_match() or not _allows_gameplay_actions():
 		return
 	var kind := get_kind(node)
 	var object_id := get_id(node)
@@ -176,6 +176,23 @@ static func broadcast_event(node: Node, event: String) -> void:
 	if node is Node3D:
 		mark = (node as Node3D).global_position
 	_send_event(kind, event, object_id, mark)
+
+
+static func _is_multiplayer_match() -> bool:
+	var state := _autoload("GameState")
+	return state != null and bool(state.get("is_multiplayer"))
+
+
+static func _allows_gameplay_actions() -> bool:
+	var manager := _autoload("MatchStateManager")
+	return manager != null and bool(manager.call("allows_gameplay_actions"))
+
+
+static func _autoload(node_name: String) -> Node:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return null
+	return tree.root.get_node_or_null(node_name)
 
 
 static func _send_event(
@@ -190,11 +207,12 @@ static func _send_event(
 	var mp := (tree as SceneTree).get_multiplayer()
 	if mp == null or not mp.has_multiplayer_peer():
 		return
+	var network := _autoload("NetworkManager")
+	if network == null:
+		return
 	if mp.is_server():
-		NetworkManager._rpc_spell_world_event.rpc(
-			kind, event, object_id, mark.x, mark.y, mark.z
-		)
+		network.rpc("_rpc_spell_world_event", kind, event, object_id, mark.x, mark.y, mark.z)
 	else:
-		NetworkManager._request_spell_world_event.rpc_id(
-			1, kind, event, object_id, mark.x, mark.y, mark.z
+		network.rpc_id(
+			1, "_request_spell_world_event", kind, event, object_id, mark.x, mark.y, mark.z
 		)

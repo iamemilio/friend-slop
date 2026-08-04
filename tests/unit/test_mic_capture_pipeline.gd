@@ -208,12 +208,7 @@ func _test_voice_session_authors_listeners() -> int:
 		err = "game_app.tscn Lobby VoiceSession must author Listeners/"
 	elif scene.find("States/Match/VoiceSession/Listeners") < 0:
 		err = "game_app.tscn Match VoiceSession must author Listeners/"
-	elif (
-		scene.find(
-			"[node name=\"Spellcasting\" type=\"Node\" parent=\"States/Match/VoiceSession/Listeners\"]"
-		)
-		< 0
-	):
+	elif not _scene_has_match_spellcasting_listener(scene):
 		err = "game_app.tscn Match must author Listeners/Spellcasting"
 	elif scene.find("parent=\"States/Lobby/VoiceSession/Listeners\"") < 0:
 		err = "game_app.tscn Lobby must nest Chat under Listeners"
@@ -223,6 +218,13 @@ func _test_voice_session_authors_listeners() -> int:
 		push_error(err)
 		return 1
 	return 0
+
+
+func _scene_has_match_spellcasting_listener(scene: String) -> bool:
+	## Godot 4.6 may append unique_id=… on the same line as the node declaration.
+	return scene.contains(
+		'name="Spellcasting" type="Node" parent="States/Match/VoiceSession/Listeners"'
+	)
 
 
 func _test_chat_proximity_settings() -> int:

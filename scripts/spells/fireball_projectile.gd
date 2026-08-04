@@ -239,7 +239,11 @@ static func spawn(
 	if parent != null:
 		parent.add_child(projectile)
 	if projectile is Node3D:
-		(projectile as Node3D).global_position = origin
+		var node_3d := projectile as Node3D
+		if node_3d.is_inside_tree():
+			node_3d.global_position = origin
+		else:
+			node_3d.position = origin
 	return projectile
 
 
@@ -734,9 +738,19 @@ func _try_hit_player(body: Node3D) -> bool:
 	_finish()
 	if body.has_method("apply_fireball_knockback"):
 		## Victim authority applies knockback; MultiplayerSynchronizer replicates motion.
-		var apply_local := not GameState.is_multiplayer
+		## Resolve GameState via the tree — this is an @tool script and cannot name the
+		## autoload directly (editor/headless reloads compile before autoloads exist).
+		var apply_local := not _is_multiplayer_match()
 		if body is Node:
 			apply_local = apply_local or (body as Node).is_multiplayer_authority()
 		if apply_local:
 			body.call("apply_fireball_knockback", _direction)
 	return true
+
+
+func _is_multiplayer_match() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var state := tree.root.get_node_or_null("GameState")
+	return state != null and bool(state.get("is_multiplayer"))
