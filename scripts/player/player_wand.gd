@@ -39,6 +39,8 @@ var _flashlight_active := false
 var _flame_glow_active := false
 var _listen_level: float = 0.0
 var _listen_peak: float = 0.0
+## Scene Tip scale from player_wand.tscn — runtime pulse must not replace it with Vector3.ONE.
+var _tip_base_scale := Vector3.ONE
 
 
 func _ready() -> void:
@@ -73,6 +75,7 @@ func _bind_existing_meshes() -> void:
 	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	_tip_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	_shaft_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_tip_base_scale = _tip_mesh.scale
 
 
 
@@ -103,7 +106,9 @@ func get_cast_direction() -> Vector3:
 func play_cast_success(spell: SpellDefinition = null, keep_armed: bool = false) -> void:
 	if not keep_armed:
 		set_armed(false)
-	_emit_burst(_success_particles, _success_color_for_spell(spell))
+	## Ward already has tip→shield beam FX; tip spark burst reads as a second ball.
+	if spell == null or spell.effect_id != "ward":
+		_emit_burst(_success_particles, _success_color_for_spell(spell))
 	_pulse_tip(_success_pulse_color_for_spell(spell), 0.35)
 
 
@@ -224,6 +229,7 @@ func _build_wand_meshes() -> void:
 	_tip_mesh.material_override = tip_mat
 	_tip_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	add_child(_tip_mesh)
+	_tip_base_scale = _tip_mesh.scale
 
 	_cast_origin = Marker3D.new()
 	_cast_origin.name = "CastOrigin"
@@ -307,7 +313,7 @@ func _apply_tip_visual(visual: float, emission: float) -> void:
 		var glow := Color(0.72, 0.82, 1.0).lerp(Color(1.0, 0.94, 0.78), visual)
 		mat.emission = glow
 		mat.emission_energy_multiplier = emission
-	_tip_mesh.scale = Vector3.ONE * (1.0 + visual * TIP_SCALE_LISTEN_BOOST)
+	_tip_mesh.scale = _tip_base_scale * (1.0 + visual * TIP_SCALE_LISTEN_BOOST)
 
 
 func _apply_flashlight_tip_visual() -> void:
@@ -318,7 +324,7 @@ func _apply_flashlight_tip_visual() -> void:
 		mat.albedo_color = FLASHLIGHT_COLOR.lightened(0.15)
 		mat.emission = FLASHLIGHT_COLOR
 		mat.emission_energy_multiplier = FLASHLIGHT_TIP_EMISSION
-	_tip_mesh.scale = Vector3.ONE
+	_tip_mesh.scale = _tip_base_scale
 
 
 func _apply_flame_glow_visual() -> void:
@@ -329,7 +335,7 @@ func _apply_flame_glow_visual() -> void:
 		mat.albedo_color = FLAME_GLOW_COLOR.lightened(0.12)
 		mat.emission = FLAME_GLOW_COLOR
 		mat.emission_energy_multiplier = FLAME_GLOW_EMISSION
-	_tip_mesh.scale = Vector3.ONE
+	_tip_mesh.scale = _tip_base_scale
 
 
 func _pulse_tip(color: Color, duration: float) -> void:
@@ -421,4 +427,6 @@ func _success_color_for_spell(spell: SpellDefinition) -> Color:
 func _success_pulse_color_for_spell(spell: SpellDefinition) -> Color:
 	if spell != null and spell.effect_id == "light_ball":
 		return FLASHLIGHT_COLOR.lightened(0.25)
+	if spell != null and spell.effect_id == "ward":
+		return Color(0.55, 0.85, 1.0)
 	return Color(1.0, 0.98, 0.92)
