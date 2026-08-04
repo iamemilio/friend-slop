@@ -639,7 +639,7 @@ func _refresh_broom_visual() -> void:
 	_broom_active_visual = broom_active
 	var flight := _get_broom_flight()
 	if flight == null and broom_active:
-		flight = BroomFlightScript.ensure_on(self, true)
+		flight = BroomFlightScript.ensure_on(self, false)
 	if flight != null and flight.has_method("set_active_visual"):
 		flight.call("set_active_visual", broom_active)
 

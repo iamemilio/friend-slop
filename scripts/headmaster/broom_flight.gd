@@ -2,16 +2,14 @@ class_name BroomFlight
 extends Node
 
 ## Toggleable broom mount shared by every PlayableCharacter.
-## [1] summons when can_summon; world pickups ride via mount_world_broom().
-## Tune flight feel on PlayableCharacter → BroomFlight — BroomMount is poses only.
+## Mount via inventory hotbar when the player has a broom item.
+## Broom under Body/BroomMount stays hidden until mounted.
 
 const BroomLocomotionScript := preload("res://scripts/headmaster/broom_locomotion.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
-const BroomScene := preload("res://scenes/headmaster/broom.tscn")
+const BroomScene := preload("res://scenes/characters/broom.tscn")
 const DroppedBroomScript := preload("res://scripts/headmaster/dropped_broom.gd")
-
-## If true, [1] summons when unmounted.
-@export var can_summon := true
+const PlayerInventoryScript := preload("res://scripts/inventory/player_inventory.gd")
 
 @export_group("Flight feel")
 @export_range(0.5, 40.0, 0.1, "or_greater") var move_speed: float = (
@@ -30,27 +28,22 @@ const DroppedBroomScript := preload("res://scripts/headmaster/dropped_broom.gd")
 
 var _player: CharacterBody3D
 var _active := false
-## True while riding a dropped/contested broom — [1] dismount drops it.
-var _world_broom := false
 ## World-space XZ momentum — camera turns do not redirect coasting.
 var _planar_vel := Vector3.ZERO
 var _mount_visual: Node3D
 var _mount_anchor: Node3D
 
 
-static func ensure_on(player: CharacterBody3D, summon_allowed: bool = true) -> Node:
+static func ensure_on(player: CharacterBody3D, _summon_allowed: bool = false) -> Node:
 	if player == null:
 		return null
 	var existing := player.get_node_or_null("BroomFlight")
 	if existing != null:
-		if summon_allowed:
-			existing.set("can_summon", true)
 		if existing.has_method("configure"):
 			existing.call("configure", player)
 		return existing
 	var flight = new()
 	flight.name = "BroomFlight"
-	flight.can_summon = summon_allowed
 	player.add_child(flight)
 	flight.configure(player)
 	return flight
@@ -70,36 +63,30 @@ func get_planar_velocity() -> Vector3:
 
 func get_prompt() -> String:
 	if _active:
-		return InputPromptScript.with_action("broom_toggle", "Dismount broom")
-	if can_summon:
-		return InputPromptScript.with_action("broom_toggle", "Mount broom")
+		var action := _broom_hotbar_action()
+		if action.is_empty():
+			return "Dismount broom"
+		return InputPromptScript.with_action(action, "Dismount broom")
+	if _has_broom():
+		var action := _broom_hotbar_action()
+		if action.is_empty():
+			return "Mount broom (move to hotbar 1–4)"
+		return InputPromptScript.with_action(action, "Mount broom")
 	return ""
 
 
 func _ready() -> void:
 	if _player == null:
 		_player = get_parent() as CharacterBody3D
-	set_process_unhandled_input(true)
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _player == null or not _player.is_multiplayer_authority():
-		return
-	if not event.is_action_pressed("broom_toggle"):
-		return
-	if _active:
-		## Personal summon holsters; a picked-up world broom drops back out.
-		dismount(_world_broom)
-		get_viewport().set_input_as_handled()
-	elif can_summon:
-		mount()
-		get_viewport().set_input_as_handled()
+	_ensure_mount_visual()
+	_apply_mount_pose(false)
 
 
 func mount() -> void:
 	if _active or _player == null:
 		return
-	_world_broom = false
+	if not _has_broom():
+		return
 	_active = true
 	_planar_vel = Vector3.ZERO
 	_ensure_mount_visual()
@@ -108,15 +95,14 @@ func mount() -> void:
 
 
 func mount_world_broom() -> void:
-	## Ride a dropped broom; dismount returns it to the world.
+	## Pick up a world broom: add to inventory and mount.
 	if _active or _player == null:
 		return
-	_world_broom = true
-	_active = true
-	_planar_vel = Vector3.ZERO
-	_ensure_mount_visual()
-	_apply_mount_pose(true)
-	_sync_player_broom_flag(true)
+	var inventory := _inventory()
+	if inventory != null and inventory.has_method("has") and inventory.has_method("add"):
+		if not bool(inventory.call("has", PlayerInventoryScript.ITEM_BROOM)):
+			inventory.call("add", PlayerInventoryScript.ITEM_BROOM)
+	mount()
 
 
 func dismount(drop_to_world: bool) -> void:
@@ -126,13 +112,12 @@ func dismount(drop_to_world: bool) -> void:
 	var drop_pos := Vector3.ZERO
 	if _player != null:
 		drop_pos = _player.global_position
-	var should_drop := drop_to_world or _world_broom
-	_world_broom = false
 	_active = false
 	_planar_vel = Vector3.ZERO
 	_apply_mount_pose(false)
 	_sync_player_broom_flag(false)
-	if should_drop and _player != null:
+	if drop_to_world and _player != null:
+		_revoke_broom()
 		DroppedBroomScript.spawn_networked(drop_pos, drop_vel, _player)
 
 
@@ -145,9 +130,9 @@ func knock_off(_fireball_dir: Vector3) -> void:
 		broom_vel = BroomLocomotionScript.flat_forward(forward) * 1.5
 	broom_vel.y = 2.0
 	var drop_pos := _player.global_position
-	_world_broom = false
 	_active = false
 	_planar_vel = Vector3.ZERO
+	_revoke_broom()
 	_apply_mount_pose(false)
 	_sync_player_broom_flag(false)
 	DroppedBroomScript.spawn_networked(drop_pos, broom_vel, _player)
@@ -196,6 +181,38 @@ func set_active_visual(active: bool) -> void:
 	_apply_mount_pose(active)
 
 
+func _inventory() -> Node:
+	if _player == null:
+		return null
+	var inv := _player.get_node_or_null("%PlayerInventory")
+	if inv != null:
+		return inv
+	return _player.get_node_or_null("PlayerInventory")
+
+
+func _has_broom() -> bool:
+	var inventory := _inventory()
+	if inventory == null or not inventory.has_method("has"):
+		return false
+	return bool(inventory.call("has", PlayerInventoryScript.ITEM_BROOM))
+
+
+func _revoke_broom() -> void:
+	var inventory := _inventory()
+	if inventory != null and inventory.has_method("remove"):
+		inventory.call("remove", PlayerInventoryScript.ITEM_BROOM)
+
+
+func _broom_hotbar_action() -> String:
+	var inventory := _inventory()
+	if inventory == null or not inventory.has_method("find_slot"):
+		return ""
+	var slot := int(inventory.call("find_slot", PlayerInventoryScript.ITEM_BROOM))
+	if slot < 0 or slot >= PlayerInventoryScript.HOTBAR_COUNT:
+		return ""
+	return "hotbar_%d" % (slot + 1)
+
+
 func _facing_forward() -> Vector3:
 	if _player == null:
 		return Vector3.FORWARD
@@ -224,24 +241,20 @@ func _ensure_mount_visual() -> void:
 			_player.add_child(_mount_anchor)
 		_mount_anchor.position = Vector3(0.0, 0.15, -0.15)
 		_mount_anchor.rotation_degrees = Vector3(12.0, 0.0, 0.0)
-	## Prefer the scene-instanced broom (Headmaster), else spawn a runtime copy.
-	if _mount_anchor.has_method("get_broom"):
-		_mount_visual = _mount_anchor.call("get_broom") as Node3D
-	if _mount_visual == null:
-		_mount_visual = _mount_anchor.get_node_or_null("Broom") as Node3D
+	## Prefer the scene-authored broom under BroomMount; else spawn a runtime copy.
+	_mount_visual = _mount_anchor.get_node_or_null("Broom") as Node3D
 	if _mount_visual == null:
 		_mount_visual = BroomScene.instantiate() as Node3D
+		_mount_visual.name = "Broom"
 		_mount_anchor.add_child(_mount_visual)
+		_mount_visual.visible = false
 
 
 func _apply_mount_pose(mounted: bool) -> void:
 	_ensure_mount_visual()
-	if _mount_anchor != null and _mount_anchor.has_method("apply_mounted"):
-		if mounted:
-			_mount_anchor.call("apply_mounted")
-		else:
-			_mount_anchor.call("apply_dismounted")
-		return
+	## Anchor must stay visible; only the broom mesh toggles.
+	if _mount_anchor != null:
+		_mount_anchor.visible = true
 	if _mount_visual != null:
 		_mount_visual.visible = mounted
 

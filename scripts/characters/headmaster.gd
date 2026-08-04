@@ -2,6 +2,7 @@ class_name Headmaster
 extends PlayableCharacter
 
 ## Maze Headmaster — larger silhouette with shared playable wand / broom.
+## Starts with a broom in inventory slot 1 (see PlayerInventory.starting_items).
 
 const HEADMASTER_BODY_SCALE := 1.18
 

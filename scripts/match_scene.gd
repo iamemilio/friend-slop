@@ -239,6 +239,11 @@ func _wire_spell_system(player: CharacterBody3D) -> void:
 	loadout.configure(spell_registry.get_all_spells())
 	_apply_role_starting_spells(loadout)
 	game_hud.configure(loadout, casting_session)
+	var inventory := player.get_node_or_null("%PlayerInventory")
+	if inventory == null:
+		inventory = player.get_node_or_null("PlayerInventory")
+	if inventory != null and game_hud.has_method("configure_inventory"):
+		game_hud.configure_inventory(inventory)
 	casting_session.configure(voice_validator, loadout)
 	casting_session.add_to_group("casting_session")
 	casting_session.state_changed.connect(_on_cast_state_changed)

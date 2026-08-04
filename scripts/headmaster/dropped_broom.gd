@@ -5,7 +5,7 @@ extends Interactable
 
 const GameWorldScript := preload("res://scripts/game_world.gd")
 const WorldGroundScript := preload("res://scripts/world_ground.gd")
-const BroomScene := preload("res://scenes/headmaster/broom.tscn")
+const BroomScene := preload("res://scenes/characters/broom.tscn")
 const BroomFlightScript := preload("res://scripts/headmaster/broom_flight.gd")
 const SpellWorldSyncScript := preload("res://scripts/spells/spell_world_sync.gd")
 const BUCKET_NAME := "DroppedBrooms"
@@ -135,6 +135,7 @@ static func apply_pickup(tree: SceneTree, object_id: String, _peer_id: int) -> v
 
 
 func _mount_player(player: CharacterBody3D) -> void:
+	## Pickup grants broom possession, then mounts (mesh becomes visible).
 	var flight := BroomFlightScript.ensure_on(player, true)
 	if flight != null and flight.has_method("mount_world_broom"):
 		flight.call("mount_world_broom")

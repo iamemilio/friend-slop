@@ -11,26 +11,26 @@
 [ext_resource type="Script" uid="uid://bkvka4fuy7rl2" path="res://scripts/spells/spell_registry.gd" id="6_registry"]
 [ext_resource type="Resource" path="res://resources/spells/show_me.tres" id="7_show_me"]
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
-[ext_resource type="PackedScene" uid="uid://bfqs6msunremi" path="res://scenes/ui/guide_panel.tscn" id="9_guide"]
+[ext_resource type="Script" uid="uid://bfnrfxnwjg02y" path="res://scripts/ui/aim_cursor.gd" id="9_aim"]
+[ext_resource type="PackedScene" path="res://scenes/ui/player_menu.tscn" id="9_guide"]
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
-[ext_resource type="Script" path="res://scripts/ui/aim_cursor.gd" id="9_aim"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
 [ext_resource type="Script" uid="uid://cgo2lkhlxtcky" path="res://scripts/spells/spell_validation_runner.gd" id="11_runner"]
 [ext_resource type="PackedScene" uid="uid://cpausemenu001" path="res://scenes/ui/pause_menu.tscn" id="14_pause"]
 [ext_resource type="Resource" path="res://resources/spells/fireball.tres" id="15_fireball"]
-[ext_resource type="Resource" path="res://resources/spells/flare.tres" id="33_flare"]
-[ext_resource type="Resource" path="res://resources/spells/ward.tres" id="35_ward"]
 [ext_resource type="Resource" path="res://resources/spells/headmaster/fake_wall.tres" id="24_fake_wall"]
-[ext_resource type="Resource" path="res://resources/spells/headmaster/clone.tres" id="32_clone"]
 [ext_resource type="Resource" path="res://resources/spells/light.tres" id="25_light"]
 [ext_resource type="Resource" path="res://resources/spells/light_ball.tres" id="26_light_ball"]
 [ext_resource type="Resource" path="res://resources/spells/target.tres" id="27_target"]
 [ext_resource type="Script" uid="uid://cjpjlfd2a3wsx" path="res://scripts/player_spawn_slot.gd" id="28_spawn_slot"]
 [ext_resource type="Resource" path="res://resources/spells/pull.tres" id="29_pull"]
 [ext_resource type="Resource" path="res://resources/spells/follow.tres" id="30_follow"]
-[ext_resource type="Resource" path="res://resources/spells/stop.tres" id="34_stop"]
 [ext_resource type="Resource" path="res://resources/spells/dispell.tres" id="31_dispell"]
+[ext_resource type="Resource" uid="uid://bsynwwje1gvsy" path="res://resources/spells/headmaster/clone.tres" id="32_clone"]
+[ext_resource type="Resource" uid="uid://c300xtr2mgchs" path="res://resources/spells/flare.tres" id="33_flare"]
+[ext_resource type="Resource" uid="uid://uuo4bgv3b66" path="res://resources/spells/stop.tres" id="34_stop"]
+[ext_resource type="Resource" uid="uid://djudlmjak0msk" path="res://resources/spells/ward.tres" id="35_ward"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -62,8 +62,12 @@ script = ExtResource("1_smoke_trails")
 
 [node name="MazeGenerator" type="Node3D" parent="." unique_id=2059492572]
 script = ExtResource("2_maze")
-maze_width = 45
-maze_height = 45
+maze_width = 50
+maze_height = 50
+cell_size = 4.0
+wall_height = 5.0
+straight_bias = 0.5
+braid_ratio = 0.12
 
 [node name="DiscoverableSpawner" type="Node3D" parent="." unique_id=234557342]
 script = ExtResource("4_spawner")
@@ -86,26 +90,26 @@ script = ExtResource("10_objective")
 editor_description = "Horror roster spawn slots. Editor shows role previews; match play instantiates live Apprentice/Headmaster scenes at these markers."
 
 [node name="HeadmasterSpawn" type="Marker3D" parent="Players" unique_id=1172483910]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5, 0.5, -1.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -22, 0.5, -22)
 script = ExtResource("28_spawn_slot")
 role = 1
 auto_place = false
 spawn_cell = Vector2i(22, 22)
 
 [node name="ApprenticeSpawn_0" type="Marker3D" parent="Players" unique_id=45769250]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.5, 0.5, -133.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -198, 0.5, -198)
 script = ExtResource("28_spawn_slot")
 auto_place = false
 
 [node name="ApprenticeSpawn_1" type="Marker3D" parent="Players" unique_id=142476161]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 130.5, 0.5, -133.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 154, 0.5, -198)
 script = ExtResource("28_spawn_slot")
 auto_place = false
 spawn_cell = Vector2i(44, 0)
 spawn_slot_index = 1
 
 [node name="ApprenticeSpawn_2" type="Marker3D" parent="Players" unique_id=1264272098]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -133.5, 0.5, 130.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -198, 0.5, 154)
 script = ExtResource("28_spawn_slot")
 auto_place = false
 spawn_cell = Vector2i(0, 44)
@@ -114,7 +118,7 @@ spawn_slot_index = 2
 [node name="GameHUD" type="CanvasLayer" parent="." unique_id=1905588477]
 script = ExtResource("9_hud")
 
-[node name="AimCursor" type="Control" parent="GameHUD"]
+[node name="AimCursor" type="Control" parent="GameHUD" unique_id=881728474]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -124,7 +128,8 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("9_aim")
 
-[node name="GuidePanel" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
+[node name="PlayerMenu" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
+
 [node name="MarginContainer" type="MarginContainer" parent="GameHUD" unique_id=271343968]
 anchors_preset = 10
 anchor_right = 1.0

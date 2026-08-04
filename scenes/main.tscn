@@ -11,7 +11,7 @@
 [ext_resource type="Script" uid="uid://bkvka4fuy7rl2" path="res://scripts/spells/spell_registry.gd" id="6_registry"]
 [ext_resource type="Resource" path="res://resources/spells/show_me.tres" id="7_show_me"]
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
-[ext_resource type="PackedScene" uid="uid://bfqs6msunremi" path="res://scenes/ui/guide_panel.tscn" id="9_guide"]
+[ext_resource type="PackedScene" path="res://scenes/ui/player_menu.tscn" id="9_guide"]
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
 [ext_resource type="Script" path="res://scripts/ui/aim_cursor.gd" id="9_aim"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
@@ -124,7 +124,7 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("9_aim")
 
-[node name="GuidePanel" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
+[node name="PlayerMenu" parent="GameHUD" unique_id=1872042120 instance=ExtResource("9_guide")]
 
 [node name="MarginContainer" type="MarginContainer" parent="GameHUD" unique_id=271343968]
 anchors_preset = 10
