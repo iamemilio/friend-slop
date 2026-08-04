@@ -15,15 +15,6 @@ const HIGHLIGHT_COLOR := Color(0.25, 0.95, 0.4, 0.95)
 const HIGHLIGHT_EMISSION := Color(0.2, 0.9, 0.35)
 
 
-static func apply_in_tree(tree: SceneTree, duration_sec: float = DEFAULT_DURATION_SEC) -> void:
-	## Legacy: highlight every targetable anchor. Prefer apply_to_anchor / apply_single.
-	if tree == null:
-		return
-	var duration := maxf(duration_sec, 0.5)
-	for anchor in collect_anchors(tree):
-		_attach_or_refresh(anchor, duration)
-
-
 static func apply_single(
 	tree: SceneTree,
 	anchor: Node3D,

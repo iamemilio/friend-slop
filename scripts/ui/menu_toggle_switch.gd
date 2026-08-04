@@ -2,7 +2,7 @@ class_name MenuToggleSwitch
 extends CheckButton
 
 ## Reusable large, caption-free on/off switch for menu rows.
-## Drop this script on a CheckButton, or instance scenes/ui/menu_toggle_switch.tscn.
+## Drop this script on a CheckButton (used by settings / lobby panels).
 
 const DEFAULT_GRAPHIC_SCALE := Vector2(1.5, 1.5)
 const DEFAULT_MIN_SIZE := Vector2(48, 28)

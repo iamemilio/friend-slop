@@ -177,6 +177,6 @@ func _is_menu_blocking() -> bool:
 	if tree.paused:
 		return true
 	var hud := tree.get_first_node_in_group("game_hud")
-	if hud != null and hud.has_method("is_guide_open") and bool(hud.call("is_guide_open")):
+	if hud != null and hud.has_method("is_player_menu_open") and bool(hud.call("is_player_menu_open")):
 		return true
 	return false

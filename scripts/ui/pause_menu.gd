@@ -31,8 +31,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	## Prefer closing the in-match player menu over opening pause.
-	if _is_guide_open():
-		_close_guide()
+	if _is_player_menu_open():
+		_close_player_menu()
 		get_viewport().set_input_as_handled()
 		return
 	if _paused:
@@ -55,8 +55,8 @@ func pause() -> void:
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_spellbook_was_open = _is_spellbook_open()
-	if _is_guide_open():
-		_close_guide()
+	if _is_player_menu_open():
+		_close_player_menu()
 	_cancel_casting()
 
 
@@ -103,17 +103,17 @@ func _cancel_casting() -> void:
 		session.cancel()
 
 
-func _is_guide_open() -> bool:
+func _is_player_menu_open() -> bool:
 	var hud: Node = get_tree().get_first_node_in_group("game_hud")
-	if hud != null and hud.has_method("is_guide_open"):
-		return bool(hud.call("is_guide_open"))
+	if hud != null and hud.has_method("is_player_menu_open"):
+		return bool(hud.call("is_player_menu_open"))
 	return false
 
 
-func _close_guide() -> void:
+func _close_player_menu() -> void:
 	var hud: Node = get_tree().get_first_node_in_group("game_hud")
-	if hud != null and hud.has_method("close_guide_menu"):
-		hud.call("close_guide_menu")
+	if hud != null and hud.has_method("close_player_menu"):
+		hud.call("close_player_menu")
 
 
 func _is_spellbook_open() -> bool:

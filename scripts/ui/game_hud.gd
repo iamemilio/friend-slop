@@ -16,7 +16,7 @@ var _from_tome := false
 var _coaching_countdown := 0.0
 var _active_strip: VBoxContainer
 var _active_rows: Dictionary = {}
-var _guide_open := false
+var _player_menu_open := false
 var _objective_lines: PackedStringArray = PackedStringArray()
 var _hotbar_row: HBoxContainer
 var _hotbar_labels: Array[Label] = []
@@ -33,9 +33,6 @@ var _hotbar_labels: Array[Label] = []
 @onready var mic_level_bar: ProgressBar = $CastingPanel/MarginContainer/VBox/MicLevelBar
 @onready var casting_feedback: Label = $CastingPanel/MarginContainer/VBox/FeedbackLabel
 @onready var casting_detail: Label = $CastingPanel/MarginContainer/VBox/DetailLabel
-
-## Compat alias for older call sites / scene paths.
-@onready var guide_panel: Node = player_menu
 
 
 func _ready() -> void:
@@ -56,31 +53,31 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	## While open, catch Tab/Esc before TabBar or pause can claim them.
-	if not _guide_open:
+	if not _player_menu_open:
 		return
 	if event.is_action_pressed("guide_menu") or event.is_action_pressed("ui_cancel"):
-		close_guide_menu()
+		close_player_menu()
 		get_viewport().set_input_as_handled()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _guide_open:
+	if _player_menu_open:
 		return
 	if not event.is_action_pressed("guide_menu"):
 		return
-	_open_guide(PlayerMenuScript.Page.MAIN)
+	_open_player_menu(PlayerMenuScript.Page.MAIN)
 	get_viewport().set_input_as_handled()
 
 
-func toggle_guide_menu() -> void:
-	if _guide_open:
-		close_guide_menu()
+func toggle_player_menu() -> void:
+	if _player_menu_open:
+		close_player_menu()
 	else:
-		_open_guide(PlayerMenuScript.Page.MAIN)
+		_open_player_menu(PlayerMenuScript.Page.MAIN)
 
 
-func _open_guide(page: int = PlayerMenuScript.Page.MAIN) -> void:
-	_guide_open = true
+func _open_player_menu(page: int = PlayerMenuScript.Page.MAIN) -> void:
+	_player_menu_open = true
 	player_menu.visible = true
 	if player_menu.has_method("configure_loadout"):
 		player_menu.configure_loadout(_loadout)
@@ -93,18 +90,18 @@ func _open_guide(page: int = PlayerMenuScript.Page.MAIN) -> void:
 			player_menu.open_codex()
 	elif player_menu.has_method("reset_to_main"):
 		player_menu.reset_to_main()
-	_refresh_guide_content()
+	_refresh_player_menu_content()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-func is_guide_open() -> bool:
-	return _guide_open
+func is_player_menu_open() -> bool:
+	return _player_menu_open
 
 
-func close_guide_menu() -> void:
-	if not _guide_open:
+func close_player_menu() -> void:
+	if not _player_menu_open:
 		return
-	_guide_open = false
+	_player_menu_open = false
 	player_menu.visible = false
 	if player_menu.has_method("reset_to_main"):
 		player_menu.reset_to_main()
@@ -165,16 +162,16 @@ func toggle_spellbook() -> void:
 		and player_menu.has_method("is_codex_view")
 		and bool(player_menu.call("is_codex_view"))
 	)
-	if _guide_open and codex_open:
-		close_guide_menu()
-	elif _guide_open:
+	if _player_menu_open and codex_open:
+		close_player_menu()
+	elif _player_menu_open:
 		if player_menu.has_method("open_codex"):
 			player_menu.open_codex()
 		if player_menu.has_method("set_selected_spell_id"):
 			player_menu.set_selected_spell_id(_selected_spell_id)
-		_refresh_guide_content()
+		_refresh_player_menu_content()
 	else:
-		_open_guide(PlayerMenuScript.Page.CODEX)
+		_open_player_menu(PlayerMenuScript.Page.CODEX)
 
 
 func close_spellbook() -> void:
@@ -183,13 +180,13 @@ func close_spellbook() -> void:
 		and player_menu.has_method("is_codex_view")
 		and bool(player_menu.call("is_codex_view"))
 	)
-	if _guide_open and codex_open:
-		close_guide_menu()
+	if _player_menu_open and codex_open:
+		close_player_menu()
 
 
 func is_spellbook_open() -> bool:
 	return (
-		_guide_open
+		_player_menu_open
 		and player_menu != null
 		and player_menu.has_method("is_codex_view")
 		and bool(player_menu.call("is_codex_view"))
@@ -485,9 +482,9 @@ func _on_codex_spell_selected(spell_id: String) -> void:
 
 func _on_spell_learned(spell_id: String) -> void:
 	_selected_spell_id = spell_id
-	if _guide_open:
+	if _player_menu_open:
 		player_menu.set_selected_spell_id(spell_id)
-		_refresh_guide_content()
+		_refresh_player_menu_content()
 
 
 func _process(_delta: float) -> void:
@@ -502,33 +499,33 @@ func _update_aim_cursor_visibility() -> void:
 	aim_cursor.visible = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 
 
-func _refresh_guide_content() -> void:
+func _refresh_player_menu_content() -> void:
 	if player_menu != null and player_menu.has_method("refresh"):
 		player_menu.refresh(_objective_lines)
 
 
 func _on_loadout_changed() -> void:
-	if _guide_open and player_menu != null and player_menu.has_method("configure_loadout"):
+	if _player_menu_open and player_menu != null and player_menu.has_method("configure_loadout"):
 		player_menu.configure_loadout(_loadout)
-		_refresh_guide_content()
+		_refresh_player_menu_content()
 
 
 func _on_objective_phase_changed(_phase: int) -> void:
 	_sync_objective_lines_from_scene()
-	if _guide_open:
-		_refresh_guide_content()
+	if _player_menu_open:
+		_refresh_player_menu_content()
 
 
 func _on_objective_completed() -> void:
 	_sync_objective_lines_from_scene()
-	if _guide_open:
-		_refresh_guide_content()
+	if _player_menu_open:
+		_refresh_player_menu_content()
 
 
 func _refresh_objective_lines(objective: DeliveryObjective) -> void:
 	_objective_lines = objective.get_status_lines()
-	if _guide_open:
-		_refresh_guide_content()
+	if _player_menu_open:
+		_refresh_player_menu_content()
 
 
 func _sync_objective_lines_from_scene() -> void:
