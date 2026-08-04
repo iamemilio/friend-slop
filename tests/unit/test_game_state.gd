@@ -9,6 +9,7 @@ func run() -> int:
 	var failures := 0
 	failures += _test_reset_for_new_game()
 	failures += _test_prepare_match()
+	failures += _test_get_team_for_peer()
 	failures += _test_get_snail_color_wraps()
 	failures += _test_is_snail_tracks_form()
 	return failures
@@ -67,6 +68,35 @@ func _test_prepare_match() -> int:
 		return 1
 	if state.local_player_form != GameStateScript.PlayerForm.SNAIL:
 		push_error("Expected multiplayer start to begin in snail form")
+		return 1
+	return 0
+
+
+func _test_get_team_for_peer() -> int:
+	var state := _make_state()
+	var apprentice_config := PlayerCharacterConfigScript.create_default(
+		GameStateScript.PlayerRole.APPRENTICE
+	)
+	apprentice_config.team_id = 1
+	state.prepare_match(
+		99,
+		{
+			1: GameStateScript.PlayerRole.HEADMASTER,
+			2: GameStateScript.PlayerRole.APPRENTICE,
+			3: GameStateScript.PlayerRole.APPRENTICE,
+		},
+		{
+			2: apprentice_config.to_dict(),
+		}
+	)
+	if state.get_team_for_peer(1) != -1:
+		push_error("Expected headmaster team_id to be -1")
+		return 1
+	if state.get_team_for_peer(2) != 1:
+		push_error("Expected apprentice team_id from character config")
+		return 1
+	if state.get_team_for_peer(3) != 0:
+		push_error("Expected default apprentice team_id to be 0")
 		return 1
 	return 0
 

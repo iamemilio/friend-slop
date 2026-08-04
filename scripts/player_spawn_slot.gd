@@ -47,7 +47,7 @@ const HEADMASTER_SCENE_PATH := "res://scenes/characters/headmaster.tscn"
 @export_group("Auto defaults")
 @export var spawn_slot_index: int = 0:
 	set(value):
-		## Apprentice corner hint when auto_place is on: 0=NW, 1=NE, 2=SW.
+		## Matches PlayerCharacterConfig.team_id; auto_place corners: 0=NW, 1=NE, 2=SW.
 		spawn_slot_index = maxi(value, 0)
 		_refresh_visuals()
 		if Engine.is_editor_hint() and auto_place and not _syncing_pose:

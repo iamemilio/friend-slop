@@ -70,6 +70,13 @@ func get_role_for_peer(peer_id: int) -> PlayerRole:
 	return PlayerRole.APPRENTICE
 
 
+## Apprentice team for spawn clustering; headmaster is not on a team (-1).
+func get_team_for_peer(peer_id: int) -> int:
+	if get_role_for_peer(peer_id) == PlayerRole.HEADMASTER:
+		return -1
+	return get_character_config_for_peer(peer_id).team_id
+
+
 func get_character_config_for_peer(peer_id: int) -> PlayerCharacterConfig:
 	if peer_character_configs.has(peer_id):
 		return PlayerCharacterConfig.from_dict(peer_character_configs[peer_id])

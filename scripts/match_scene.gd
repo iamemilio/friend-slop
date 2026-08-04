@@ -354,28 +354,44 @@ func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
 			headmaster_slot = slot
 		else:
 			apprentice_slots.append(slot)
-
 	apprentice_slots.sort_custom(func(a: PlayerSpawnSlot, b: PlayerSpawnSlot) -> bool:
 		return a.spawn_slot_index < b.spawn_slot_index
 	)
 
-	var apprentice_index := 0
+	var by_team: Dictionary = {}
 	for player in players:
 		var peer_id := _peer_id_for_player_node(player)
-		var role := GameState.get_role_for_peer(peer_id)
-		var target: PlayerSpawnSlot = null
-		if role == GameState.PlayerRole.HEADMASTER:
-			target = headmaster_slot
-		else:
-			if apprentice_index < apprentice_slots.size():
-				target = apprentice_slots[apprentice_index]
-			elif not apprentice_slots.is_empty():
-				target = apprentice_slots[apprentice_slots.size() - 1]
-			apprentice_index += 1
+		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.HEADMASTER:
+			if headmaster_slot != null:
+				player.global_position = headmaster_slot.get_spawn_world_position()
+			player.velocity = Vector3.ZERO
+			continue
+		var team_id := GameState.get_team_for_peer(peer_id)
+		if not by_team.has(team_id):
+			by_team[team_id] = []
+		by_team[team_id].append(player)
 
-		if target != null:
-			player.global_position = target.get_spawn_world_position()
-		player.velocity = Vector3.ZERO
+	for team_id in by_team:
+		var mates: Array = by_team[team_id]
+		var slot := _apprentice_slot_for_team(apprentice_slots, int(team_id))
+		if slot == null:
+			continue
+		var origin := slot.get_spawn_world_position()
+		var offsets := PlayerSpawnLayoutScript.teammate_offsets(mates.size())
+		for i in mates.size():
+			var mate: CharacterBody3D = mates[i]
+			mate.global_position = origin + offsets[i]
+			mate.velocity = Vector3.ZERO
+
+
+func _apprentice_slot_for_team(
+	apprentice_slots: Array[PlayerSpawnSlot],
+	team_id: int
+) -> PlayerSpawnSlot:
+	for slot in apprentice_slots:
+		if slot.spawn_slot_index == team_id:
+			return slot
+	return apprentice_slots[0] if not apprentice_slots.is_empty() else null
 
 
 func _peer_id_for_player_node(player: Node) -> int:

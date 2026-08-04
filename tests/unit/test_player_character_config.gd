@@ -37,9 +37,19 @@ func _test_default_headmaster_summary() -> int:
 
 func _test_dict_round_trip() -> int:
 	var original := PlayerCharacterConfigScript.create_default(GameStateScript.PlayerRole.HEADMASTER)
+	original.team_id = 2
 	var restored := PlayerCharacterConfigScript.from_dict(original.to_dict())
 	if restored.role != GameStateScript.PlayerRole.HEADMASTER:
 		push_error("Expected character config round-trip to preserve role")
+		return 1
+	if restored.team_id != 2:
+		push_error("Expected character config round-trip to preserve team_id")
+		return 1
+	var legacy := PlayerCharacterConfigScript.from_dict(
+		{"role": GameStateScript.PlayerRole.APPRENTICE}
+	)
+	if legacy.team_id != 0:
+		push_error("Expected missing team_id to default to 0")
 		return 1
 	return 0
 

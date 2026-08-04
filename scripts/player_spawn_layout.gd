@@ -1,16 +1,29 @@
 class_name PlayerSpawnLayout
 extends RefCounted
 
-## Roster spawn placement: headmaster near maze center, apprentices near distinct corners.
+## Roster spawn placement: headmaster at maze center; each apprentice team in a corner cluster.
 
 const PLAYER_Y := 0.5
-const IN_CELL_SPACING := 0.85
-## Apprentice corner targets (NW, NE, SW). SE is reserved for the exit crystal.
+## Center-to-center gap for co-located teammates. Apprentice capsule radius ≈ 0.24, so
+## this stays above 2×radius (+ safe_margin) and fits three players in a 3.0 maze cell.
+const TEAMMATE_SPAWN_SPACING := 1.0
+## Team spawn corner targets (NW, NE, SW). SE is reserved for the exit crystal.
 const APPRENTICE_CORNER_TARGETS: Array[Vector2i] = [
 	Vector2i(0, 0),
 	Vector2i(1, 0),
 	Vector2i(0, 1),
 ]
+
+
+## Centered row offsets so teammates do not stack or clip capsules at spawn.
+static func teammate_offsets(count: int) -> Array[Vector3]:
+	var offsets: Array[Vector3] = []
+	if count <= 0:
+		return offsets
+	var start_x := -0.5 * float(count - 1) * TEAMMATE_SPAWN_SPACING
+	for i in count:
+		offsets.append(Vector3(start_x + float(i) * TEAMMATE_SPAWN_SPACING, 0.0, 0.0))
+	return offsets
 
 
 static func compute_positions(

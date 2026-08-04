@@ -12,6 +12,7 @@ func run() -> int:
 	failures += _test_open_spawn_cells_skip_walled_centers()
 	failures += _test_headmaster_spawns_near_center()
 	failures += _test_apprentices_use_distinct_corners()
+	failures += _test_teammate_offsets_cluster_with_spacing()
 	return failures
 
 
@@ -131,6 +132,27 @@ func _test_apprentices_use_distinct_corners() -> int:
 		return 1
 	if roster[0] != Vector2i(4, 4):
 		push_error("Roster[0] should be headmaster center")
+		return 1
+	return 0
+
+
+func _test_teammate_offsets_cluster_with_spacing() -> int:
+	## Apprentice CapsuleShape3D radius ≈ 0.24; centers must clear 2×radius.
+	const MIN_CLEARANCE := 0.48
+	var solo: Array[Vector3] = PlayerSpawnLayoutScript.teammate_offsets(1)
+	var spacing := PlayerSpawnLayoutScript.TEAMMATE_SPAWN_SPACING
+	var trio: Array[Vector3] = PlayerSpawnLayoutScript.teammate_offsets(3)
+	var ok := (
+		solo.size() == 1
+		and solo[0] == Vector3.ZERO
+		and spacing >= MIN_CLEARANCE
+		and trio.size() == 3
+		and is_equal_approx(trio[1].x, 0.0)
+		and absf(trio[0].distance_to(trio[1]) - spacing) <= 0.001
+		and spacing + 0.24 <= 1.5
+	)
+	if not ok:
+		push_error("Teammate offsets must clear capsules and fit three in a maze cell")
 		return 1
 	return 0
 
