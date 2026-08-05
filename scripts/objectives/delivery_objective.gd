@@ -733,8 +733,12 @@ func _build_shrine_beacon() -> void:
 	_beacon_light.spot_range = BEACON_HEIGHT
 	_beacon_light.spot_attenuation = 0.45
 	_beacon_light.spot_angle = 18.0
-	_beacon_light.shadow_enabled = false
+	_beacon_light.shadow_enabled = true
+	_beacon_light.shadow_bias = 0.04
+	_beacon_light.shadow_normal_bias = 1.0
+	_beacon_light.light_volumetric_fog_energy = 4.0
 	_beacon_light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	_beacon_light.shadow_caster_mask = WorldVisualLayersScript.WORLD_LIGHT_MASK
 	_beacon_light.position = Vector3(0.0, 0.2, 0.0)
 	# SpotLight aims along -Z; tip it so the cone points skyward.
 	_beacon_light.rotation_degrees = Vector3(-90.0, 0.0, 0.0)
@@ -746,8 +750,13 @@ func _build_shrine_beacon() -> void:
 	_beacon_base_light.light_energy = 0.0
 	_beacon_base_light.omni_range = 16.0
 	_beacon_base_light.omni_attenuation = 1.1
-	_beacon_base_light.shadow_enabled = false
+	_beacon_base_light.shadow_enabled = true
+	_beacon_base_light.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID
+	_beacon_base_light.shadow_bias = 0.04
+	_beacon_base_light.shadow_normal_bias = 1.1
+	_beacon_base_light.light_volumetric_fog_energy = 4.0
 	_beacon_base_light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	_beacon_base_light.shadow_caster_mask = WorldVisualLayersScript.WORLD_LIGHT_MASK
 	_beacon_base_light.position = Vector3(0.0, 0.8, 0.0)
 	_turn_in_root.add_child(_beacon_base_light)
 

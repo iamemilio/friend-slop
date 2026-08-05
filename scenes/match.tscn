@@ -35,10 +35,18 @@
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
 background_color = Color(0.015, 0.018, 0.035, 1)
-ambient_light_color = Color(0.14, 0.16, 0.26, 1)
-ambient_light_energy = 0.32
+ambient_light_color = Color(0.7730558, 0.7674407, 0.83066744, 1)
+ambient_light_energy = 0.37
 tonemap_mode = 2
 tonemap_exposure = 1.12
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.04
+volumetric_fog_albedo = Color(0.5168059, 0.5571699, 0.61370206, 1)
+volumetric_fog_emission_energy = 0.0
+volumetric_fog_anisotropy = 0.3
+volumetric_fog_length = 60.0
+volumetric_fog_ambient_inject = 0.25
+volumetric_fog_sky_affect = 0.01
 
 [node name="Match" type="Node3D" unique_id=94019496]
 script = ExtResource("1_match")

@@ -254,8 +254,13 @@ func _build_orb_visuals(start_visible: bool) -> void:
 	_omni.light_energy = 0.0 if not start_visible else LIGHT_ENERGY
 	_omni.omni_range = LIGHT_RANGE
 	_omni.omni_attenuation = 1.15
-	_omni.shadow_enabled = false
+	_omni.light_volumetric_fog_energy = 6.0
 	_omni.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+	_omni.shadow_caster_mask = WorldVisualLayersScript.WORLD_LIGHT_MASK
+	_omni.shadow_enabled = true
+	_omni.omni_shadow_mode = OmniLight3D.SHADOW_DUAL_PARABOLOID
+	_omni.shadow_bias = 0.04
+	_omni.shadow_normal_bias = 1.1
 	add_child(_omni)
 
 

@@ -17,12 +17,12 @@ const SHAFT_LENGTH := 0.28
 const SHAFT_TOP_RADIUS := 0.008
 const SHAFT_BOTTOM_RADIUS := 0.008
 const TIP_RADIUS := 0.012
-## Spill-tuned cone: same warmth/brightness as the old omni spill, shaped forward from the tip.
-const FLASHLIGHT_ENERGY := 3.0
-const FLASHLIGHT_RANGE := 12.0
-const FLASHLIGHT_HALF_ANGLE_DEG := 82.0
-const FLASHLIGHT_ATTENUATION := 1.2
-const FLASHLIGHT_LIGHT_SIZE := 0.65
+## Spill-tuned cone from the wand tip toward the crosshair.
+const FLASHLIGHT_ENERGY := 3.6
+const FLASHLIGHT_RANGE := 14.0
+const FLASHLIGHT_HALF_ANGLE_DEG := 28.0
+const FLASHLIGHT_ATTENUATION := 1.05
+const FLASHLIGHT_LIGHT_SIZE := 0.35
 const FLASHLIGHT_COLOR := Color(1.0, 0.86, 0.56)
 const FLASHLIGHT_TIP_EMISSION := 1.0
 const FLAME_GLOW_COLOR := Color(0.72, 0.08, 0.04)
@@ -71,6 +71,10 @@ func _bind_existing_meshes() -> void:
 	_cast_origin = get_node(origin_path) as Marker3D
 	_flashlight_light = _cast_origin.get_node_or_null("FlashlightBeam") as SpotLight3D
 	if _flashlight_light != null:
+		## Keep the beam under the wand root so look-at isn't warped by Model scale.
+		if _flashlight_light.get_parent() != self:
+			_flashlight_light.reparent(self, false)
+		_apply_flashlight_beam_settings(_flashlight_light)
 		_configure_flashlight_light(_flashlight_light)
 	_shaft_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
 	_tip_mesh.layers = WorldVisualLayersScript.PLAYER_SELF
@@ -138,15 +142,16 @@ func is_flashlight_active() -> bool:
 func _aim_flashlight_to_crosshair() -> void:
 	if _flashlight_light == null or not is_instance_valid(_flashlight_light):
 		return
+	var tip := get_cast_origin()
 	var dir := _resolve_aim_direction()
 	if dir.length_squared() < 0.0001:
 		return
 	dir = dir.normalized()
-	var target := _flashlight_light.global_position + dir
 	var up := Vector3.UP
 	if absf(dir.dot(up)) > 0.95:
 		up = Vector3.RIGHT
-	_flashlight_light.look_at(target, up)
+	## SpotLight aims along local -Z; pin origin to tip every frame.
+	_flashlight_light.global_transform = Transform3D(Basis.looking_at(dir, up), tip)
 
 
 func _resolve_aim_direction() -> Vector3:
@@ -238,16 +243,11 @@ func _build_wand_meshes() -> void:
 
 	_flashlight_light = SpotLight3D.new()
 	_flashlight_light.name = "FlashlightBeam"
-	_flashlight_light.position = Vector3.ZERO
-	_flashlight_light.spot_range = FLASHLIGHT_RANGE
-	_flashlight_light.spot_angle = deg_to_rad(FLASHLIGHT_HALF_ANGLE_DEG)
-	_flashlight_light.spot_attenuation = FLASHLIGHT_ATTENUATION
-	_flashlight_light.light_size = FLASHLIGHT_LIGHT_SIZE
-	_flashlight_light.light_color = FLASHLIGHT_COLOR
+	_apply_flashlight_beam_settings(_flashlight_light)
 	_flashlight_light.light_energy = 0.0
 	_flashlight_light.visible = false
 	_configure_flashlight_light(_flashlight_light)
-	_cast_origin.add_child(_flashlight_light)
+	add_child(_flashlight_light)
 
 
 func _build_particles() -> void:
@@ -384,7 +384,21 @@ func _configure_flashlight_light(light: Light3D) -> void:
 	light.light_cull_mask = WORLD_LIGHT_CULL_MASK
 	light.shadow_caster_mask = WORLD_LIGHT_CULL_MASK
 	light.light_specular = 0.22
-	light.shadow_enabled = false
+	## Shadows so the beam and fog scatter stop at maze walls.
+	light.shadow_enabled = true
+	light.shadow_bias = 0.04
+	light.shadow_normal_bias = 1.0
+	light.light_volumetric_fog_energy = 8.0
+
+
+func _apply_flashlight_beam_settings(light: SpotLight3D) -> void:
+	## spot_angle is degrees in Godot 4 — never pass radians.
+	light.spot_range = FLASHLIGHT_RANGE
+	light.spot_angle = FLASHLIGHT_HALF_ANGLE_DEG
+	light.spot_attenuation = FLASHLIGHT_ATTENUATION
+	light.light_size = FLASHLIGHT_LIGHT_SIZE
+	light.light_color = FLASHLIGHT_COLOR
+	light.light_energy = FLASHLIGHT_ENERGY if _flashlight_active else 0.0
 
 
 func _set_tip_emission(color: Color, energy: float) -> void:

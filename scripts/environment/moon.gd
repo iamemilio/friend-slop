@@ -144,6 +144,8 @@ func _configure_moon_light() -> void:
 	# Hard enough for moonlight, soft enough to hide cascade micro-jitter.
 	light.shadow_bias = 0.12
 	light.shadow_normal_bias = 2.2
+	## Let moonlight scatter into volumetric fog (match WorldEnvironment).
+	light.light_volumetric_fog_energy = 3.0
 	_sync_light_from_moon_position()
 
 
