@@ -10,9 +10,7 @@ const FireballLightingScript := preload("res://scripts/spells/fireball_lighting.
 
 func run(tree: SceneTree) -> int:
 	var failures := 0
-	failures += _test_sky_flare_direction_threshold()
 	failures += _test_normal_lifetime()
-	failures += _test_sky_flare_finish_conditions()
 	failures += _test_smoke_trail_fade_delay()
 	failures += _test_smoke_uses_mist_texture_without_shadows()
 	failures += _test_embers_use_fine_spark_texture()
@@ -25,45 +23,12 @@ func run(tree: SceneTree) -> int:
 	return failures
 
 
-func _test_sky_flare_direction_threshold() -> int:
-	## Helpers still power the separate Flare spell's rise path.
-	if not FireballFlightScript.is_sky_flare_direction(Vector3(0.2, 0.8, 0.2)):
-		push_error("Expected steep upward aim to count as flare rise direction")
-		return 1
-	if FireballFlightScript.is_sky_flare_direction(Vector3(1.0, 0.1, 0.0)):
-		push_error("Expected shallow aim to stay below flare rise threshold")
-		return 1
-	if not FireballFlightScript.is_sky_flare_direction(Vector3(0.0, 1.0, 0.0)):
-		push_error("Expected straight-up aim to count as flare rise direction")
-		return 1
-	return 0
-
-
 func _test_normal_lifetime() -> int:
 	if not FireballFlightScript.should_finish_normal(FireballFlightScript.MAX_LIFETIME):
 		push_error("Expected normal fireball to finish at max lifetime")
 		return 1
 	if FireballFlightScript.should_finish_normal(FireballFlightScript.MAX_LIFETIME - 0.1):
 		push_error("Expected normal fireball to keep flying before max lifetime")
-		return 1
-	return 0
-
-
-func _test_sky_flare_finish_conditions() -> int:
-	if not FireballFlightScript.should_finish_sky_flare(
-		FireballFlightScript.SKY_FLARE_MAX_RISE_SEC,
-		0.0
-	):
-		push_error("Expected sky flare to finish when max rise time reached")
-		return 1
-	if not FireballFlightScript.should_finish_sky_flare(
-		0.1,
-		FireballFlightScript.SKY_FLARE_TRAVEL_DIST
-	):
-		push_error("Expected sky flare to finish when travel distance reached")
-		return 1
-	if FireballFlightScript.should_finish_sky_flare(0.1, 1.0):
-		push_error("Expected sky flare to keep rising before limits")
 		return 1
 	return 0
 
@@ -166,11 +131,6 @@ func _test_cast_lights_use_shadows() -> int:
 	var flash := FireballLightingScript.make_explosion_flash_light()
 	if not flash.shadow_enabled:
 		push_error("Expected explosion flash light to cast shadows")
-		return 1
-
-	var beacon := FireballLightingScript.make_signal_beacon_light(12.0, 80.0)
-	if not beacon.shadow_enabled:
-		push_error("Expected sky flare beacon to cast shadows")
 		return 1
 	return 0
 

@@ -43,6 +43,8 @@ func run() -> int:
 	failures += _test_clone_network_round_trip()
 	failures += _test_clone_source_eligibility_meta()
 	failures += _test_flare_is_supported()
+	failures += _test_flare_params_spawn_projectile()
+	failures += _test_flare_wire_params_spawn_projectile()
 	failures += _test_build_ward_params()
 	return failures
 
@@ -515,12 +517,91 @@ func _test_flare_is_supported() -> int:
 	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLARE:
 		push_error("Expected flare build_params to set effect id")
 		return 1
+	if float(params.get(SyncScript.KEY_DURATION, 0.0)) <= 0.0:
+		push_error("Expected flare build_params to include beacon duration")
+		return 1
+	if SyncScript.get_effect_duration_sec(FlareSpell, params) != 0.0:
+		push_error("Expected flare to hide HUD active timer")
+		return 1
 	var wire := SyncScript.pack_for_network(params)
 	var unpacked := SyncScript.unpack_from_network(wire)
 	if str(unpacked.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FLARE:
 		push_error("Expected flare network round-trip to keep effect id")
 		return 1
+	if float(unpacked.get(SyncScript.KEY_DURATION, 0.0)) <= 0.0:
+		push_error("Expected flare wire to carry beacon duration for all peers")
+		return 1
 	return 0
+
+
+func _test_flare_params_spawn_projectile() -> int:
+	var tree := SceneTree.new()
+	var root := Node3D.new()
+	tree.root.add_child(root)
+
+	var player := _make_player_stub()
+	root.add_child(player)
+
+	var params := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLARE,
+		SyncScript.KEY_ORIGIN: Vector3(1.0, 2.0, 3.0),
+		SyncScript.KEY_DIRECTION: Vector3(0.0, 0.0, -1.0),
+		SyncScript.KEY_DURATION: 20.0,
+	}
+	SyncScript.apply(player, params)
+
+	var projectile_count := _count_flare_projectiles(root)
+	player.queue_free()
+	root.queue_free()
+	tree.free()
+
+	if projectile_count != 1:
+		push_error("Expected synced flare params to spawn one projectile")
+		return 1
+	return 0
+
+
+func _test_flare_wire_params_spawn_projectile() -> int:
+	var tree := SceneTree.new()
+	var root := Node3D.new()
+	tree.root.add_child(root)
+
+	var player := _make_player_stub()
+	root.add_child(player)
+
+	var local_params := {
+		SyncScript.KEY_EFFECT_ID: SyncScript.EFFECT_FLARE,
+		SyncScript.KEY_ORIGIN: Vector3(2.0, 1.5, -1.0),
+		SyncScript.KEY_DIRECTION: Vector3(0.2, 0.8, -0.4).normalized(),
+		SyncScript.KEY_DURATION: 20.0,
+	}
+	var wire := SyncScript.pack_for_network(local_params)
+	var resolved := SyncScript.resolve_network_params(FlareSpell, player, wire)
+	SyncScript.apply(player, resolved)
+
+	var projectile_count := _count_flare_projectiles(root)
+	player.queue_free()
+	root.queue_free()
+	tree.free()
+
+	if projectile_count != 1:
+		push_error("Expected wire-format flare params to spawn one projectile on peers")
+		return 1
+	return 0
+
+
+func _count_flare_projectiles(root: Node) -> int:
+	const FlareEffectScript := preload("res://scripts/spells/flare_effect.gd")
+	var count := 0
+	var bucket := root.get_node_or_null("SpellProjectiles")
+	var nodes: Array[Node] = [root]
+	if bucket != null:
+		nodes.append(bucket)
+	for node in nodes:
+		for child in node.get_children():
+			if child.get_script() == FlareEffectScript:
+				count += 1
+	return count
 
 
 func _test_clone_source_eligibility_meta() -> int:

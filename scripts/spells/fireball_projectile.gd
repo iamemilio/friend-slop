@@ -382,7 +382,7 @@ func _configure_travel_light() -> void:
 	if _travel_light == null:
 		if Engine.is_editor_hint() or not is_inside_tree():
 			return
-		_travel_light = FireballLightingScript.make_travel_cast_light(false)
+		_travel_light = FireballLightingScript.make_travel_cast_light()
 		_travel_light.name = "TravelCastLight"
 		add_child(_travel_light)
 	FireballLightingScript.configure_cast_light(
@@ -390,9 +390,8 @@ func _configure_travel_light() -> void:
 		1.35,
 		light_radius,
 		Color(1.0, 0.5, 0.14),
-		false
+		true
 	)
-	_travel_light.shadow_enabled = false
 
 
 func _sync_shell_visibility() -> void:

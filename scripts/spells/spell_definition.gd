@@ -123,7 +123,7 @@ func get_cast_success_text() -> String:
 		"fireball":
 			text = "A blazing fireball launches from your wand!"
 		"flare":
-			text = "A signal flare streaks upward and bursts in the sky!"
+			text = "A signal flare streaks toward your aim and bursts into a lasting beacon!"
 		"ward":
 			text = "A blue ward blooms ahead — ready to catch a spell."
 		"flashlight_toggle":
@@ -173,8 +173,8 @@ func get_codex_effect_detail() -> String:
 			)
 		"flare":
 			text = (
-				"Say \"flare\" to launch a signal spark toward your crosshair that "
-				+ "bursts into a bright beacon for several seconds."
+				"Say \"flare\" to form a red cone at your wand tip. A tiny spark "
+				+ "rockets toward your crosshair and bursts into a lasting signal flare."
 			)
 		"ward":
 			text = (

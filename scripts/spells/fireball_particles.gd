@@ -134,6 +134,46 @@ static func make_firework_shell(
 	return particles
 
 
+static func make_flare_smoke_trail_emitter() -> CPUParticles3D:
+	## Soft additive trail — keep quads small/off-tip so they never form a red disc.
+	var particles := CPUParticles3D.new()
+	particles.name = "SmokeTrail"
+	particles.emitting = false
+	particles.amount = 28
+	particles.lifetime = 10.0
+	particles.lifetime_randomness = 0.3
+	particles.explosiveness = 0.0
+	particles.randomness = 0.35
+	particles.local_coords = false
+	particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	particles.emission_sphere_radius = 0.06
+	particles.direction = Vector3(0.0, 0.7, 0.0)
+	particles.spread = 18.0
+	particles.initial_velocity_min = 0.35
+	particles.initial_velocity_max = 0.9
+	particles.gravity = Vector3(0.0, 0.28, 0.0)
+	particles.scale_amount_min = 0.35
+	particles.scale_amount_max = 0.7
+	particles.scale_amount_curve = _make_flare_plume_scale_curve()
+	particles.color = Color(0.75, 0.72, 0.7, 0.12)
+	particles.color_ramp = make_flare_smoke_ramp()
+	apply_render_setup(particles, "smoke_plume")
+	## Keep trail behind the tip so dense puffs never sit on the core.
+	particles.position = Vector3(0.0, -0.28, 0.0)
+	particles.visibility_aabb = AABB(Vector3(-80, -80, -80), Vector3(160, 160, 160))
+	return particles
+
+
+static func _make_flare_plume_scale_curve() -> Curve:
+	## Near-zero at spawn so the tip stays a hard point, then swell into a plume.
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.05))
+	curve.add_point(Vector2(0.18, 0.35))
+	curve.add_point(Vector2(0.5, 0.85))
+	curve.add_point(Vector2(1.0, 1.15))
+	return curve
+
+
 static func make_signal_smoke_column() -> CPUParticles3D:
 	var particles := CPUParticles3D.new()
 	particles.name = "SignalSmokeColumn"
@@ -161,10 +201,18 @@ static func make_signal_smoke_column() -> CPUParticles3D:
 static func apply_render_setup(particles: CPUParticles3D, preset: String) -> void:
 	var quad := QuadMesh.new()
 	match preset:
+		"smoke_plume":
+			## Soft trail billows — small enough not to read as a tip halo/ring.
+			quad.size = Vector2(0.55, 0.55)
 		"smoke_trail":
 			quad.size = Vector2(0.28, 0.28)
 		"firework":
 			quad.size = Vector2(0.18, 0.18)
+		"streak":
+			## Tall thin quads; pair with particle_flag_align_y for streaming trails.
+			quad.size = Vector2(0.028, 0.28)
+		"streak_long":
+			quad.size = Vector2(0.022, 0.48)
 		"ember", "spark":
 			quad.size = Vector2(0.04, 0.04)
 		_:
@@ -181,6 +229,11 @@ static func apply_render_setup(particles: CPUParticles3D, preset: String) -> voi
 	## Particles must never cast/receive shadows — solid quads read as black boxes.
 	particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	match preset:
+		"smoke_plume":
+			## Additive so plumes brighten fog instead of painting a black disc.
+			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			mat.albedo_texture = make_plume_texture()
+			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		"smoke_trail":
 			mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
 			mat.albedo_texture = make_mist_texture()
@@ -189,6 +242,11 @@ static func apply_render_setup(particles: CPUParticles3D, preset: String) -> voi
 			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 			mat.albedo_texture = make_ember_texture()
 			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		"streak", "streak_long":
+			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			mat.albedo_texture = make_ember_texture()
+			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			particles.particle_flag_align_y = true
 		"firework":
 			mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 			mat.albedo_texture = make_ember_texture()
@@ -201,6 +259,22 @@ static func apply_render_setup(particles: CPUParticles3D, preset: String) -> voi
 	particles.mesh = quad
 	particles.material_override = mat
 	particles.visibility_aabb = AABB(Vector3(-8, -8, -8), Vector3(16, 16, 16))
+
+
+static func make_plume_texture() -> GradientTexture2D:
+	## Very soft wide falloff so each quad reads as a billow, not a flake.
+	var gradient := Gradient.new()
+	gradient.offsets = PackedFloat32Array([0.0, 0.2, 0.55, 0.82, 1.0])
+	gradient.colors = PackedColorArray(
+		[
+			Color(1.0, 1.0, 1.0, 0.42),
+			Color(1.0, 1.0, 1.0, 0.28),
+			Color(1.0, 1.0, 1.0, 0.12),
+			Color(1.0, 1.0, 1.0, 0.035),
+			Color(1.0, 1.0, 1.0, 0.0),
+		]
+	)
+	return _make_radial_texture(gradient, 256)
 
 
 static func make_mist_texture() -> GradientTexture2D:
@@ -350,6 +424,16 @@ static func _make_smoke_color_ramp() -> Gradient:
 	gradient.add_point(0.0, Color(0.95, 0.78, 0.48, 0.4))
 	gradient.add_point(0.3, Color(0.7, 0.66, 0.62, 0.28))
 	gradient.add_point(1.0, Color(0.4, 0.38, 0.36, 0.0))
+	return gradient
+
+
+static func make_flare_smoke_ramp() -> Gradient:
+	## Cool gray trail — avoid warm tint that reads as a soft red ring on the tip.
+	var gradient := Gradient.new()
+	gradient.add_point(0.0, Color(0.78, 0.76, 0.74, 0.12))
+	gradient.add_point(0.25, Color(0.7, 0.7, 0.7, 0.08))
+	gradient.add_point(0.6, Color(0.6, 0.6, 0.6, 0.04))
+	gradient.add_point(1.0, Color(0.5, 0.5, 0.5, 0.0))
 	return gradient
 
 

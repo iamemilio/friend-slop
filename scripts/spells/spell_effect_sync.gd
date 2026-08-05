@@ -6,7 +6,7 @@ extends RefCounted
 ## targeted). Ephemeral spawns use SpellEphemeralFx; lasting props use SpellWorldSync.
 
 const FireballProjectileScript := preload("res://scripts/spells/fireball_projectile.gd")
-const FlareProjectileScript := preload("res://scripts/spells/flare_projectile.gd")
+const FlareEffectScript := preload("res://scripts/spells/flare_effect.gd")
 const WardShieldScript := preload("res://scripts/spells/ward_shield.gd")
 const LightBallOrbScript := preload("res://scripts/spells/light_ball_orb.gd")
 const TargetHighlightScript := preload("res://scripts/spells/target_highlight.gd")
@@ -70,8 +70,11 @@ static func get_effect_duration_sec(spell: SpellDefinition, params: Dictionary =
 			return float(params.get(KEY_DURATION, DEFAULT_LIGHT_DURATION))
 		EFFECT_HASTE:
 			return float(params.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
-		EFFECT_FIREBALL, EFFECT_FLARE:
+		EFFECT_FIREBALL:
 			return DEFAULT_FIREBALL_CAST_DURATION
+		EFFECT_FLARE:
+			# Beacon fades itself — no right-side active-timer chrome.
+			return 0.0
 		EFFECT_WARD:
 			return float(params.get(KEY_DURATION, DEFAULT_WARD_DURATION))
 		EFFECT_LIGHT_BALL:
@@ -100,6 +103,8 @@ static func build_params(spell: SpellDefinition, player: CharacterBody3D) -> Dic
 			params[KEY_DIRECTION] = _fireball_direction(player)
 			if spell.effect_id == EFFECT_WARD:
 				params[KEY_DURATION] = DEFAULT_WARD_DURATION
+			elif spell.effect_id == EFFECT_FLARE:
+				params[KEY_DURATION] = FlareEffectScript.DEFAULT_DURATION_SEC
 		EFFECT_LIGHT:
 			params[KEY_DURATION] = DEFAULT_LIGHT_DURATION
 		EFFECT_HASTE:
@@ -320,6 +325,10 @@ static func pack_for_network(params: Dictionary) -> Dictionary:
 			SpellEphemeralFxScript.pack_ray(wire, origin, direction)
 			if str(wire[KEY_EFFECT_ID]) == EFFECT_WARD:
 				wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_WARD_DURATION))
+			elif str(wire[KEY_EFFECT_ID]) == EFFECT_FLARE:
+				wire[KEY_DURATION] = float(
+					local.get(KEY_DURATION, FlareEffectScript.DEFAULT_DURATION_SEC)
+				)
 		EFFECT_HASTE:
 			wire[KEY_DURATION] = float(local.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			wire[KEY_MULTIPLIER] = float(local.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -400,6 +409,10 @@ static func unpack_from_network(wire: Dictionary) -> Dictionary:
 			params[KEY_DIRECTION] = ray[SpellEphemeralFxScript.KEY_DIRECTION]
 			if effect_id == EFFECT_WARD:
 				params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_WARD_DURATION))
+			elif effect_id == EFFECT_FLARE:
+				params[KEY_DURATION] = float(
+					wire.get(KEY_DURATION, FlareEffectScript.DEFAULT_DURATION_SEC)
+				)
 		EFFECT_HASTE:
 			params[KEY_DURATION] = float(wire.get(KEY_DURATION, DEFAULT_HASTE_DURATION))
 			params[KEY_MULTIPLIER] = float(wire.get(KEY_MULTIPLIER, DEFAULT_HASTE_MULTIPLIER))
@@ -784,11 +797,20 @@ static func _apply_fireball(player: CharacterBody3D, params: Dictionary) -> void
 static func _apply_flare(player: CharacterBody3D, params: Dictionary) -> void:
 	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
 	var direction := coerce_vector3(params.get(KEY_DIRECTION, Vector3.FORWARD))
+	var duration := float(
+		params.get(KEY_DURATION, FlareEffectScript.DEFAULT_DURATION_SEC)
+	)
+	## Same ephemeral cast wire as fireball — every peer spawns + simulates locally.
 	SpellEphemeralFxScript.spawn_at(
 		player,
 		origin,
 		direction,
-		Callable(FlareProjectileScript, "spawn")
+		func(parent: Node, spawn_origin: Vector3, spawn_dir: Vector3) -> Node:
+			var fly := true
+			var caster: Node3D = player
+			return FlareEffectScript.spawn_launched(
+				parent, spawn_origin, spawn_dir, duration, fly, caster
+			)
 	)
 
 
