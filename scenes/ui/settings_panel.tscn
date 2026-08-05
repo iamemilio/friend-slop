@@ -109,30 +109,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 14
 
-[node name="DisplayHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
-text = "Display"
-
-[node name="ResolutionLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
-text = "Resolution"
-
-[node name="ResolutionOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
-custom_minimum_size = Vector2(0, 36)
-layout_mode = 2
-
-[node name="ResolutionHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
-theme_override_font_sizes/font_size = 13
-autowrap_mode = 2
-text = "Changes the game window size. Drag the window edges to resize manually. Fullscreen is exited automatically when applying a preset."
-
-[node name="CrosshairSectionSeparator" type="HSeparator" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
-layout_mode = 2
-
 [node name="CrosshairHeaderLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
@@ -235,9 +211,56 @@ layout_mode = 2
 button_pressed = true
 script = ExtResource("3_toggle")
 
-[node name="Audio" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
+[node name="Graphics" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
 layout_mode = 2
 metadata/_tab_index = 1
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/Graphics"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 8
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="GraphicsVBox" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="DisplayModeLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Display Mode"
+
+[node name="DisplayModeOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="ResolutionLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.88, 1, 1)
+text = "Resolution"
+
+[node name="ResolutionOption" type="OptionButton" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+
+[node name="ResolutionHintLabel" type="Label" parent="Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.42, 0.55, 1)
+theme_override_font_sizes/font_size = 13
+autowrap_mode = 2
+text = "In fullscreen, resolution sets render scale while filling your monitor. In windowed mode, it sets the window size."
+
+[node name="Audio" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
+layout_mode = 2
+metadata/_tab_index = 2
 
 [node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/Audio"]
 layout_mode = 2
@@ -409,7 +432,7 @@ script = ExtResource("2_player_voice")
 [node name="Developer" type="VBoxContainer" parent="Panel/MarginContainer/VBox/TabContainer"]
 visible = false
 layout_mode = 2
-metadata/_tab_index = 2
+metadata/_tab_index = 3
 
 [node name="MarginContainer" type="MarginContainer" parent="Panel/MarginContainer/VBox/TabContainer/Developer"]
 layout_mode = 2

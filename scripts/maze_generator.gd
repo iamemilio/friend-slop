@@ -2,7 +2,7 @@
 extends Node3D
 
 ## Generates a random maze and builds floor + wall collision geometry.
-## Uses iterative recursive-backtracker, optional straight corridors, and loop braiding.
+## Uses iterative recursive-backtracker with mean corridor length, then clearings.
 
 signal maze_ready(
 	spawn_position: Vector3,
@@ -20,23 +20,57 @@ const SPAWN_ZONE_PREVIEW_NAME := "SpawnZonePreview"
 const WALL_COLLISION_PREVIEW_NAME := "WallCollisionPreview"
 const WALL_COLLISION_PREVIEW_COLOR := Color(0.1, 0.95, 1.0, 0.32)
 
+## Maze extent in cells along X (odd wall-grid size is derived from this).
 @export var maze_width: int = 15:
 	set(value):
 		maze_width = maxi(value, 1)
 		_on_editor_dims_changed()
+## Maze extent in cells along Z (odd wall-grid size is derived from this).
 @export var maze_height: int = 15:
 	set(value):
 		maze_height = maxi(value, 1)
 		_on_editor_dims_changed()
+## World size of one maze cell in meters (floor tiles and wall spacing).
 @export var cell_size: float = 3.0:
 	set(value):
 		cell_size = maxf(value, 0.1)
 		_on_editor_dims_changed()
+## Height of carved wall meshes and collision in meters.
 @export var wall_height: float = 3.0
+## When true, generates a maze automatically when the match scene starts.
 @export var regenerate_on_ready: bool = true
-@export_range(0.0, 1.0, 0.05) var straight_bias: float = 0.4
-@export_range(0.0, 0.5, 0.01) var braid_ratio: float = 0.15
+## Typical straight corridor run length in maze cells before the carver prefers to turn.
+@export_range(1.0, 12.0, 0.5) var mean_corridor_length: float = 3.0:
+	set(value):
+		mean_corridor_length = maxf(value, 1.0)
+		_on_editor_shape_changed()
+## Random half-range around mean corridor length. Target run is sampled in [mean−var, mean+var].
+@export_range(0, 8, 1) var corridor_length_variance: int = 1:
+	set(value):
+		corridor_length_variance = maxi(value, 0)
+		_on_editor_shape_changed()
+## Clearings to place in each maze quadrant (not the whole maze). 1 ≈ up to 4 total.
+@export_range(0, 8, 1) var clearing_count: int = 1:
+	set(value):
+		clearing_count = maxi(value, 0)
+		_on_editor_shape_changed()
+## Average radius of each random clearing in maze cells (actual size varies slightly).
+@export_range(0.0, 8.0, 0.5) var clearing_size: float = 2.0:
+	set(value):
+		clearing_size = maxf(value, 0.0)
+		_on_editor_shape_changed()
+## Preferred center-to-center distance in maze cells (also vs spire). Higher spreads clearings out.
+@export_range(0.0, 24.0, 0.5) var clearing_separation: float = 6.0:
+	set(value):
+		clearing_separation = maxf(value, 0.0)
+		_on_editor_shape_changed()
+## Radius of a fixed square clearing at maze center in maze cells. 0 disables the spire clearing.
+@export_range(0.0, 12.0, 0.5) var spire_clearing_size: float = 0.0:
+	set(value):
+		spire_clearing_size = maxf(value, 0.0)
+		_on_editor_shape_changed()
 @export_group("Editor Preview")
+## Draws translucent wall collision shapes in the editor for debugging.
 @export var show_wall_collision_shapes: bool = false:
 	set(value):
 		show_wall_collision_shapes = value
@@ -64,6 +98,11 @@ func _on_editor_dims_changed() -> void:
 	if not Engine.is_editor_hint() or not is_inside_tree():
 		return
 	_notify_main_editor_preview()
+
+
+func _on_editor_shape_changed() -> void:
+	## Corridor / clearing knobs: same editor rebuild path as size changes.
+	_on_editor_dims_changed()
 
 
 func _notify_main_editor_preview() -> void:
@@ -97,8 +136,12 @@ func generate_maze(seed_value: int = -1) -> void:
 		randomize()
 
 	_wall_grid = MazeCarver.generate(maze_width, maze_height, -1, {
-		"straight_bias": straight_bias,
-		"braid_ratio": braid_ratio,
+		"mean_corridor_length": mean_corridor_length,
+		"corridor_length_variance": corridor_length_variance,
+		"clearing_count": clearing_count,
+		"clearing_size": clearing_size,
+		"clearing_separation": clearing_separation,
+		"spire_clearing_size": spire_clearing_size,
 	})
 	_build_floor()
 	_build_walls()

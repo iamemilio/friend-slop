@@ -29,4 +29,33 @@ func run() -> int:
 	if normalized != DisplayResolutionPresetsScript.get_default_monitor_size():
 		failures += 1
 		push_error("Expected unknown resolutions to fall back to native default")
+	if DisplayResolutionPresetsScript.clamp_to_screen(
+		Vector2i(3840, 2160), Vector2i(1920, 1080)
+	) != Vector2i(1920, 1080):
+		failures += 1
+		push_error("Expected clamp_to_screen to cap at monitor size")
+	if not is_equal_approx(
+		DisplayResolutionPresetsScript.compute_scaling_3d_scale(
+			Vector2i(1920, 1080), Vector2i(3840, 2160)
+		),
+		0.5
+	):
+		failures += 1
+		push_error("Expected 1080p on 4K fullscreen to use 0.5 3D scale")
+	if not is_equal_approx(
+		DisplayResolutionPresetsScript.compute_scaling_3d_scale(
+			Vector2i(1920, 1080), Vector2i(1920, 1080)
+		),
+		1.0
+	):
+		failures += 1
+		push_error("Expected matching render/output sizes to use 1.0 3D scale")
+	if not is_equal_approx(
+		DisplayResolutionPresetsScript.compute_scaling_3d_scale(
+			Vector2i(3840, 2160), Vector2i(1920, 1080)
+		),
+		1.0
+	):
+		failures += 1
+		push_error("Expected oversize render target to clamp 3D scale at 1.0")
 	return failures

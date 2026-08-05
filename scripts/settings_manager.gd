@@ -14,6 +14,8 @@ const CAPTURE_DEVICE_RETRY_SEC := 0.25
 
 var window_width: int = DisplayResolutionPresetsScript.DEFAULT_SIZE.x
 var window_height: int = DisplayResolutionPresetsScript.DEFAULT_SIZE.y
+## When true, borderless fullscreen; resolution sets content scale + 3D render scale.
+var fullscreen: bool = false
 var master_volume: float = 1.0
 var mic_volume: float = 1.0
 var mic_muted: bool = false
@@ -79,32 +81,61 @@ func apply_display_settings() -> void:
 		return
 	if Engine.is_embedded_in_editor():
 		return
-	call_deferred("_deferred_apply_window_size", Vector2i(window_width, window_height))
+	call_deferred("_deferred_apply_display_settings")
 
 
-func _deferred_apply_window_size(target: Vector2i) -> void:
+func _deferred_apply_display_settings() -> void:
 	if Engine.is_embedded_in_editor():
 		return
 	var window := get_tree().root as Window
 	if window == null:
 		return
-	_ensure_windowed(window)
-	_configure_root_window(window)
-	window.content_scale_size = Vector2i.ZERO
-	DisplayServer.window_set_size(target)
-	window.size = target
+	var target := Vector2i(window_width, window_height)
 	DisplayServer.window_set_min_size(Vector2i(640, 360))
-	_center_window(target)
+	if fullscreen:
+		_apply_fullscreen(window, target)
+	else:
+		_apply_windowed(window, target)
 
 
-func _configure_root_window(window: Window) -> void:
-	window.borderless = false
-	window.unresizable = false
+func _apply_fullscreen(window: Window, target: Vector2i) -> void:
+	_configure_root_window(window, true)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	window.content_scale_size = target
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	window.mode = Window.MODE_FULLSCREEN
+	_set_scaling_3d_scale(window, target, _current_screen_size())
+
+
+func _apply_windowed(window: Window, target: Vector2i) -> void:
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	window.mode = Window.MODE_WINDOWED
+	_configure_root_window(window, false)
+	var screen_size := _current_screen_size()
+	var clamped := DisplayResolutionPresetsScript.clamp_to_screen(target, screen_size)
+	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
+	window.content_scale_size = clamped
+	DisplayServer.window_set_size(clamped)
+	window.size = clamped
+	_set_scaling_3d_scale(window, clamped, clamped)
+	_center_window(clamped)
+
+
+func _set_scaling_3d_scale(window: Window, render_size: Vector2i, output_size: Vector2i) -> void:
+	var scale := DisplayResolutionPresetsScript.compute_scaling_3d_scale(render_size, output_size)
+	window.scaling_3d_scale = scale
+
+
+func _configure_root_window(window: Window, is_fullscreen: bool) -> void:
 	## Avoid popup_window / WINDOW_FLAG_POPUP — setting either on the main window errors.
 	window.extend_to_title = false
 	window.exclusive = false
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, false)
+	window.borderless = is_fullscreen
+	window.unresizable = is_fullscreen
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, is_fullscreen)
+	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_RESIZE_DISABLED, is_fullscreen)
 	DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_EXTEND_TO_TITLE, false)
 
 
@@ -119,6 +150,13 @@ func _center_window(window_size: Vector2i) -> void:
 	DisplayServer.window_set_position(window_pos)
 
 
+func _current_screen_size() -> Vector2i:
+	var screen_id := DisplayServer.window_get_current_screen()
+	if screen_id < 0:
+		screen_id = DisplayServer.get_primary_screen()
+	return DisplayServer.screen_get_size(screen_id)
+
+
 func load_settings() -> void:
 	var config := ConfigFile.new()
 	if config.load(SETTINGS_PATH) != OK:
@@ -127,6 +165,7 @@ func load_settings() -> void:
 
 	window_width = int(config.get_value("display", "window_width", window_width))
 	window_height = int(config.get_value("display", "window_height", window_height))
+	fullscreen = bool(config.get_value("display", "fullscreen", fullscreen))
 	if window_width <= 0 or window_height <= 0:
 		_apply_native_default_window_size()
 		return
@@ -181,6 +220,7 @@ func save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("display", "window_width", window_width)
 	config.set_value("display", "window_height", window_height)
+	config.set_value("display", "fullscreen", fullscreen)
 	config.set_value("audio", "master_volume", master_volume)
 	config.set_value("audio", "mic_volume", mic_volume)
 	config.set_value("audio", "mic_muted", mic_muted)
@@ -428,15 +468,6 @@ func _ensure_mic_bus() -> void:
 	AudioServer.set_bus_mute(bus_idx, true)
 	AudioServer.set_bus_volume_db(bus_idx, 0.0)
 	AudioServer.set_bus_send(bus_idx, &"")
-
-
-func _ensure_windowed(window: Window) -> void:
-	var mode := DisplayServer.window_get_mode()
-	if mode == DisplayServer.WINDOW_MODE_FULLSCREEN \
-			or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN \
-			or mode == DisplayServer.WINDOW_MODE_MAXIMIZED:
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-		window.mode = Window.MODE_WINDOWED
 
 
 func _apply_native_default_window_size() -> void:

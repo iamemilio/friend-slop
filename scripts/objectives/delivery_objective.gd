@@ -93,13 +93,17 @@ func setup(
 	var near_spawn := false
 	if not Engine.is_editor_hint() and SettingsManager != null:
 		near_spawn = SettingsManager.dev_spawn_relic_near_spawn
+	var spire_size := 0.0
+	if maze.get("spire_clearing_size") != null:
+		spire_size = float(maze.spire_clearing_size)
 	var plan := ObjectivePlacement.plan(
 		maze.get_wall_grid(),
 		maze.maze_width,
 		maze.maze_height,
 		spawn_cell,
 		placement_seed,
-		near_spawn
+		near_spawn,
+		spire_size
 	)
 	if plan.is_empty():
 		TomeDebug.log("DeliveryObjective", "Could not plan objective cells")

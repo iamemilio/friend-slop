@@ -20,6 +20,7 @@ var _mic_status_label: Label
 var _lobby_voice_switch: CheckButton
 var _lobby_voice_hint: Label
 var _player_voice_list: VBoxContainer
+var _display_mode_option: OptionButton
 var _resolution_option: OptionButton
 var _resolution_hint_label: Label
 var _crosshair_opacity_slider: HSlider
@@ -39,6 +40,9 @@ var _dev_solo_role: int = GameState.PlayerRole.APPRENTICE
 
 @onready var _general_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/TabContainer/General/MarginContainer/ScrollContainer/GeneralVBox
+)
+@onready var _graphics_vbox: VBoxContainer = (
+	$Panel/MarginContainer/VBox/TabContainer/Graphics/MarginContainer/ScrollContainer/GraphicsVBox
 )
 @onready var _audio_vbox: VBoxContainer = (
 	$Panel/MarginContainer/VBox/TabContainer/Audio/MarginContainer/ScrollContainer/AudioVBox
@@ -81,6 +85,7 @@ func _ready() -> void:
 	_lobby_voice_switch.toggled.connect(_on_lobby_voice_toggled)
 	_dev_apprentice_button.pressed.connect(_on_dev_apprentice_pressed)
 	_dev_headmaster_button.pressed.connect(_on_dev_headmaster_pressed)
+	_display_mode_option.item_selected.connect(_on_display_mode_selected)
 	_resolution_option.item_selected.connect(_on_resolution_selected)
 	NetworkManager.lobby_roster_changed.connect(_on_lobby_roster_changed)
 	_populate_from_settings()
@@ -136,8 +141,9 @@ func _process(_delta: float) -> void:
 
 
 func _cache_node_refs() -> void:
-	_resolution_option = _general_vbox.get_node("ResolutionOption")
-	_resolution_hint_label = _general_vbox.get_node("ResolutionHintLabel")
+	_display_mode_option = _graphics_vbox.get_node("DisplayModeOption")
+	_resolution_option = _graphics_vbox.get_node("ResolutionOption")
+	_resolution_hint_label = _graphics_vbox.get_node("ResolutionHintLabel")
 	_crosshair_opacity_slider = _general_vbox.get_node(
 		"CrosshairOpacityRow/CrosshairOpacitySlider"
 	)
@@ -179,6 +185,8 @@ func _cache_node_refs() -> void:
 
 
 func _populate_from_settings() -> void:
+	_populate_display_mode_options()
+	_select_display_mode(SettingsManager.fullscreen)
 	_populate_resolution_options()
 	_select_resolution(SettingsManager.get_window_resolution_preset_index())
 	_fill_device_option(
@@ -220,6 +228,18 @@ func _populate_from_settings() -> void:
 	)
 
 
+func _populate_display_mode_options() -> void:
+	_display_mode_option.clear()
+	_display_mode_option.add_item("Windowed")
+	_display_mode_option.add_item("Fullscreen")
+
+
+func _select_display_mode(is_fullscreen: bool) -> void:
+	_display_mode_option.set_block_signals(true)
+	_display_mode_option.select(1 if is_fullscreen else 0)
+	_display_mode_option.set_block_signals(false)
+
+
 func _populate_resolution_options() -> void:
 	_resolution_option.clear()
 	for resolution_size in SettingsManager.get_resolution_presets():
@@ -234,13 +254,17 @@ func _update_resolution_hint() -> void:
 		return
 	if SettingsManager.is_running_embedded_in_editor():
 		_resolution_hint_label.text = (
-			"Resolution applies when running the exported game or with "
+			"Display settings apply when running the exported game or with "
 			+ "Embed Game On Next Play disabled in the Godot editor."
+		)
+	elif SettingsManager.fullscreen:
+		_resolution_hint_label.text = (
+			"Fullscreen fills your monitor. Resolution sets the render and UI scale."
 		)
 	else:
 		_resolution_hint_label.text = (
-			"Changes the game window size. Drag the window edges to resize manually. "
-			+ "Fullscreen is exited automatically when applying a preset."
+			"Windowed mode uses this size for the game window. "
+			+ "Drag the window edges to resize manually."
 		)
 
 
@@ -281,6 +305,7 @@ func _select_device(option: OptionButton, saved_device: String) -> void:
 
 
 func _apply_to_manager() -> void:
+	SettingsManager.fullscreen = _display_mode_option.selected == 1
 	SettingsManager.set_window_resolution_preset_index(_resolution_option.selected)
 	SettingsManager.master_volume = _master_volume_slider.value
 	SettingsManager.mic_volume = _mic_volume_slider.value
@@ -311,9 +336,17 @@ func _read_device_selection(option: OptionButton) -> String:
 	return option.get_item_text(option.selected)
 
 
+func _on_display_mode_selected(index: int) -> void:
+	SettingsManager.fullscreen = index == 1
+	_update_resolution_hint()
+	SettingsManager.apply_display_settings()
+	SettingsManager.save_settings()
+
+
 func _on_resolution_selected(index: int) -> void:
 	SettingsManager.set_window_resolution_preset_index(index)
 	SettingsManager.apply_display_settings()
+	SettingsManager.save_settings()
 
 
 func _on_dev_apprentice_pressed() -> void:

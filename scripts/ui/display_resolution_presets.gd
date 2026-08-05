@@ -115,6 +115,23 @@ static func _sort_presets_descending(presets: Array[Vector2i]) -> Array[Vector2i
 	return sorted
 
 
+static func clamp_to_screen(size: Vector2i, screen_size: Vector2i) -> Vector2i:
+	if screen_size.x <= 0 or screen_size.y <= 0:
+		return size
+	return Vector2i(mini(size.x, screen_size.x), mini(size.y, screen_size.y))
+
+
+## 3D render scale so the chosen resolution fills the output without upscaling past 1.0.
+static func compute_scaling_3d_scale(render_size: Vector2i, output_size: Vector2i) -> float:
+	if render_size.x <= 0 or render_size.y <= 0:
+		return 1.0
+	if output_size.x <= 0 or output_size.y <= 0:
+		return 1.0
+	var scale_x := float(render_size.x) / float(output_size.x)
+	var scale_y := float(render_size.y) / float(output_size.y)
+	return clampf(minf(scale_x, scale_y), 0.25, 1.0)
+
+
 static func _add_unique_preset(presets: Array[Vector2i], size: Vector2i) -> void:
 	for existing in presets:
 		if existing == size:

@@ -12,8 +12,8 @@
 [ext_resource type="Resource" path="res://resources/spells/show_me.tres" id="7_show_me"]
 [ext_resource type="Resource" path="res://resources/spells/haste.tres" id="8_haste"]
 [ext_resource type="Script" uid="uid://bfnrfxnwjg02y" path="res://scripts/ui/aim_cursor.gd" id="9_aim"]
-[ext_resource type="PackedScene" path="res://scenes/ui/player_menu.tscn" id="9_player_menu"]
 [ext_resource type="Script" uid="uid://crdov1cq8kly5" path="res://scripts/ui/game_hud.gd" id="9_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui/player_menu.tscn" id="9_player_menu"]
 [ext_resource type="Script" uid="uid://dnyy0kwsw60ow" path="res://scripts/objectives/delivery_objective.gd" id="10_objective"]
 [ext_resource type="Script" uid="uid://yf2yi73fbs6o" path="res://scripts/spells/voice_spell_validator.gd" id="10_validator"]
 [ext_resource type="Script" uid="uid://cgo2lkhlxtcky" path="res://scripts/spells/spell_validation_runner.gd" id="11_runner"]
@@ -66,8 +66,12 @@ maze_width = 50
 maze_height = 50
 cell_size = 4.0
 wall_height = 5.0
-straight_bias = 0.5
-braid_ratio = 0.12
+mean_corridor_length = 2.5
+corridor_length_variance = 3
+clearing_count = 3
+clearing_size = 1.5
+clearing_separation = 10.0
+spire_clearing_size = 4.5
 
 [node name="DiscoverableSpawner" type="Node3D" parent="." unique_id=234557342]
 script = ExtResource("4_spawner")
