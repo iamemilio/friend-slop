@@ -42,6 +42,7 @@ var _thermite_material: StandardMaterial3D
 var _beacon_light: OmniLight3D
 var _collision: CollisionShape3D
 var _hit_shape: SphereShape3D
+var _streak_smoke: StreakSmoke
 var _pulse_tween: Tween
 var _life_tween: Tween
 var _runtime := false
@@ -104,10 +105,23 @@ func _ready() -> void:
 	if Engine.is_editor_hint() and not _runtime:
 		monitoring = false
 		set_physics_process(false)
+		set_process(false)
 		_refresh_preview()
 
 
+func _process(delta: float) -> void:
+	## Editor tool buttons don't tick physics — drive preview flight here.
+	if Engine.is_editor_hint():
+		_step_flight(delta)
+
+
 func _physics_process(delta: float) -> void:
+	if Engine.is_editor_hint():
+		return
+	_step_flight(delta)
+
+
+func _step_flight(delta: float) -> void:
 	if not _playing or not _flying:
 		return
 	_velocity = FlareFlightScript.step_velocity(_velocity, delta, drag, flight_gravity)
@@ -120,6 +134,7 @@ func _physics_process(delta: float) -> void:
 	_touch_fake_walls()
 	if _probe_players():
 		return
+	_sync_smoke_tip()
 	_refresh_visual_state()
 
 
@@ -142,8 +157,11 @@ func play_launch() -> void:
 	_refresh_visual_state()
 	_start_beacon_pulse()
 	_start_lifespan()
-	monitoring = _flying and _runtime
-	set_physics_process(_flying)
+	monitoring = _flying and _runtime and not Engine.is_editor_hint()
+	## Physics ticks in play mode; editor previews use _process instead.
+	set_physics_process(_flying and not Engine.is_editor_hint())
+	set_process(_flying and Engine.is_editor_hint())
+	_start_smoke_for_launch()
 
 
 func _cache_nodes() -> void:
@@ -153,7 +171,9 @@ func _cache_nodes() -> void:
 	if _collision != null and _collision.shape is SphereShape3D:
 		_hit_shape = _collision.shape as SphereShape3D
 	_thermite_material = _duplicate_mesh_material(_thermite_core, _thermite_material)
-	_strip_smoke_trail()
+	_streak_smoke = get_node_or_null("StreakSmoke") as StreakSmoke
+	if _streak_smoke != null:
+		_streak_smoke.bind_tip(self)
 
 
 func _duplicate_mesh_material(
@@ -174,7 +194,6 @@ func _configure_authored_nodes() -> void:
 	_harden_core_material()
 	_ensure_unit_core_mesh()
 	_apply_core_visual_size()
-	_strip_smoke_trail()
 
 
 func _configure_beacon_lights() -> void:
@@ -194,11 +213,33 @@ func _configure_beacon_lights() -> void:
 		_beacon_light.shadow_enabled = false
 
 
-func _strip_smoke_trail() -> void:
-	## Smoke trail removed for now — drop any leftover runtime/editor nodes.
-	var leftover := get_node_or_null("SmokeTrail")
-	if leftover != null:
-		leftover.queue_free()
+func _start_smoke_for_launch() -> void:
+	if _streak_smoke == null:
+		return
+	_sync_smoke_tip()
+	if _flying:
+		_streak_smoke.begin_trail()
+	else:
+		## Stationary / lookdev burn uses the rising stream.
+		_streak_smoke.begin_rising()
+
+
+func _sync_smoke_tip() -> void:
+	if _streak_smoke == null:
+		return
+	_streak_smoke.follow_tip(global_position)
+
+
+func _begin_rising_smoke() -> void:
+	if _streak_smoke == null:
+		return
+	_sync_smoke_tip()
+	_streak_smoke.begin_rising()
+
+
+func _stop_smoke() -> void:
+	if _streak_smoke != null:
+		_streak_smoke.stop()
 
 
 func _sync_hit_shape() -> void:
@@ -283,6 +324,7 @@ func _refresh_preview() -> void:
 		play_launch()
 	else:
 		_stop_tweens()
+		_stop_smoke()
 
 
 func _cast_motion_hit(motion: Vector3) -> bool:
@@ -368,8 +410,10 @@ func _stick(host: Node3D) -> void:
 	_velocity = Vector3.ZERO
 	monitoring = false
 	set_physics_process(false)
+	set_process(false)
 	if host != null and host.is_in_group("player") and host.is_inside_tree():
 		reparent(host, true)
+	_begin_rising_smoke()
 	_refresh_visual_state()
 
 
@@ -427,6 +471,7 @@ func _on_finished() -> void:
 	_playing = false
 	_flying = false
 	_stop_tweens()
+	_stop_smoke()
 	if Engine.is_editor_hint() and not _runtime and preview_loop:
 		play_launch()
 		return
