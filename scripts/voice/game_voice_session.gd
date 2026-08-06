@@ -63,14 +63,16 @@ func start_session(peer_steam_ids: Array[int] = []) -> void:
 		return
 	chat.attach_sink(Callable(_engine, "_on_broker_pcm"))
 	_active = true
+	_warn_if_peers_unexpectedly_empty(peers)
 	TomeDebug.log(
 		"VoiceSession",
-		"'%s' started listeners=%s policy=%s device='%s'"
+		"'%s' started listeners=%s policy=%s device='%s' peers=%s"
 		% [
 			name,
 			_listener_ids_label(),
 			_policy_label(),
 			AudioServer.get_input_device(),
+			str(peers),
 		]
 	)
 
@@ -224,6 +226,7 @@ func refresh_peers(peer_steam_ids: Array[int] = []) -> void:
 	if peers.is_empty():
 		peers = collect_remote_steam_ids()
 	_engine.call("set_peers", peers)
+	_warn_if_peers_unexpectedly_empty(peers)
 
 
 func set_transmit_muted(muted: bool) -> void:
@@ -289,3 +292,28 @@ static func collect_remote_steam_ids() -> Array[int]:
 		if not remotes.has(member_id):
 			remotes.append(member_id)
 	return remotes
+
+
+func _warn_if_peers_unexpectedly_empty(peers: Array[int]) -> void:
+	if not peers.is_empty():
+		return
+	var tree := Engine.get_main_loop() as SceneTree
+	var mp_peer_count := 0
+	if tree != null:
+		var mp := tree.get_multiplayer()
+		if mp != null and mp.has_method("get_peers"):
+			mp_peer_count = mp.get_peers().size()
+	var lobby_id := SteamService.current_lobby_id if SteamService.is_ready() else 0
+	var lobby_members := 0
+	if lobby_id != 0:
+		lobby_members = SteamService.get_lobby_member_count(lobby_id)
+	## Alone in lobby is fine; warn when multiplayer/lobby clearly has others.
+	if mp_peer_count <= 0 and lobby_members <= 1:
+		return
+	push_warning(
+		(
+			"GameVoiceSession '%s': voice peers empty while session has remotes "
+			+ "(mp_peers=%d lobby_id=%d lobby_members=%d)"
+		)
+		% [name, mp_peer_count, lobby_id, lobby_members]
+	)

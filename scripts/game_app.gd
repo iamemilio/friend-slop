@@ -14,6 +14,7 @@ const SteamMultiplayerPeerAdapterScript := preload(
 	"res://scripts/network/steam_multiplayer_peer_adapter.gd"
 )
 const MicCaptureBrokerScript := preload("res://scripts/voice/mic_capture_broker.gd")
+const VOICE_PEER_RETRY_SEC := 0.5
 
 @export var debug_voice: bool = false
 
@@ -21,6 +22,9 @@ var state: AppState = AppState.MAIN_MENU
 var _match_instance: Node = null
 var _local_transmit_muted: bool = false
 var _editor_preview_state: AppState = AppState.MAIN_MENU
+var _voice_peer_retry_queued: bool = false
+## peer_id -> true while that peer has no Steam ID mapping (log once per gap).
+var _unmapped_peers: Dictionary = {}
 
 @onready var mic_broker: Node = $MicCaptureBroker
 @onready var voice_engine: Node = $VoiceEngine
@@ -64,6 +68,9 @@ func _ready() -> void:
 	if NetworkManager.lobby_roster_changed.is_connected(_on_peer_changed):
 		NetworkManager.lobby_roster_changed.disconnect(_on_peer_changed)
 	NetworkManager.lobby_roster_changed.connect(_on_peer_changed)
+	if SteamService.lobby_member_joined.is_connected(_on_peer_changed):
+		SteamService.lobby_member_joined.disconnect(_on_peer_changed)
+	SteamService.lobby_member_joined.connect(_on_peer_changed)
 	set_state(AppState.MAIN_MENU)
 
 
@@ -168,6 +175,8 @@ func set_lobby_voice_enabled(enabled: bool) -> void:
 		lobby_voice.set("debug_logging", debug_voice)
 		lobby_voice.call("start_session")
 		lobby_voice.call("set_transmit_muted", _local_transmit_muted)
+		## Roster / Steam ID mapping can land a frame after join; retry peers.
+		_schedule_voice_peer_refresh()
 	else:
 		lobby_voice.call("stop_session")
 
@@ -182,6 +191,7 @@ func set_match_voice_enabled(enabled: bool) -> void:
 		match_voice.set("debug_logging", debug_voice)
 		match_voice.call("start_session")
 		match_voice.call("set_transmit_muted", _local_transmit_muted)
+		_schedule_voice_peer_refresh()
 	else:
 		match_voice.call("stop_session")
 
@@ -196,6 +206,23 @@ func refresh_voice_peers() -> void:
 		session.call("refresh_peers")
 
 
+func _schedule_voice_peer_refresh() -> void:
+	refresh_voice_peers()
+	call_deferred("refresh_voice_peers")
+	if _voice_peer_retry_queued or not is_inside_tree():
+		return
+	_voice_peer_retry_queued = true
+	get_tree().create_timer(VOICE_PEER_RETRY_SEC).timeout.connect(
+		_on_voice_peer_retry_timeout,
+		CONNECT_ONE_SHOT
+	)
+
+
+func _on_voice_peer_retry_timeout() -> void:
+	_voice_peer_retry_queued = false
+	refresh_voice_peers()
+
+
 func resolve_steam_id_for_peer(peer_id: int) -> int:
 	if peer_id <= 0:
 		return 0
@@ -207,9 +234,22 @@ func resolve_steam_id_for_peer(peer_id: int) -> int:
 		return SteamService.get_steam_id()
 	if mp == null:
 		return 0
-	return SteamMultiplayerPeerAdapterScript.get_steam_id_for_peer(
+	var steam_id := SteamMultiplayerPeerAdapterScript.get_steam_id_for_peer(
 		mp.multiplayer_peer, peer_id
 	)
+	## Without this mapping the peer shows as "Player N" and its voice indicator
+	## can never light, whatever audio arrives. Say so once instead of silently 0.
+	if steam_id == 0:
+		if not _unmapped_peers.has(peer_id):
+			_unmapped_peers[peer_id] = true
+			TomeDebug.log(
+				"GameApp",
+				"peer %d has no Steam ID mapping — remote voice indicator stays dark"
+				% peer_id
+			)
+	else:
+		_unmapped_peers.erase(peer_id)
+	return steam_id
 
 
 func is_peer_speaking(peer_id: int, timeout_ms: int = 350) -> bool:
@@ -309,7 +349,7 @@ func _on_lobby_closed() -> void:
 
 
 func _on_peer_changed(_arg = null) -> void:
-	refresh_voice_peers()
+	_schedule_voice_peer_refresh()
 
 
 func _on_settings_closed() -> void:

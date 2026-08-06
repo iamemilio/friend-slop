@@ -28,6 +28,19 @@ const FRAME_MSEC := 40
 const HEARTBEAT_MSEC := 2000
 const SPEAKING_TIMEOUT_MSEC := 350
 const RMS_SPEAK_THRESHOLD := 0.01
+const NO_PEERS_LOG_MSEC := 5000
+## Printed without debug_logging: session lifecycle plus every state needed to
+## tell "nobody was listening" apart from "packets never arrived".
+const ALWAYS_LOG_EVENTS: Array[String] = [
+	"started",
+	"stopped",
+	"start_failed",
+	"peers_updated",
+	"no_peers",
+	"first_send",
+	"first_recv",
+	"remote_added",
+]
 
 @export var debug_logging: bool = false
 @export var sample_rate: int = DEFAULT_SAMPLE_RATE
@@ -54,6 +67,9 @@ var _debug_last_msec: int = 0
 var _debug_last_send_log_msec: int = 0
 var _samples_per_frame: int = 0
 var _decim_counter: int = 0
+var _logged_first_send: bool = false
+var _logged_first_recv: Dictionary = {} ## int -> true
+var _no_peers_log_msec: int = 0
 
 
 func _ready() -> void:
@@ -82,11 +98,15 @@ func start() -> void:
 	is_active = true
 	_debug_sent = 0
 	_debug_recv = 0
+	_logged_first_send = false
+	_logged_first_recv.clear()
+	_no_peers_log_msec = 0
 	_debug_last_msec = Time.get_ticks_msec()
 	set_process(true)
-	_emit_log("started", "device=%s rate=%d peers=%s" % [
+	_emit_log("started", "device=%s rate=%d local=%d peers=%s" % [
 		AudioServer.get_input_device(),
 		sample_rate,
+		_local_steam_id,
 		str(_peers),
 	])
 
@@ -103,6 +123,7 @@ func stop() -> void:
 
 
 func set_peers(steam_ids: Array[int]) -> void:
+	var previous := _peers.duplicate()
 	_peers.clear()
 	var local_id := _local_steam_id if _local_steam_id != 0 else _resolve_local_steam_id()
 	for raw in steam_ids:
@@ -113,6 +134,8 @@ func set_peers(steam_ids: Array[int]) -> void:
 			_peers.append(steam_id)
 	if is_active:
 		_prune_stale_peers()
+	if previous != _peers:
+		_emit_log("peers_updated", "peers=%s" % str(_peers))
 
 
 func get_peers() -> Array[int]:
@@ -213,19 +236,41 @@ func _receive_and_play() -> void:
 		_push_remote_pcm(sender, pcm, rate)
 		_last_remote_speak_msec[sender] = Time.get_ticks_msec()
 		_debug_recv += 1
+		if not _logged_first_recv.has(sender):
+			_logged_first_recv[sender] = true
+			_emit_log(
+				"first_recv",
+				"steam_id=%d rate=%d bytes=%d" % [sender, rate, pcm.size()]
+			)
 
 
 func _send_to_peers(packet: PackedByteArray) -> void:
-	if packet.is_empty() or _peers.is_empty():
+	if packet.is_empty():
+		return
+	if _peers.is_empty():
+		_log_no_peers()
 		return
 	for steam_id in _peers:
 		_transport.send_packet(int(steam_id), packet, P2P_PORT)
 	_debug_sent += 1
+	if not _logged_first_send:
+		_logged_first_send = true
+		_emit_log("first_send", "bytes=%d to=%s" % [packet.size(), str(_peers)])
 	if debug_logging:
 		var now := Time.get_ticks_msec()
 		if now - _debug_last_send_log_msec >= 250:
 			_debug_last_send_log_msec = now
 			_emit_log("send_frame", "bytes=%d to=%s" % [packet.size(), _peers])
+
+
+## Speech was ready to transmit with nobody registered to send it to — the only
+## silent discard in the send path, so it must be visible without debug_logging.
+func _log_no_peers() -> void:
+	var now := Time.get_ticks_msec()
+	if _no_peers_log_msec != 0 and now - _no_peers_log_msec < NO_PEERS_LOG_MSEC:
+		return
+	_no_peers_log_msec = now
+	_emit_log("no_peers", "discarding speech frames — peer list is empty")
 
 
 func _build_packet(samples: PackedFloat32Array) -> PackedByteArray:
@@ -275,9 +320,26 @@ func _push_remote_pcm(steam_id: int, pcm: PackedByteArray, rate: int) -> void:
 		playback.push_buffer(frames)
 
 
+## Never cache a null playback: get_stream_playback() can come back empty on the
+## frame the player is created, and a cached null mutes that peer for the rest of
+## the session. Re-resolve until it succeeds instead.
 func _ensure_remote_playback(steam_id: int, rate: int) -> AudioStreamGeneratorPlayback:
-	if _playback_by_steam_id.has(steam_id):
-		return _playback_by_steam_id[steam_id] as AudioStreamGeneratorPlayback
+	var playback := _playback_by_steam_id.get(steam_id) as AudioStreamGeneratorPlayback
+	if playback != null:
+		return playback
+	var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer
+	if player == null or not is_instance_valid(player):
+		player = _create_remote_player(steam_id, rate)
+	if not player.playing:
+		player.play()
+	playback = player.get_stream_playback() as AudioStreamGeneratorPlayback
+	if playback == null:
+		return null
+	_playback_by_steam_id[steam_id] = playback
+	return playback
+
+
+func _create_remote_player(steam_id: int, rate: int) -> AudioStreamPlayer:
 	_ensure_child_nodes()
 	var player := AudioStreamPlayer.new()
 	player.name = "Peer_%d" % steam_id
@@ -288,11 +350,9 @@ func _ensure_remote_playback(steam_id: int, rate: int) -> AudioStreamGeneratorPl
 	player.volume_db = linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
 	_peers_root.add_child(player)
 	player.play()
-	var playback := player.get_stream_playback() as AudioStreamGeneratorPlayback
 	_player_by_steam_id[steam_id] = player
-	_playback_by_steam_id[steam_id] = playback
-	_emit_log("remote_added", "steam_id=%d" % steam_id)
-	return playback
+	_emit_log("remote_added", "steam_id=%d rate=%d" % [steam_id, int(stream.mix_rate)])
+	return player
 
 
 func _apply_remote_volume(steam_id: int) -> void:
@@ -404,7 +464,7 @@ func _maybe_heartbeat() -> void:
 
 func _emit_log(event: String, detail: String) -> void:
 	log_message.emit(event, detail)
-	if not debug_logging and event != "started" and event != "stopped" and event != "start_failed":
+	if not debug_logging and not ALWAYS_LOG_EVENTS.has(event):
 		return
 	if detail.is_empty():
 		print("%s %s" % [LOG_PREFIX, event])
