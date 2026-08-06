@@ -14,7 +14,8 @@ Own a small in-repo voice stack under [`scripts/voice/`](../../scripts/voice/):
 
 | Piece | Role |
 |-------|------|
-| `SimpleVoiceChat` | Godot mic capture + remote `AudioStreamGenerator` playback |
+| `SimpleVoiceChat` | Godot mic capture + remote `AudioStreamGenerator` playback (flat or spatial) |
+| `MatchProximityVoice` | `Match/ProximityVoice` — binds each remote peer to the body they speak from |
 | `SteamP2PVoiceTransport` | Steam `sendP2PPacket` / `readP2PPacket` on voice port `1` |
 | `GameVoiceSession` | Per-state config (lobby open-mic vs match) driving the shared engine |
 | `SteamMultiplayerPeerAdapter` | Peer ID → Steam ID helpers |
@@ -45,6 +46,25 @@ GameApp
 Call sites may still use the thin `SteamProximityVoiceHub` autoload shim → `GameApp` voice API.
 
 **Not used:** Steam `startVoiceRecording` / `getVoice` / `decompressVoice`, and the former `addons/godot-steam-voice` codec library.
+
+### Spatial playback
+
+A remote peer is mixed spatially only when both hold:
+
+1. The live session's Chat listener has `ProximityChatSettings.enabled` (match on, lobby off).
+2. `Match/ProximityVoice` has bound that peer's Steam ID to their character body.
+
+Spatial peers play through an `AudioStreamPlayer3D` positioned on that body each frame.
+Godot's own attenuation is **disabled**; `volume_db` comes from
+`ProximityChatSettings.volume_db_for_distance()` measured from the active `Camera3D`,
+so the authored range/dB values are the falloff, and the 3D player is there for panning.
+Peers past `max_range_m` are culled to silence.
+
+Anything unbound stays flat (`AudioStreamPlayer`) — the lobby has no `Camera3D`, and 3D
+audio without a listener is silent.
+
+Not implemented: wall occlusion. Voice currently carries through maze geometry at full
+distance-based volume.
 
 ### Packet format
 
@@ -88,3 +108,5 @@ Lifecycle events must stop voice (`set_mode(OFF)` / `stop_voice()`):
 - Scene dock shows product states next to per-state VoiceSession configs and live `MicCaptureBroker/Mic` / `Peers/Peer_*` nodes
 - Voice code lives with the game; no vendored addon sync step
 - Proximity attenuation uses Chat listener `ProximityChatSettings`; mic share is broker fan-out
+- Voice playback needs a peer→body binding, so spatial audio only works where a scene owns
+  that mapping (`Match/ProximityVoice`); every other state falls back to open mic

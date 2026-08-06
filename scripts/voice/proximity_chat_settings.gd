@@ -7,6 +7,9 @@ extends Resource
 ## attenuation. When true, remote chat volume uses the range/volume fields below
 ## (applied by match voice / playback code).
 
+## Level treated as silent; peers past [member max_range_m] are culled to it.
+const SILENT_DB := -80.0
+
 ## Master switch. Off = open mic; on = proximity falloff.
 @export var enabled: bool = false
 
@@ -32,6 +35,26 @@ var min_volume_db: float = -40.0
 ## True when proximity falloff should drive chat playback.
 func is_active() -> bool:
 	return enabled
+
+
+## Authored falloff at [param distance_m]: flat [member max_volume_db] inside
+## [member full_volume_m], interpolated in dB out to [member min_volume_db] at
+## [member max_range_m], then silent. Returns [constant SILENT_DB] past range.
+func volume_db_for_distance(distance_m: float) -> float:
+	if distance_m <= full_volume_m:
+		return max_volume_db
+	if distance_m >= max_range_m:
+		return SILENT_DB
+	var span := max_range_m - full_volume_m
+	if span <= 0.0:
+		return max_volume_db
+	var t := (distance_m - full_volume_m) / span
+	return lerpf(max_volume_db, min_volume_db, clampf(t, 0.0, 1.0))
+
+
+## False past [member max_range_m], where the peer should stop being mixed.
+func is_audible_at(distance_m: float) -> bool:
+	return distance_m < max_range_m
 
 
 func _validate_property(property: Dictionary) -> void:

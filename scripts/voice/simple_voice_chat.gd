@@ -7,6 +7,12 @@ extends Node
 ## Listeners/Chat and attaches this engine as the Chat PCM sink. This node
 ## only handles encode/send + remote playback (mic_volume gain on transmit).
 ##
+## Playback is flat (AudioStreamPlayer) until a caller supplies proximity
+## settings plus a world anchor per peer — see [method set_proximity_settings]
+## and [method set_peer_anchor]. Anchored peers move to AudioStreamPlayer3D so
+## the mix pans with the maze. Flat playback stays the fallback because the
+## lobby has no Camera3D and 3D audio needs a listener.
+##
 ## Scene children:
 ## - Peers: container for per-peer AudioStreamPlayer + AudioStreamGenerator
 
@@ -29,6 +35,7 @@ const HEARTBEAT_MSEC := 2000
 const SPEAKING_TIMEOUT_MSEC := 350
 const RMS_SPEAK_THRESHOLD := 0.01
 const NO_PEERS_LOG_MSEC := 5000
+const MUTED_DB := -80.0
 ## Printed without debug_logging: session lifecycle plus every state needed to
 ## tell "nobody was listening" apart from "packets never arrived".
 const ALWAYS_LOG_EVENTS: Array[String] = [
@@ -40,6 +47,7 @@ const ALWAYS_LOG_EVENTS: Array[String] = [
 	"first_send",
 	"first_recv",
 	"remote_added",
+	"proximity",
 ]
 
 @export var debug_logging: bool = false
@@ -54,7 +62,9 @@ var _transport: RefCounted
 var _broker: Node
 var _peers_root: Node
 var _playback_by_steam_id: Dictionary = {} ## int -> AudioStreamGeneratorPlayback
-var _player_by_steam_id: Dictionary = {} ## int -> AudioStreamPlayer
+var _player_by_steam_id: Dictionary = {} ## int -> AudioStreamPlayer or AudioStreamPlayer3D
+var _anchor_by_steam_id: Dictionary = {} ## int -> Node3D the peer speaks from
+var _proximity: Resource = null ## ProximityChatSettings while match voice is spatial
 var _muted_steam_ids: Dictionary = {}
 var _gain_by_steam_id: Dictionary = {}
 var _last_local_speak_msec: int = 0
@@ -142,6 +152,50 @@ func get_peers() -> Array[int]:
 	return _peers.duplicate()
 
 
+## Pass the Chat listener's ProximityChatSettings to spatialize playback, or null
+## for open mic. Existing peers are rebuilt so nobody keeps the wrong player type.
+func set_proximity_settings(settings: Resource) -> void:
+	var was_active := is_proximity_active()
+	_proximity = settings
+	var now_active := is_proximity_active()
+	if was_active == now_active:
+		return
+	for steam_id in _player_by_steam_id.keys():
+		_drop_peer_player(int(steam_id))
+	_emit_log("proximity", "active=%s" % now_active)
+
+
+func is_proximity_active() -> bool:
+	if _proximity == null or not _proximity.has_method("is_active"):
+		return false
+	return bool(_proximity.call("is_active"))
+
+
+## Node this peer's voice comes from in the world — normally their character body.
+func set_peer_anchor(steam_id: int, anchor: Node3D) -> void:
+	if steam_id == 0:
+		return
+	if _anchor_by_steam_id.get(steam_id) == anchor:
+		return
+	_anchor_by_steam_id[steam_id] = anchor
+	## Rebuild only when the peer is currently mixed the wrong way.
+	if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node) != _wants_spatial(steam_id):
+		_drop_peer_player(steam_id)
+
+
+func clear_peer_anchor(steam_id: int) -> void:
+	if not _anchor_by_steam_id.has(steam_id):
+		return
+	_anchor_by_steam_id.erase(steam_id)
+	if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node):
+		_drop_peer_player(steam_id)
+
+
+func clear_peer_anchors() -> void:
+	for steam_id in _anchor_by_steam_id.keys():
+		clear_peer_anchor(int(steam_id))
+
+
 func is_local_speaking(timeout_ms: int = SPEAKING_TIMEOUT_MSEC) -> bool:
 	if transmit_muted or _last_local_speak_msec <= 0:
 		return false
@@ -184,6 +238,7 @@ func _process(_delta: float) -> void:
 	if not is_active:
 		return
 	_receive_and_play()
+	_update_spatial_peers()
 	_maybe_heartbeat()
 
 
@@ -327,42 +382,128 @@ func _ensure_remote_playback(steam_id: int, rate: int) -> AudioStreamGeneratorPl
 	var playback := _playback_by_steam_id.get(steam_id) as AudioStreamGeneratorPlayback
 	if playback != null:
 		return playback
-	var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer
+	var player := _player_by_steam_id.get(steam_id) as Node
 	if player == null or not is_instance_valid(player):
 		player = _create_remote_player(steam_id, rate)
-	if not player.playing:
-		player.play()
-	playback = player.get_stream_playback() as AudioStreamGeneratorPlayback
+	if not bool(player.get("playing")):
+		player.call("play")
+	playback = player.call("get_stream_playback") as AudioStreamGeneratorPlayback
 	if playback == null:
 		return null
 	_playback_by_steam_id[steam_id] = playback
 	return playback
 
 
-func _create_remote_player(steam_id: int, rate: int) -> AudioStreamPlayer:
+func _create_remote_player(steam_id: int, rate: int) -> Node:
 	_ensure_child_nodes()
-	var player := AudioStreamPlayer.new()
+	var spatial := _wants_spatial(steam_id)
+	var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
 	player.name = "Peer_%d" % steam_id
 	var stream := AudioStreamGenerator.new()
 	stream.mix_rate = float(rate if rate > 0 else sample_rate)
 	stream.buffer_length = 0.35
-	player.stream = stream
-	player.volume_db = linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
+	player.set("stream", stream)
+	player.set("volume_db", _flat_volume_db(steam_id))
 	_peers_root.add_child(player)
-	player.play()
+	if spatial:
+		_configure_spatial_player(player as AudioStreamPlayer3D, steam_id)
+	player.call("play")
 	_player_by_steam_id[steam_id] = player
-	_emit_log("remote_added", "steam_id=%d rate=%d" % [steam_id, int(stream.mix_rate)])
+	_emit_log(
+		"remote_added",
+		"steam_id=%d rate=%d spatial=%s" % [steam_id, int(stream.mix_rate), spatial]
+	)
 	return player
 
 
-func _apply_remote_volume(steam_id: int) -> void:
-	var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer
-	if player == null:
+## Godot's own falloff is disabled: the authored ProximityChatSettings curve drives
+## volume_db instead, so range/dB stay the codified values. Panning still follows
+## the emitter position, which is the point of using a 3D player.
+func _configure_spatial_player(player: AudioStreamPlayer3D, steam_id: int) -> void:
+	player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+	player.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
+	player.max_distance = 0.0
+	var anchor := _anchor_by_steam_id.get(steam_id) as Node3D
+	if anchor == null or not is_instance_valid(anchor) or not anchor.is_inside_tree():
 		return
+	## Place and level it before the first frame so a distant peer never pops in loud.
+	player.global_position = anchor.global_position
+	player.volume_db = _spatial_volume_db(
+		steam_id, anchor.global_position.distance_to(_listener_position())
+	)
+
+
+## Anchored peers pan and attenuate; everyone else stays flat so lobby chat (no
+## Camera3D listener) keeps working.
+func _wants_spatial(steam_id: int) -> bool:
+	if not is_proximity_active():
+		return false
+	var anchor := _anchor_by_steam_id.get(steam_id) as Node3D
+	return anchor != null and is_instance_valid(anchor)
+
+
+func _is_spatial_player(player: Node) -> bool:
+	return player != null and is_instance_valid(player) and player is AudioStreamPlayer3D
+
+
+func _update_spatial_peers() -> void:
+	if not is_proximity_active():
+		return
+	var listener := _listener_position()
+	for key in _player_by_steam_id.keys():
+		var steam_id := int(key)
+		var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer3D
+		if player == null or not is_instance_valid(player):
+			continue
+		var anchor := _anchor_by_steam_id.get(steam_id) as Node3D
+		if anchor == null or not is_instance_valid(anchor) or not anchor.is_inside_tree():
+			continue
+		var speaker_pos := anchor.global_position
+		player.global_position = speaker_pos
+		player.volume_db = _spatial_volume_db(steam_id, speaker_pos.distance_to(listener))
+
+
+## The Camera3D is Godot's audio listener, so measuring from it keeps our volume
+## curve and Godot's panning agreed on where the local player is.
+func _listener_position() -> Vector3:
+	var viewport := get_viewport()
+	if viewport == null:
+		return Vector3.ZERO
+	var camera := viewport.get_camera_3d()
+	return camera.global_position if camera != null else Vector3.ZERO
+
+
+func _flat_volume_db(steam_id: int) -> float:
 	if is_peer_muted(steam_id):
-		player.volume_db = -80.0
-	else:
-		player.volume_db = linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
+		return MUTED_DB
+	return linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
+
+
+func _spatial_volume_db(steam_id: int, distance_m: float) -> float:
+	if is_peer_muted(steam_id):
+		return MUTED_DB
+	if not bool(_proximity.call("is_audible_at", distance_m)):
+		return MUTED_DB
+	var falloff_db := float(_proximity.call("volume_db_for_distance", distance_m))
+	return falloff_db + linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
+
+
+func _apply_remote_volume(steam_id: int) -> void:
+	var player := _player_by_steam_id.get(steam_id) as Node
+	if player == null or not is_instance_valid(player):
+		return
+	## Spatial peers get their level from the next _update_spatial_peers pass.
+	if _is_spatial_player(player):
+		return
+	player.set("volume_db", _flat_volume_db(steam_id))
+
+
+func _drop_peer_player(steam_id: int) -> void:
+	var player := _player_by_steam_id.get(steam_id) as Node
+	if player != null and is_instance_valid(player):
+		player.queue_free()
+	_player_by_steam_id.erase(steam_id)
+	_playback_by_steam_id.erase(steam_id)
 
 
 func _prune_stale_peers() -> void:
@@ -371,19 +512,13 @@ func _prune_stale_peers() -> void:
 		if not _peers.has(int(steam_id)):
 			stale.append(int(steam_id))
 	for steam_id in stale:
-		var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer
-		if player != null and is_instance_valid(player):
-			player.queue_free()
-		_player_by_steam_id.erase(steam_id)
-		_playback_by_steam_id.erase(steam_id)
+		_drop_peer_player(steam_id)
 		_last_remote_speak_msec.erase(steam_id)
 
 
 func _teardown_peers() -> void:
 	for steam_id in _player_by_steam_id.keys():
-		var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer
-		if player != null and is_instance_valid(player):
-			player.queue_free()
+		_drop_peer_player(int(steam_id))
 	_player_by_steam_id.clear()
 	_playback_by_steam_id.clear()
 	_last_remote_speak_msec.clear()

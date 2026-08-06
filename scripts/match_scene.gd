@@ -30,6 +30,7 @@ var _editor_rebuild_queued: bool = false
 @onready var spell_registry: SpellRegistry = $SpellRegistry
 @onready var game_hud: CanvasLayer = $GameHUD
 @onready var voice_validator: VoiceSpellValidator = $VoiceSpellValidator
+@onready var proximity_voice: MatchProximityVoice = $ProximityVoice
 @onready var pause_menu: PauseMenu = $PauseMenu
 @onready var delivery_objective: DeliveryObjective = $DeliveryObjective
 
@@ -274,6 +275,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	)
 	if _maze_layout_ready and _players_spawned:
 		call_deferred("_place_late_player", peer_id)
+	proximity_voice.bind_players(players_root)
 
 
 func _on_quit_to_menu() -> void:
@@ -309,6 +311,7 @@ func _finish_match_layout() -> void:
 
 	_snap_player_spawn_slots()
 	_place_players_at_spawn_slots(players)
+	proximity_voice.bind_players(players_root)
 
 	if GameState.is_multiplayer:
 		NetworkManager.sync_match_phase(MatchState.Phase.ACTIVE)

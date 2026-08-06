@@ -44,6 +44,7 @@ res://tests/unit/test_broom_flight.gd
 res://tests/unit/test_voice_capture_worker.gd
 res://tests/unit/test_steam_p2p_voice_transport.gd
 res://tests/unit/test_simple_voice_chat_peers.gd
+res://tests/unit/test_proximity_voice.gd
 res://tests/unit/test_mic_capture_broker.gd
 res://tests/unit/test_mic_capture_pipeline.gd
 res://tests/unit/test_audio_device_settings.gd

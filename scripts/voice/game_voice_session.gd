@@ -62,6 +62,9 @@ func start_session(peer_steam_ids: Array[int] = []) -> void:
 		_engine.call("stop")
 		return
 	chat.attach_sink(Callable(_engine, "_on_broker_pcm"))
+	## Chat listener owns the falloff rules; the engine only needs them while this
+	## session is the live one (lobby leaves them off for open mic).
+	_engine.call("set_proximity_settings", get_proximity_settings())
 	_active = true
 	_warn_if_peers_unexpectedly_empty(peers)
 	TomeDebug.log(
@@ -81,6 +84,9 @@ func stop_session() -> void:
 	_active = false
 	for listener in get_authored_listeners():
 		listener.detach_sink()
+	if _engine != null:
+		_engine.call("clear_peer_anchors")
+		_engine.call("set_proximity_settings", null)
 	if _engine != null and bool(_engine.get("is_active")):
 		_engine.call("stop")
 	_unregister_authored_listeners()
@@ -115,6 +121,17 @@ func get_proximity_settings() -> Resource:
 	if chat == null:
 		return null
 	return chat.get_proximity_settings()
+
+
+## World node a remote speaker's voice emits from — their character body in a match.
+func set_peer_anchor(steam_id: int, anchor: Node3D) -> void:
+	if _engine != null:
+		_engine.call("set_peer_anchor", steam_id, anchor)
+
+
+func clear_peer_anchor(steam_id: int) -> void:
+	if _engine != null:
+		_engine.call("clear_peer_anchor", steam_id)
 
 
 func get_authored_listeners() -> Array[MicCaptureListener]:
