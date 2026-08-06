@@ -86,7 +86,10 @@ static func spawn_launched(
 		flare._velocity = Vector3.ZERO
 		flare._direction = Vector3.ZERO
 	parent.add_child(flare)
-	flare.global_position = origin
+	if flare.is_inside_tree():
+		flare.global_position = origin
+	else:
+		flare.position = origin
 	flare.play_launch()
 	return flare
 
