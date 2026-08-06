@@ -35,7 +35,9 @@ static func configure_cast_light(
 static func make_travel_cast_light() -> OmniLight3D:
 	var light := OmniLight3D.new()
 	light.name = "TravelCastLight"
-	configure_cast_light(light, 1.35, 4.8, Color(1.0, 0.5, 0.14), true)
+	## Travel omni shadows look like moving squares on walls — keep unlit for
+	## shadows; the explosion flash still casts.
+	configure_cast_light(light, 1.35, 4.8, Color(1.0, 0.5, 0.14), false)
 	return light
 
 

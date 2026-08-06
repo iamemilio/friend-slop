@@ -58,22 +58,10 @@ text = "Press [Tab] to hide"
 
 [node name="TabBar" type="TabBar" parent="MarginContainer/VBox"]
 layout_mode = 2
-tab_count = 3
+tab_count = 2
 tab_0/title = "Inventory"
 tab_1/title = "Guide"
-tab_2/title = "Spellbook"
 current_tab = 1
-
-[node name="NavRow" type="HBoxContainer" parent="MarginContainer/VBox"]
-visible = false
-layout_mode = 2
-
-[node name="BackButton" type="Button" parent="MarginContainer/VBox/NavRow"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.82, 0.98, 1)
-theme_override_font_sizes/font_size = 14
-text = "← Back"
-flat = true
 
 [node name="InventoryPage" type="VBoxContainer" parent="MarginContainer/VBox"]
 visible = false
@@ -111,47 +99,6 @@ theme_override_font_sizes/font_size = 17
 text = "Objectives"
 
 [node name="ObjectiveLabel" type="Label" parent="MarginContainer/VBox/GuidePage"]
-layout_mode = 2
-custom_minimum_size = Vector2(560, 0)
-theme_override_colors/font_color = Color(0.82, 0.88, 0.98, 1)
-theme_override_font_sizes/font_size = 14
-autowrap_mode = 3
-
-[node name="CodexPage" type="VBoxContainer" parent="MarginContainer/VBox"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 8
-size_flags_vertical = 3
-
-[node name="CodexHeading" type="Label" parent="MarginContainer/VBox/CodexPage"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.78, 0.9, 1, 1)
-theme_override_font_sizes/font_size = 17
-text = "Known Spells"
-
-[node name="CodexHintLabel" type="Label" parent="MarginContainer/VBox/CodexPage"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.62, 0.7, 0.84, 1)
-theme_override_font_sizes/font_size = 13
-text = "Click a spell to read more."
-autowrap_mode = 3
-
-[node name="SpellListBox" type="VBoxContainer" parent="MarginContainer/VBox/CodexPage"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="DetailPage" type="VBoxContainer" parent="MarginContainer/VBox"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="DetailTitle" type="Label" parent="MarginContainer/VBox/DetailPage"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.92, 0.96, 1, 1)
-theme_override_font_sizes/font_size = 20
-text = "Spell"
-
-[node name="DetailBody" type="Label" parent="MarginContainer/VBox/DetailPage"]
 layout_mode = 2
 custom_minimum_size = Vector2(560, 0)
 theme_override_colors/font_color = Color(0.82, 0.88, 0.98, 1)

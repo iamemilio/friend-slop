@@ -30,9 +30,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		_settings_panel.close_panel()
 		get_viewport().set_input_as_handled()
 		return
-	## Prefer closing the in-match player menu over opening pause.
+	## Prefer closing the in-match player menu / summon book over opening pause.
 	if _is_player_menu_open():
 		_close_player_menu()
+		get_viewport().set_input_as_handled()
+		return
+	if _is_monster_book_busy():
+		_cancel_monster_book()
 		get_viewport().set_input_as_handled()
 		return
 	if _paused:
@@ -57,6 +61,8 @@ func pause() -> void:
 	_spellbook_was_open = _is_spellbook_open()
 	if _is_player_menu_open():
 		_close_player_menu()
+	if _spellbook_was_open:
+		_close_spellbook()
 	_cancel_casting()
 
 
@@ -114,6 +120,28 @@ func _close_player_menu() -> void:
 	var hud: Node = get_tree().get_first_node_in_group("game_hud")
 	if hud != null and hud.has_method("close_player_menu"):
 		hud.call("close_player_menu")
+
+
+func _is_monster_book_busy() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	for node in tree.get_nodes_in_group("player"):
+		var book := node.get_node_or_null("MonsterBook")
+		if book != null and book.has_method("is_busy") and bool(book.call("is_busy")):
+			return true
+	return false
+
+
+func _cancel_monster_book() -> void:
+	var hud: Node = get_tree().get_first_node_in_group("game_hud")
+	if hud != null and hud.has_method("close_monster_book"):
+		hud.call("close_monster_book")
+		return
+	for node in get_tree().get_nodes_in_group("player"):
+		var book := node.get_node_or_null("MonsterBook")
+		if book != null and book.has_method("cancel_all"):
+			book.call("cancel_all")
 
 
 func _is_spellbook_open() -> bool:

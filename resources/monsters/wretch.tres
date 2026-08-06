@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MonsterSummonEntry" load_steps=3 format=3 uid="uid://monster_entry_wretch"]
+
+[ext_resource type="Script" path="res://scripts/ui/book/monster/monster_summon_entry.gd" id="1"]
+[ext_resource type="PackedScene" uid="uid://bmonster001" path="res://scenes/monsters/monster.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "wretch"
+display_name = "Wretch"
+description = "A hungry maze-stalker. Chases light and noise."
+monster_scene = ExtResource("2")
+tint = Color(0.72, 0.28, 0.22, 1)

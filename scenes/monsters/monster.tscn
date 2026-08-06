@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://bmonster001"]
+
+[ext_resource type="PackedScene" uid="uid://bcharacter01" path="res://scenes/characters/character.tscn" id="1_character"]
+[ext_resource type="Script" uid="uid://cmonster001gd" path="res://scripts/monsters/monster.gd" id="2_monster"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_monster"]
+radius = 0.2
+height = 0.7
+
+[node name="Monster" unique_id=910001001 instance=ExtResource("1_character")]
+editor_description = "Combat-ready Monster base. Add Hearing / LightAwareness under Senses. Override _prefer_interest on subclasses."
+script = ExtResource("2_monster")
+max_health = 50.0
+move_speed = 3.2
+chase_range = 12.0
+attack_range = 1.4
+touch_damage = 8.0
+gravity = 18.0
+
+[node name="CollisionShape3D" parent="." index="0" unique_id=294740946]
+shape = SubResource("CapsuleShape3D_monster")
+
+[node name="Senses" type="Node" parent="." index="3" unique_id=1569456525]
+editor_description = "Optional MonsterSense children (Hearing, LightAwareness). Empty by default — add per concrete monster."

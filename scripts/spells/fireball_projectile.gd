@@ -2,10 +2,11 @@
 class_name FireballProjectile
 extends Area3D
 
-## Forward-moving fireball that explodes on impact and knocks players back.
+## Forward-moving fireball that explodes on impact and knocks combat targets back.
 ## Open scenes/spells/fireball.tscn / fireball_workspace.tscn to tune look + preview FX.
 
 const SPEED := 16.0
+const DEFAULT_HIT_DAMAGE := 20.0
 
 const FireballExplosionEffectScript := preload("res://scripts/spells/fireball_explosion_effect.gd")
 const FireballSmokeTrailScript := preload("res://scripts/spells/fireball_smoke_trail.gd")
@@ -53,6 +54,9 @@ const FireballFlightScript := preload("res://scripts/spells/fireball_flight.gd")
 	set(value):
 		light_radius = maxf(value, 0.1)
 		_configure_travel_light()
+
+@export_group("Combat")
+@export_range(0.0, 200.0, 1.0) var hit_damage: float = DEFAULT_HIT_DAMAGE
 
 @export_group("Editor preview")
 @export var preview_smoke: bool = true:
@@ -228,11 +232,15 @@ static func spawn(
 	parent: Node,
 	origin: Vector3,
 	direction: Vector3,
-	caster: Node3D = null
+	caster: Node3D = null,
+	lookdev_flight: bool = false
 ) -> Node:
 	## Lazy-load avoids circular preload with fireball.tscn.
 	var packed: PackedScene = load("res://scenes/spells/fireball.tscn") as PackedScene
 	var projectile: Node = packed.instantiate()
+	if lookdev_flight:
+		projectile.set_meta("lookdev_flight", true)
+		projectile.process_mode = Node.PROCESS_MODE_ALWAYS
 	if projectile is FireballProjectile:
 		(projectile as FireballProjectile)._direction = direction.normalized()
 		(projectile as FireballProjectile)._caster = caster
@@ -247,13 +255,17 @@ static func spawn(
 	return projectile
 
 
+func _is_lookdev_flight() -> bool:
+	return bool(get_meta("lookdev_flight", false))
+
+
 func _ready() -> void:
 	_cache_nodes()
 	_sync_orb_shape()
 	_prepare_runtime_materials()
 	_apply_preview_fx()
 	_update_process_state()
-	if Engine.is_editor_hint():
+	if Engine.is_editor_hint() and not _is_lookdev_flight():
 		set_physics_process(false)
 		return
 
@@ -272,6 +284,7 @@ func _ready() -> void:
 
 	if not body_entered.is_connected(_on_body_entered):
 		body_entered.connect(_on_body_entered)
+	set_physics_process(true)
 
 
 func _process(delta: float) -> void:
@@ -586,7 +599,9 @@ func _stop_glow_pulse() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if Engine.is_editor_hint() or _finished:
+	if _finished:
+		return
+	if Engine.is_editor_hint() and not _is_lookdev_flight():
 		return
 	_elapsed += delta
 	if FireballFlightScript.should_finish_normal(_elapsed):
@@ -730,9 +745,14 @@ func _on_body_entered(body: Node3D) -> void:
 
 
 func _try_hit_player(body: Node3D) -> bool:
+	## Name kept for call sites; also hits monsters / combat_target (not player-only).
 	if body == null or body == _caster:
 		return false
-	if not body.is_in_group("player"):
+	if not (
+		body.is_in_group("player")
+		or body.is_in_group("monster")
+		or body.is_in_group("combat_target")
+	):
 		return false
 	_finish()
 	if body.has_method("apply_fireball_knockback"):
@@ -744,6 +764,8 @@ func _try_hit_player(body: Node3D) -> bool:
 			apply_local = apply_local or (body as Node).is_multiplayer_authority()
 		if apply_local:
 			body.call("apply_fireball_knockback", _direction)
+	if body.has_method("take_damage") and hit_damage > 0.0:
+		body.call("take_damage", hit_damage, self)
 	return true
 
 

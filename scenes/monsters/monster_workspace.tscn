@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://bmonsterws01"]
+
+[ext_resource type="Script" uid="uid://cmonsterws001" path="res://scripts/monsters/monster_workspace.gd" id="1_workspace"]
+[ext_resource type="PackedScene" uid="uid://bmonster001" path="res://scenes/monsters/monster.tscn" id="2_monster"]
+[ext_resource type="PackedScene" uid="uid://bplayerwand1" path="res://scenes/characters/player_wand.tscn" id="3_wand"]
+
+[sub_resource type="Environment" id="Environment_studio"]
+background_mode = 1
+background_color = Color(0.02, 0.03, 0.05, 1)
+ambient_light_color = Color(0.28, 0.3, 0.38, 1)
+ambient_light_energy = 0.45
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(16, 16)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.1, 0.11, 0.14, 1)
+roughness = 0.92
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(16, 0.2, 16)
+
+[node name="MonsterWorkspace" type="Node3D"]
+process_mode = 3
+editor_description = "Monster look-dev. Cast Fireball from the inspector (or Space in Play) — wand auto-aims the single monster."
+script = ExtResource("1_workspace")
+preview_max_health = 20.0
+preview_death_linger_sec = 10.0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_studio")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433, 0, 0.866, 0.5, -0.5, -0.433, 0.75, 4.5, 4.2, 7.5)
+current = true
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 6, 0)
+light_energy = 1.1
+shadow_enabled = true
+
+[node name="Floor" type="StaticBody3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("PlaneMesh_floor")
+surface_material_override/0 = SubResource("StandardMaterial3D_floor")
+
+[node name="Collision" type="CollisionShape3D" parent="Floor"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape3D_floor")
+
+[node name="Wand" parent="." instance=ExtResource("3_wand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 1.05, 2.4)
+
+[node name="SpawnRoot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+
+[node name="Monster" parent="SpawnRoot" instance=ExtResource("2_monster")]
+
+[node name="FireballPreview" type="Node3D" parent="."]
+process_mode = 3

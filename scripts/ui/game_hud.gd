@@ -1,12 +1,13 @@
 class_name GameHud
 extends CanvasLayer
 
-## In-game HUD: casting overlay, hotbar, and Tab player menu (Inventory / Guide / Spellbook).
+## In-game HUD: casting overlay, hotbar, Tab player menu (Inventory / Guide),
+## and the standalone spellbook overlay (B).
 
 const SpellDefinitionScript := preload("res://scripts/spells/spell_definition.gd")
 const InputPromptScript := preload("res://scripts/ui/input_prompt.gd")
 const PlayerInventoryScript := preload("res://scripts/inventory/player_inventory.gd")
-const PlayerMenuScript := preload("res://scripts/ui/player_menu.gd")
+const SpellbookPanelScene := preload("res://scenes/ui/book/spell/spell_book.tscn")
 
 var _loadout: Node
 var _inventory: Node
@@ -20,6 +21,8 @@ var _player_menu_open := false
 var _objective_lines: PackedStringArray = PackedStringArray()
 var _hotbar_row: HBoxContainer
 var _hotbar_labels: Array[Label] = []
+## Typed as Control: the panel is duck-typed (open_book/close_book/is_open).
+var _spellbook_panel: Control
 
 @onready var player_menu: Node = $PlayerMenu
 @onready var aim_cursor: Control = $AimCursor
@@ -44,8 +47,7 @@ func _ready() -> void:
 	mic_level_bar.min_value = 0.0
 	mic_level_bar.max_value = 1.0
 	mic_level_bar.value = 0.0
-	if player_menu != null and player_menu.has_signal("spell_selected"):
-		player_menu.spell_selected.connect(_on_codex_spell_selected)
+	_setup_spellbook_panel()
 	_setup_active_strip()
 	_setup_hotbar()
 	_update_aim_cursor_visibility()
@@ -65,7 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not event.is_action_pressed("guide_menu"):
 		return
-	_open_player_menu(PlayerMenuScript.Page.MAIN)
+	_open_player_menu()
 	get_viewport().set_input_as_handled()
 
 
@@ -73,22 +75,17 @@ func toggle_player_menu() -> void:
 	if _player_menu_open:
 		close_player_menu()
 	else:
-		_open_player_menu(PlayerMenuScript.Page.MAIN)
+		_open_player_menu()
 
 
-func _open_player_menu(page: int = PlayerMenuScript.Page.MAIN) -> void:
+func _open_player_menu() -> void:
+	if is_spellbook_open():
+		close_spellbook()
 	_player_menu_open = true
 	player_menu.visible = true
-	if player_menu.has_method("configure_loadout"):
-		player_menu.configure_loadout(_loadout)
 	if _inventory != null and player_menu.has_method("configure_inventory"):
 		player_menu.configure_inventory(_inventory)
-	if player_menu.has_method("set_selected_spell_id"):
-		player_menu.set_selected_spell_id(_selected_spell_id)
-	if page == PlayerMenuScript.Page.CODEX:
-		if player_menu.has_method("open_codex"):
-			player_menu.open_codex()
-	elif player_menu.has_method("reset_to_main"):
+	if player_menu.has_method("reset_to_main"):
 		player_menu.reset_to_main()
 	_refresh_player_menu_content()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -96,6 +93,27 @@ func _open_player_menu(page: int = PlayerMenuScript.Page.MAIN) -> void:
 
 func is_player_menu_open() -> bool:
 	return _player_menu_open
+
+
+func is_monster_book_open() -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	for node in tree.get_nodes_in_group("player"):
+		var book := node.get_node_or_null("MonsterBook")
+		if book != null and book.has_method("is_book_open") and bool(book.call("is_book_open")):
+			return true
+	return false
+
+
+func close_monster_book() -> void:
+	var tree := get_tree()
+	if tree == null:
+		return
+	for node in tree.get_nodes_in_group("player"):
+		var book := node.get_node_or_null("MonsterBook")
+		if book != null and book.has_method("cancel_all"):
+			book.call("cancel_all")
 
 
 func close_player_menu() -> void:
@@ -125,9 +143,9 @@ func configure(loadout: Node, casting_session: Node = null) -> void:
 	if _loadout != null and _loadout.has_signal("loadout_changed"):
 		_loadout.loadout_changed.connect(_on_loadout_changed)
 	if casting_session != null and casting_session.has_signal("listen_level_changed"):
-		casting_session.listen_level_changed.connect(update_listen_level)
+		casting_session.listen_level_changed.connect(_update_listen_level)
 	if casting_session != null and casting_session.has_signal("listen_coaching_changed"):
-		casting_session.listen_coaching_changed.connect(update_listen_coaching)
+		casting_session.listen_coaching_changed.connect(_update_listen_coaching)
 	if casting_session != null and casting_session.has_signal("tome_retry_tick"):
 		casting_session.tome_retry_tick.connect(update_tome_coaching_countdown)
 
@@ -157,40 +175,47 @@ func set_interaction_prompt(text: String) -> void:
 
 
 func toggle_spellbook() -> void:
-	var codex_open := (
-		player_menu != null
-		and player_menu.has_method("is_codex_view")
-		and bool(player_menu.call("is_codex_view"))
-	)
-	if _player_menu_open and codex_open:
+	if _spellbook_panel == null:
+		return
+	if is_spellbook_open():
+		close_spellbook()
+		return
+	if _player_menu_open:
 		close_player_menu()
-	elif _player_menu_open:
-		if player_menu.has_method("open_codex"):
-			player_menu.open_codex()
-		if player_menu.has_method("set_selected_spell_id"):
-			player_menu.set_selected_spell_id(_selected_spell_id)
-		_refresh_player_menu_content()
-	else:
-		_open_player_menu(PlayerMenuScript.Page.CODEX)
+	if _spellbook_panel.has_method("configure_loadout"):
+		_spellbook_panel.call("configure_loadout", _loadout)
+	if _spellbook_panel.has_method("set_selected_spell_id"):
+		_spellbook_panel.call("set_selected_spell_id", _selected_spell_id)
+	_spellbook_panel.call("open_book")
 
 
 func close_spellbook() -> void:
-	var codex_open := (
-		player_menu != null
-		and player_menu.has_method("is_codex_view")
-		and bool(player_menu.call("is_codex_view"))
-	)
-	if _player_menu_open and codex_open:
-		close_player_menu()
+	if is_spellbook_open():
+		_spellbook_panel.call("close_book")
 
 
 func is_spellbook_open() -> bool:
 	return (
-		_player_menu_open
-		and player_menu != null
-		and player_menu.has_method("is_codex_view")
-		and bool(player_menu.call("is_codex_view"))
+		_spellbook_panel != null
+		and _spellbook_panel.has_method("is_open")
+		and bool(_spellbook_panel.call("is_open"))
 	)
+
+
+func _setup_spellbook_panel() -> void:
+	_spellbook_panel = SpellbookPanelScene.instantiate()
+	_spellbook_panel.name = "SpellbookPanel"
+	add_child(_spellbook_panel)
+	if _spellbook_panel.has_signal("spell_selected"):
+		_spellbook_panel.spell_selected.connect(_on_codex_spell_selected)
+	if _spellbook_panel.has_signal("closed"):
+		_spellbook_panel.closed.connect(_on_spellbook_closed)
+
+
+func _on_spellbook_closed() -> void:
+	if _player_menu_open or get_tree().paused:
+		return
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func get_selected_spell_id() -> String:
@@ -361,13 +386,13 @@ func _format_known_incantations() -> String:
 	return "Known: " + ", ".join(parts)
 
 
-func update_listen_level(level: float) -> void:
+func _update_listen_level(level: float) -> void:
 	if not casting_panel.visible:
 		return
 	mic_level_bar.value = clampf(level / 0.08, 0.0, 1.0)
 
 
-func update_listen_coaching(message: String) -> void:
+func _update_listen_coaching(message: String) -> void:
 	if not casting_panel.visible or message.is_empty():
 		return
 	if _from_tome:
@@ -482,9 +507,12 @@ func _on_codex_spell_selected(spell_id: String) -> void:
 
 func _on_spell_learned(spell_id: String) -> void:
 	_selected_spell_id = spell_id
-	if _player_menu_open:
-		player_menu.set_selected_spell_id(spell_id)
-		_refresh_player_menu_content()
+	if _spellbook_panel == null:
+		return
+	if _spellbook_panel.has_method("set_selected_spell_id"):
+		_spellbook_panel.call("set_selected_spell_id", spell_id)
+	if is_spellbook_open() and _spellbook_panel.has_method("refresh_pages"):
+		_spellbook_panel.call("refresh_pages")
 
 
 func _process(_delta: float) -> void:
@@ -505,8 +533,9 @@ func _refresh_player_menu_content() -> void:
 
 
 func _on_loadout_changed() -> void:
-	if _player_menu_open and player_menu != null and player_menu.has_method("configure_loadout"):
-		player_menu.configure_loadout(_loadout)
+	if is_spellbook_open() and _spellbook_panel.has_method("refresh_pages"):
+		_spellbook_panel.call("refresh_pages")
+	if _player_menu_open:
 		_refresh_player_menu_content()
 
 

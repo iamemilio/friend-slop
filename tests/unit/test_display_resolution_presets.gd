@@ -58,4 +58,28 @@ func run() -> int:
 	):
 		failures += 1
 		push_error("Expected oversize render target to clamp 3D scale at 1.0")
+	failures += _test_windowed_size_leaves_room_for_decorations()
+	return failures
+
+
+## A 1080-tall client area on a 1080 screen hides the bottom of the HUD behind
+## the taskbar, because the title bar pushes the client area down.
+func _test_windowed_size_leaves_room_for_decorations() -> int:
+	var failures := 0
+	## 1920x1080 screen, 40px taskbar, 31px title bar + 2px border.
+	var fitted := DisplayResolutionPresetsScript.fit_client_to_work_area(
+		Vector2i(1920, 1080), Vector2i(1920, 1040), Vector2i(2, 33)
+	)
+	if fitted != Vector2i(1918, 1007):
+		failures += 1
+		push_error(
+			"Expected native windowed size to shrink below the work area, got %s"
+			% str(fitted)
+		)
+	var small := DisplayResolutionPresetsScript.fit_client_to_work_area(
+		Vector2i(1280, 720), Vector2i(1920, 1040), Vector2i(2, 33)
+	)
+	if small != Vector2i(1280, 720):
+		failures += 1
+		push_error("Expected a resolution that already fits to stay untouched")
 	return failures

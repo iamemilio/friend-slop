@@ -87,6 +87,8 @@ func _ready() -> void:
 	_dev_headmaster_button.pressed.connect(_on_dev_headmaster_pressed)
 	_display_mode_option.item_selected.connect(_on_display_mode_selected)
 	_resolution_option.item_selected.connect(_on_resolution_selected)
+	_input_device_option.item_selected.connect(_on_input_device_selected)
+	_output_device_option.item_selected.connect(_on_output_device_selected)
 	NetworkManager.lobby_roster_changed.connect(_on_lobby_roster_changed)
 	_populate_from_settings()
 
@@ -112,8 +114,14 @@ func open() -> void:
 
 
 func close_panel() -> void:
+	if not visible:
+		return
 	if _mic_test_active:
 		_stop_mic_test()
+	## Persist whatever is live in SettingsManager (including mid-panel audio
+	## device rebinds) when leaving the menu.
+	_apply_to_manager()
+	SettingsManager.save_settings()
 	visible = false
 	closed.emit()
 
@@ -199,8 +207,12 @@ func _populate_from_settings() -> void:
 		SettingsManager.get_input_devices(),
 		"System Default"
 	)
+	_output_device_option.set_block_signals(true)
+	_input_device_option.set_block_signals(true)
 	_select_device(_output_device_option, SettingsManager.output_device)
 	_select_device(_input_device_option, SettingsManager.input_device)
+	_output_device_option.set_block_signals(false)
+	_input_device_option.set_block_signals(false)
 	_master_volume_slider.value = SettingsManager.master_volume
 	_update_master_volume_label(SettingsManager.master_volume)
 	_mic_volume_slider.value = SettingsManager.mic_volume
@@ -305,6 +317,8 @@ func _select_device(option: OptionButton, saved_device: String) -> void:
 
 
 func _apply_to_manager() -> void:
+	## Push UI into live SettingsManager + audio/display systems.
+	## Does not write settings.cfg — that happens on close/save.
 	SettingsManager.fullscreen = _display_mode_option.selected == 1
 	SettingsManager.set_window_resolution_preset_index(_resolution_option.selected)
 	SettingsManager.master_volume = _master_volume_slider.value
@@ -327,7 +341,6 @@ func _apply_to_manager() -> void:
 	)
 	SettingsManager.apply_audio_settings()
 	SettingsManager.apply_display_settings()
-	SettingsManager.save_settings()
 
 
 func _read_device_selection(option: OptionButton) -> String:
@@ -340,13 +353,11 @@ func _on_display_mode_selected(index: int) -> void:
 	SettingsManager.fullscreen = index == 1
 	_update_resolution_hint()
 	SettingsManager.apply_display_settings()
-	SettingsManager.save_settings()
 
 
 func _on_resolution_selected(index: int) -> void:
 	SettingsManager.set_window_resolution_preset_index(index)
 	SettingsManager.apply_display_settings()
-	SettingsManager.save_settings()
 
 
 func _on_dev_apprentice_pressed() -> void:
@@ -401,7 +412,18 @@ func _on_crosshair_dot_toggled(enabled: bool) -> void:
 func _on_hear_myself_toggled(enabled: bool) -> void:
 	SettingsManager.hear_myself = enabled
 	SettingsManager.apply_audio_settings()
-	SettingsManager.save_settings()
+
+
+func _on_input_device_selected(_index: int) -> void:
+	## Live preview: free old mic stream and open the selected device.
+	## Persisted to settings.cfg only when the panel is closed.
+	SettingsManager.input_device = _read_device_selection(_input_device_option)
+	SettingsManager.apply_audio_settings()
+
+
+func _on_output_device_selected(_index: int) -> void:
+	SettingsManager.output_device = _read_device_selection(_output_device_option)
+	SettingsManager.apply_audio_settings()
 
 
 func _is_lobby_voice_ui_on() -> bool:
@@ -443,7 +465,6 @@ func _on_lobby_voice_toggled(enabled: bool) -> void:
 		return
 
 	SettingsManager.lobby_voice_default = enabled
-	SettingsManager.save_settings()
 
 	if _can_toggle_lobby_voice_live():
 		_set_lobby_voice_enabled(enabled)
@@ -462,7 +483,7 @@ func _set_lobby_voice_enabled(enabled: bool) -> void:
 	):
 		SteamProximityVoiceHub.set_mode(SteamProximityVoiceHub.Mode.OFF)
 		SettingsManager.lobby_voice_default = false
-		SettingsManager.save_settings()
+		_lobby_voice_switch.set_pressed_no_signal(false)
 
 
 func _update_master_volume_label(value: float) -> void:
@@ -494,13 +515,14 @@ func _on_mic_test_pressed() -> void:
 
 
 func _start_mic_test() -> void:
+	## Apply current UI to the live mic path (no file write); test forces Hear Myself.
 	_apply_to_manager()
 	_mic_peak = 0.0
 	_mic_level_bar.value = 0.0
 	SettingsManager.start_mic_test()
 	_mic_test_active = true
 	_mic_test_button.text = "Stop Microphone Test"
-	_mic_status_label.text = "Listening…"
+	_mic_status_label.text = "Listening… (Hear Myself on for this test)"
 
 
 func _stop_mic_test() -> void:
@@ -522,5 +544,4 @@ func _refresh_player_voice_list() -> void:
 
 
 func _on_close_pressed() -> void:
-	_apply_to_manager()
 	close_panel()

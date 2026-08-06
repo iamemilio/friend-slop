@@ -1,0 +1,87 @@
+class_name MonsterCorpse
+extends RigidBody3D
+
+## Temporary ragdoll stand-in for Monster death (single rigid body + meshes).
+## Lingers, fades, then frees — not a skeletal PhysicalBone ragdoll.
+
+const DEFAULT_LINGER_SEC := 30.0
+const DEFAULT_FADE_SEC := 3.0
+const TORQUE_STRENGTH := 2.8
+
+var _fade_sec: float = DEFAULT_FADE_SEC
+var _materials: Array[StandardMaterial3D] = []
+var _fade_tween: Tween
+
+
+func begin_death_sequence(
+	impulse: Vector3,
+	linger_sec: float = DEFAULT_LINGER_SEC,
+	fade_sec: float = DEFAULT_FADE_SEC
+) -> void:
+	_fade_sec = maxf(0.05, fade_sec)
+	collision_layer = 0
+	collision_mask = 1
+	mass = 4.5
+	linear_damp = 0.35
+	angular_damp = 0.55
+	continuous_cd = true
+	_collect_materials()
+	apply_central_impulse(impulse)
+	var torque := Vector3(
+		randf_range(-1.0, 1.0),
+		randf_range(-0.4, 0.4),
+		randf_range(-1.0, 1.0)
+	).normalized() * TORQUE_STRENGTH
+	apply_torque_impulse(torque)
+
+	var wait_sec := maxf(0.0, linger_sec - _fade_sec)
+	var tree := get_tree()
+	if tree == null:
+		queue_free()
+		return
+	tree.create_timer(wait_sec).timeout.connect(_start_fade)
+
+
+func _collect_materials() -> void:
+	_materials.clear()
+	for mesh in _find_mesh_instances(self):
+		var mat := mesh.material_override as StandardMaterial3D
+		if mat == null:
+			continue
+		## Own a duplicate so living monsters / shared mats are untouched.
+		var owned := mat.duplicate() as StandardMaterial3D
+		mesh.material_override = owned
+		_materials.append(owned)
+
+
+func _find_mesh_instances(root: Node) -> Array[MeshInstance3D]:
+	var found: Array[MeshInstance3D] = []
+	if root is MeshInstance3D:
+		found.append(root as MeshInstance3D)
+	for child in root.get_children():
+		found.append_array(_find_mesh_instances(child))
+	return found
+
+
+func _start_fade() -> void:
+	if not is_inside_tree():
+		return
+	if _fade_tween != null and _fade_tween.is_valid():
+		_fade_tween.kill()
+	if _materials.is_empty():
+		queue_free()
+		return
+	for mat in _materials:
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for mesh in _find_mesh_instances(self):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	_fade_tween = create_tween()
+	_fade_tween.set_parallel(true)
+	_fade_tween.set_trans(Tween.TRANS_SINE)
+	_fade_tween.set_ease(Tween.EASE_IN)
+	for mat in _materials:
+		var clear := Color(mat.albedo_color.r, mat.albedo_color.g, mat.albedo_color.b, 0.0)
+		_fade_tween.tween_property(mat, "albedo_color", clear, _fade_sec)
+	_fade_tween.set_parallel(false)
+	_fade_tween.tween_callback(queue_free)

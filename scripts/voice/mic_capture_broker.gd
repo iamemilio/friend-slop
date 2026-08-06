@@ -22,6 +22,13 @@ const DRAIN_CHUNK := 256
 const SUB_CHAT := &"chat"
 const SUB_SPELLCASTING := &"spellcasting"
 const SUB_METER := &"meter"
+## Peak below this is treated as digital silence (WASAPI zeros), not quiet speech.
+const DIGITAL_SILENCE_PEAK := 0.00005
+## Gap between closing and reopening the capture client on a device switch.
+## Godot runs AudioStreamPlaybackMicrophone.stop() -> input_stop() on the audio
+## thread, so a same-frame reopen can be undone by the outgoing stream and leave
+## the new one playing but permanently silent.
+const DEVICE_SWITCH_GAP_SEC := 0.25
 
 @export var debug_logging: bool = false
 @export var mic_bus_name: String = MIC_BUS_NAME
@@ -38,15 +45,18 @@ var _mic_player: AudioStreamPlayer
 var _capturing: bool = false
 var _last_rms: float = 0.0
 var _last_peak_abs: float = 0.0
+## Device the open AudioStreamMicrophone was created under.
 var _bound_input_device: String = ""
+## Latest Settings selection, even when no stream is open yet.
+var _requested_input_device: String = ""
+## True between closing the old stream and opening the replacement.
+var _restart_pending: bool = false
 var _debug_frames: int = 0
 var _debug_samples: int = 0
 var _debug_last_msec: int = 0
 var _debug_fanout_log_msec: int = 0
 var _silence_probe_msec: int = 0
 var _silence_probe_done: bool = false
-## Index into silence-recovery candidate list (not a simple bool — may try HyperX then Focusrite).
-var _fallback_attempt: int = 0
 ## When true, play drained PCM locally via AudioStreamGenerator (chat sidetone).
 ## Never route MicCapture→Master — bus send to Master loops hearback; capture uses empty send.
 var _output_monitor: bool = false
@@ -56,12 +66,22 @@ var _hearback_playback: AudioStreamGeneratorPlayback
 
 func _ready() -> void:
 	add_to_group("mic_capture_broker")
-	_ensure_child_nodes()
+	## Capture must survive the pause menu. A pausable broker stops draining
+	## AudioEffectCapture *and* lets Godot set stream_paused on the child
+	## AudioStreamPlayer, which wedges the WASAPI handle for the rest of the
+	## session — the mic never recovers after the player resumes.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	## Adopt the authored Mic node once; from here the player is tracked by
+	## reference so a closing stream can never be mistaken for the live one.
+	_mic_player = get_node_or_null("Mic") as AudioStreamPlayer
 	_output_monitor = SettingsManager.hear_myself
 	_ensure_mic_bus()
 	set_process(false)
 	if not _subscribers.is_empty():
 		_ensure_capturing()
+	elif _output_monitor:
+		## Saved Hear Myself preference needs the stream up before any subscriber.
+		_ensure_mic_open()
 
 
 func _enter_tree() -> void:
@@ -78,10 +98,6 @@ func set_fanout_policy(policy: FanoutPolicy) -> void:
 	if policy == FanoutPolicy.CHAT_ONLY and has_subscriber(SUB_SPELLCASTING):
 		## Lobby must stay single-pipeline — drop wand spellcasting if still attached.
 		unsubscribe(SUB_SPELLCASTING)
-
-
-func get_fanout_policy() -> FanoutPolicy:
-	return fanout_policy
 
 
 func is_spellcasting_fanout_allowed() -> bool:
@@ -150,24 +166,20 @@ func get_last_peak_abs() -> float:
 	return _last_peak_abs
 
 
-func get_mix_rate() -> int:
-	return int(AudioServer.get_mix_rate())
-
-
 ## Enable local mic hearback via PCM playback (not bus send — Master send
 ## zeroes capture on this Windows/Godot build).
 func set_output_monitor(enabled: bool) -> void:
 	var changed := _output_monitor != enabled
 	_output_monitor = enabled
 	_ensure_mic_bus()
-	if not enabled:
+	if enabled:
+		## Sidetone reads drained PCM, so it needs a live stream even when no
+		## subscriber (chat/spellcasting/meter) is asking for capture.
+		_ensure_mic_open()
+	else:
 		_stop_hearback_player()
 	if changed:
 		_emit_log("output_monitor", "enabled=%s" % enabled)
-
-
-func is_output_monitor_enabled() -> bool:
-	return _output_monitor
 
 
 ## Create/configure MicCapture (unmuted, empty send — capture-safe).
@@ -175,44 +187,146 @@ func ensure_mic_bus_configured() -> void:
 	_ensure_mic_bus()
 
 
-## Ensure the shared mic player is playing into MicCapture.
-## Does not tear down an already-live stream (avoids glitching VoIP mid-cast).
+## Ensure the shared mic player is live. Never tears down an open stream — device
+## changes go through [method set_input_device_from_settings].
 func ensure_mic_live() -> bool:
 	_ensure_capturing()
-	if is_inside_tree() and _mic_player != null and not _mic_player.playing:
-		_mic_player.play()
+	_ensure_mic_open()
 	return is_capturing()
 
 
-## Recreate the mic player after an explicit input-device change from Settings.
-## Prefer [method _start_mic_stream] warm-resume for normal session transitions —
-## stop()/reopen on Windows WASAPI often yields permanent silence.
+## Device name the open AudioStreamMicrophone was created under.
+func get_bound_input_device() -> String:
+	return _bound_input_device
+
+
+## Settings is the only thing that picks a capture device. Reopens the stream
+## when — and only when — the selection actually changed. Returns true if a
+## restart was started.
+func set_input_device_from_settings(device_name: String) -> bool:
+	if device_name.is_empty() or device_name == _requested_input_device:
+		return false
+	_requested_input_device = device_name
+	if not _is_mic_stream_open():
+		## Nothing open yet — the next open uses this device.
+		return false
+	_restart_mic_stream()
+	return true
+
+
+## Settings calls this immediately before it reinitialises the audio driver.
+## A live AudioStreamMicrophone holds a WASAPI capture handle that the reinit
+## invalidates for good, so the stream closes now and reopens after the gap —
+## on whichever device the driver ends up on.
+func close_for_device_switch() -> void:
+	if not _is_mic_stream_open():
+		return
+	_restart_mic_stream()
+
+
+## Force a stream rotation. Debug tooling only; normal device changes come from
+## [method set_input_device_from_settings].
 func rebind_mic_stream() -> void:
+	_restart_mic_stream()
+
+
+func _is_mic_stream_open() -> bool:
+	return (
+		_mic_player != null
+		and is_instance_valid(_mic_player)
+		and _mic_player.playing
+		and _mic_player.stream is AudioStreamMicrophone
+	)
+
+
+## Settings selection if known; otherwise whatever AudioServer reports.
+## Never read back AudioServer to *verify* a selection: WASAPI applies
+## set_input_device on the audio thread, so it lags by a frame or more.
+func _active_device_name() -> String:
+	if not _requested_input_device.is_empty():
+		return _requested_input_device
+	return AudioServer.get_input_device()
+
+
+## Open the capture stream if it is not already up. Cheap to call repeatedly.
+func _ensure_mic_open() -> void:
+	if not is_inside_tree() or _restart_pending:
+		return
 	_ensure_mic_bus()
-	_replace_mic_player()
-	_bound_input_device = AudioServer.get_input_device()
+	_capture = _find_capture_effect()
+	_ensure_capture_effect_enabled()
+	if not _is_mic_stream_open():
+		_open_mic_stream()
+	set_process(true)
+
+
+func _open_mic_stream() -> void:
+	_discard_mic_player()
+	_mic_player = AudioStreamPlayer.new()
+	_mic_player.name = "Mic"
+	_mic_player.bus = mic_bus_name
+	_mic_player.volume_db = 0.0
+	_mic_player.stream = AudioStreamMicrophone.new()
+	add_child(_mic_player)
+	_mic_player.play()
+	_bound_input_device = _active_device_name()
 	if _capture != null:
 		_capture.clear_buffer()
 	_last_rms = 0.0
 	_last_peak_abs = 0.0
 	_silence_probe_msec = Time.get_ticks_msec()
 	_silence_probe_done = false
+	set_process(true)
 	_emit_log(
-		"mic_rebind",
-		"device=%s playing=%s capturing=%s"
-		% [
-			AudioServer.get_input_device(),
-			_mic_player != null and _mic_player.playing,
-			_capturing,
-		]
+		"mic_open",
+		"device='%s' playing=%s" % [_bound_input_device, _mic_player.playing]
 	)
+
+
+## Close the capture client. queue_free (not free) lets the audio thread finish
+## with the playback, and the rename frees the "Mic" name for the replacement.
+func _discard_mic_player() -> void:
+	if _mic_player == null or not is_instance_valid(_mic_player):
+		_mic_player = null
+		return
+	var outgoing := _mic_player
+	_mic_player = null
+	outgoing.name = "MicClosing"
+	if outgoing.playing:
+		outgoing.stop()
+	outgoing.queue_free()
+
+
+## Close now, reopen after a gap. See DEVICE_SWITCH_GAP_SEC for why the two
+## halves cannot share a frame.
+func _restart_mic_stream() -> void:
+	if not is_inside_tree() or _restart_pending:
+		return
+	_restart_pending = true
+	var from_device := _bound_input_device
+	_discard_mic_player()
+	_emit_log(
+		"mic_restart",
+		"from='%s' to='%s' gap=%.2fs"
+		% [from_device, _active_device_name(), DEVICE_SWITCH_GAP_SEC]
+	)
+	get_tree().create_timer(DEVICE_SWITCH_GAP_SEC).timeout.connect(
+		_finish_mic_restart, CONNECT_ONE_SHOT
+	)
+
+
+func _finish_mic_restart() -> void:
+	_restart_pending = false
+	if not is_inside_tree():
+		return
+	_ensure_mic_open()
 
 
 ## Inject mono PCM as if drained from MicCapture. Used by unit tests (and debug tools).
 func inject_pcm(mono: PackedFloat32Array, mix_rate: int = 0) -> void:
 	if mono.is_empty():
 		return
-	var rate := mix_rate if mix_rate > 0 else get_mix_rate()
+	var rate := mix_rate if mix_rate > 0 else int(AudioServer.get_mix_rate())
 	var sum_sq := 0.0
 	var peak_abs := 0.0
 	for sample in mono:
@@ -230,13 +344,15 @@ func _process(_delta: float) -> void:
 	## Always drain while the mic player is live. Stopping the drain while
 	## AudioStreamMicrophone keeps playing wedges WASAPI on Windows (bus peak
 	## -200 forever) — confirmed by debug session 2c05d7 H3.
-	if _mic_player == null or not _mic_player.playing:
+	if _restart_pending:
+		return
+	if _mic_player == null or not is_instance_valid(_mic_player) or not _mic_player.playing:
 		return
 	if _capture == null:
 		_capture = _find_capture_effect()
 		if _capture == null:
 			return
-	var mix_rate := get_mix_rate()
+	var mix_rate := int(AudioServer.get_mix_rate())
 	var sum_sq := 0.0
 	var sample_count := 0
 	var peak_abs := 0.0
@@ -331,10 +447,6 @@ func _policy_name(policy: FanoutPolicy) -> String:
 func _ensure_capturing() -> void:
 	if _subscribers.is_empty():
 		return
-	_ensure_child_nodes()
-	_ensure_mic_bus()
-	_capture = _find_capture_effect()
-	_ensure_capture_effect_enabled()
 	var becoming_active := not _capturing
 	if becoming_active:
 		_capturing = true
@@ -343,78 +455,18 @@ func _ensure_capturing() -> void:
 		_debug_last_msec = Time.get_ticks_msec()
 		_silence_probe_msec = Time.get_ticks_msec()
 		_silence_probe_done = false
-		_fallback_attempt = 0
-		_start_mic_stream()
-	elif _mic_player != null and is_inside_tree() and not _mic_player.playing:
-		_mic_player.play()
-	if is_inside_tree():
-		set_process(true)
+	_ensure_mic_open()
 	if becoming_active:
 		_emit_log(
 			"capture_started",
 			"device=%s mix_rate=%d subscribers=%s playing=%s"
 			% [
 				AudioServer.get_input_device(),
-				get_mix_rate(),
+				int(AudioServer.get_mix_rate()),
 				str(get_subscriber_ids()),
 				_mic_player != null and _mic_player.playing,
 			]
 		)
-
-
-## Keep the WASAPI mic handle warm across lobby/match/settings transitions.
-## First open after launch works; stop()+reopen is what goes permanently silent
-## on this machine (bus peak -200 with playing=true).
-func _start_mic_stream() -> void:
-	_ensure_child_nodes()
-	if (
-		_mic_player != null
-		and _mic_player.playing
-		and _mic_player.stream is AudioStreamMicrophone
-	):
-		_mic_player.bus = mic_bus_name
-		_mic_player.volume_db = 0.0
-		_mic_player.stream_paused = false
-		## Do not clear_buffer on warm resume — keepalive drain already owns the
-		## ring buffer; clearing here was unnecessary and suspect.
-		_bound_input_device = AudioServer.get_input_device()
-		_silence_probe_msec = Time.get_ticks_msec()
-		_silence_probe_done = false
-		_emit_log(
-			"mic_warm_resume",
-			"device=%s playing=true peak_abs=%.4f"
-			% [AudioServer.get_input_device(), _last_peak_abs]
-		)
-		return
-	_replace_mic_player()
-	_bound_input_device = AudioServer.get_input_device()
-	_silence_probe_msec = Time.get_ticks_msec()
-	_silence_probe_done = false
-	_fallback_attempt = 0
-	_emit_log(
-		"mic_start",
-		"device=%s playing=%s"
-		% [AudioServer.get_input_device(), _mic_player != null and _mic_player.playing]
-	)
-
-
-func _replace_mic_player() -> void:
-	if _mic_player != null:
-		if is_instance_valid(_mic_player):
-			if _mic_player.playing:
-				_mic_player.stop()
-			if _mic_player.get_parent() == self:
-				remove_child(_mic_player)
-			_mic_player.free()
-		_mic_player = null
-	_mic_player = AudioStreamPlayer.new()
-	_mic_player.name = "Mic"
-	_mic_player.bus = mic_bus_name
-	_mic_player.volume_db = 0.0
-	_mic_player.stream = AudioStreamMicrophone.new()
-	add_child(_mic_player)
-	if is_inside_tree():
-		_mic_player.play()
 
 
 func _stop_capturing() -> void:
@@ -435,14 +487,6 @@ func _stop_capturing() -> void:
 			_last_peak_abs,
 		]
 	)
-
-
-func _ensure_child_nodes() -> void:
-	_mic_player = get_node_or_null("Mic") as AudioStreamPlayer
-	if _mic_player == null:
-		_mic_player = AudioStreamPlayer.new()
-		_mic_player.name = "Mic"
-		add_child(_mic_player)
 
 
 func _ensure_mic_bus() -> void:
@@ -492,18 +536,24 @@ func _push_hearback(mono: PackedFloat32Array, mix_rate: int) -> void:
 
 
 func _ensure_hearback_player(mix_rate: int) -> void:
+	var rate := float(mix_rate if mix_rate > 0 else int(AudioServer.get_mix_rate()))
 	if _hearback_player != null and is_instance_valid(_hearback_player):
-		if not _hearback_player.playing:
-			_hearback_player.play()
-			_hearback_playback = (
-				_hearback_player.get_stream_playback() as AudioStreamGeneratorPlayback
-			)
-		return
+		var current := _hearback_player.stream as AudioStreamGenerator
+		if current != null and is_equal_approx(current.mix_rate, rate):
+			if not _hearback_player.playing:
+				_hearback_player.play()
+				_hearback_playback = (
+					_hearback_player.get_stream_playback() as AudioStreamGeneratorPlayback
+				)
+			return
+		## An output device switch moved the mix rate. A generator left on the old
+		## rate replays sidetone pitch-shifted, so rebuild it at the new rate.
+		_discard_hearback_player()
 	_hearback_player = AudioStreamPlayer.new()
 	_hearback_player.name = "Hearback"
 	_hearback_player.bus = &"Master"
 	var stream := AudioStreamGenerator.new()
-	stream.mix_rate = float(mix_rate if mix_rate > 0 else get_mix_rate())
+	stream.mix_rate = rate
 	stream.buffer_length = 0.25
 	_hearback_player.stream = stream
 	add_child(_hearback_player)
@@ -520,6 +570,20 @@ func _stop_hearback_player() -> void:
 		_hearback_player.stop()
 
 
+## Free it outright, so the replacement can reuse the "Hearback" name.
+func _discard_hearback_player() -> void:
+	_hearback_playback = null
+	if _hearback_player == null or not is_instance_valid(_hearback_player):
+		_hearback_player = null
+		return
+	var outgoing := _hearback_player
+	_hearback_player = null
+	outgoing.name = "HearbackClosing"
+	if outgoing.playing:
+		outgoing.stop()
+	outgoing.queue_free()
+
+
 ## Stage-by-stage capture diagnosis. Prints once when live capture stays silent.
 func diagnose_capture() -> String:
 	var bus_idx := AudioServer.get_bus_index(mic_bus_name)
@@ -530,7 +594,7 @@ func diagnose_capture() -> String:
 		% [
 			AudioServer.get_input_device(),
 			str(ProjectSettings.get_setting("audio/driver/enable_input", false)),
-			get_mix_rate(),
+			int(AudioServer.get_mix_rate()),
 		]
 	)
 	lines.append("devices=%s" % str(AudioServer.get_input_device_list()))
@@ -617,7 +681,7 @@ func _silence_verdict(bus_idx: int) -> String:
 		verdict = "BUS_MISSING"
 	elif _capture == null:
 		verdict = "CAPTURE_EFFECT_MISSING"
-	elif _last_peak_abs > 0.0001:
+	elif _last_peak_abs > DIGITAL_SILENCE_PEAK:
 		verdict = "OK_HAS_SIGNAL"
 	else:
 		## Bus peak is post-mute (always muted); trust drained PCM instead.
@@ -625,50 +689,19 @@ func _silence_verdict(bus_idx: int) -> String:
 	return verdict
 
 
+## Report-only: print one diagnosis if capture stays silent after starting.
+## Deliberately does not "recover" — every automatic teardown we tried here made
+## a working stream worse, and a quiet room looks identical to a dead mic.
 func _maybe_silence_probe() -> void:
 	if _silence_probe_done or not _capturing:
 		return
-	if _last_peak_abs > 0.0001:
+	if _last_peak_abs > DIGITAL_SILENCE_PEAK:
 		_silence_probe_done = true
-		_fallback_attempt = 0
 		return
 	if Time.get_ticks_msec() - _silence_probe_msec < 750:
 		return
 	_silence_probe_done = true
 	diagnose_capture()
-	_try_recover_silent_input()
-
-
-## If capture is silent because we opened before the saved device was enumerated,
-## switch once to SettingsManager.input_device. Never invent a different mic.
-func _try_recover_silent_input() -> void:
-	if _last_peak_abs > 0.0001:
-		return
-	if _fallback_attempt > 0:
-		return
-	var preferred := SettingsManager.input_device
-	if preferred.is_empty() or preferred == "Default":
-		preferred = "Default"
-	var current := AudioServer.get_input_device()
-	var devices := AudioServer.get_input_device_list()
-	var preferred_ready := false
-	for device_name in devices:
-		if device_name == preferred:
-			preferred_ready = true
-			break
-	if not preferred_ready or preferred == current:
-		_fallback_attempt = 1
-		return
-	_fallback_attempt = 1
-	_emit_log(
-		"input_fallback",
-		"from='%s' to='%s' (honor settings)" % [current, preferred]
-	)
-	AudioServer.set_input_device(preferred)
-	_replace_mic_player()
-	_bound_input_device = preferred
-	_silence_probe_msec = Time.get_ticks_msec()
-	_silence_probe_done = false
 
 
 func _find_capture_effect() -> AudioEffectCapture:
@@ -744,10 +777,8 @@ func _emit_log(event: String, detail: String) -> void:
 		or event == "unsubscribe"
 		or event == "subscribe_rejected"
 		or event == "fanout_policy"
-		or event == "mic_rebind"
-		or event == "mic_start"
-		or event == "mic_warm_resume"
-		or event == "input_fallback"
+		or event == "mic_open"
+		or event == "mic_restart"
 		or event == "diagnose"
 		or event == "output_monitor"
 	)

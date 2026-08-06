@@ -102,7 +102,7 @@ func _apply_fullscreen(window: Window, target: Vector2i) -> void:
 	_configure_root_window(window, true)
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
-	window.content_scale_size = target
+	window.content_scale_size = _ui_design_size()
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	window.mode = Window.MODE_FULLSCREEN
 	_set_scaling_3d_scale(window, target, _current_screen_size())
@@ -112,15 +112,46 @@ func _apply_windowed(window: Window, target: Vector2i) -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	window.mode = Window.MODE_WINDOWED
 	_configure_root_window(window, false)
-	var screen_size := _current_screen_size()
-	var clamped := DisplayResolutionPresetsScript.clamp_to_screen(target, screen_size)
+	## Fit the work area minus decorations, not the raw screen size: a client
+	## area as tall as the screen puts the bottom of the HUD under the taskbar
+	## and the title bar above the top edge. Fullscreen gives a true
+	## native-resolution viewport.
+	var size := _fit_to_work_area(target)
+	DisplayServer.window_set_size(size)
+	window.size = size
+	## Decorations measure as zero until the window is really windowed, so
+	## re-measure now that it is and shrink again if the title bar pushed it over.
+	var refit := _fit_to_work_area(size)
+	if refit != size:
+		size = refit
+		DisplayServer.window_set_size(size)
+		window.size = size
 	window.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	window.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
-	window.content_scale_size = clamped
-	DisplayServer.window_set_size(clamped)
-	window.size = clamped
-	_set_scaling_3d_scale(window, clamped, clamped)
-	_center_window(clamped)
+	window.content_scale_size = _ui_design_size()
+	_set_scaling_3d_scale(window, size, size)
+	_center_window(size)
+
+
+func _fit_to_work_area(size: Vector2i) -> Vector2i:
+	return DisplayResolutionPresetsScript.fit_client_to_work_area(
+		size, _usable_screen_rect().size, _window_decoration_overhead()
+	)
+
+
+## UI design resolution from project.godot. Using the window size here instead
+## would pin the content scale at 1.0, so the HUD would keep a fixed pixel size
+## at every resolution — oversized at 720p, tiny at 4K.
+func _ui_design_size() -> Vector2i:
+	var width := int(
+		ProjectSettings.get_setting("display/window/size/viewport_width", 0)
+	)
+	var height := int(
+		ProjectSettings.get_setting("display/window/size/viewport_height", 0)
+	)
+	if width <= 0 or height <= 0:
+		return DisplayResolutionPresetsScript.DEFAULT_SIZE
+	return Vector2i(width, height)
 
 
 func _set_scaling_3d_scale(window: Window, render_size: Vector2i, output_size: Vector2i) -> void:
@@ -140,14 +171,50 @@ func _configure_root_window(window: Window, is_fullscreen: bool) -> void:
 
 
 func _center_window(window_size: Vector2i) -> void:
+	var usable := _usable_screen_rect()
+	var overhead := _window_decoration_overhead()
+	var offset := _window_decoration_offset()
+	var delta := usable.size - overhead - window_size
+	## window_set_position places the *client* area, so shift down by the title
+	## bar height to keep the decorated window inside the work area.
+	var window_pos := (
+		usable.position
+		+ offset
+		+ Vector2i(maxi(int(delta.x * 0.5), 0), maxi(int(delta.y * 0.5), 0))
+	)
+	DisplayServer.window_set_position(window_pos)
+
+
+## Screen area excluding taskbars and other reserved desktop space.
+func _usable_screen_rect() -> Rect2i:
 	var screen_id := DisplayServer.window_get_current_screen()
 	if screen_id < 0:
 		screen_id = DisplayServer.get_primary_screen()
-	var screen_origin := DisplayServer.screen_get_position(screen_id)
-	var screen_size := DisplayServer.screen_get_size(screen_id)
-	var delta := screen_size - window_size
-	var window_pos := screen_origin + Vector2i(int(delta.x * 0.5), int(delta.y * 0.5))
-	DisplayServer.window_set_position(window_pos)
+	var usable := DisplayServer.screen_get_usable_rect(screen_id)
+	if usable.size.x <= 0 or usable.size.y <= 0:
+		return Rect2i(
+			DisplayServer.screen_get_position(screen_id),
+			DisplayServer.screen_get_size(screen_id)
+		)
+	return usable
+
+
+## Pixels the border and title bar add around the client area.
+func _window_decoration_overhead() -> Vector2i:
+	var overhead := (
+		DisplayServer.window_get_size_with_decorations()
+		- DisplayServer.window_get_size()
+	)
+	return Vector2i(maxi(overhead.x, 0), maxi(overhead.y, 0))
+
+
+## Distance from the decorated top-left to the client top-left (title bar height).
+func _window_decoration_offset() -> Vector2i:
+	var offset := (
+		DisplayServer.window_get_position()
+		- DisplayServer.window_get_position_with_decorations()
+	)
+	return Vector2i(maxi(offset.x, 0), maxi(offset.y, 0))
 
 
 func _current_screen_size() -> Vector2i:
@@ -253,13 +320,10 @@ func apply_audio_settings() -> void:
 	var mic_idx: int = AudioServer.get_bus_index(MIC_BUS_NAME)
 	if mic_idx >= 0:
 		AudioServer.set_bus_volume_db(mic_idx, 0.0)
-	_set_broker_output_monitor(hear_myself)
 
-	if not output_device.is_empty():
-		AudioServer.set_output_device(output_device)
-
-	var previous_capture := _opened_capture_device
 	var capture_device := _resolve_capture_input_device()
+	_close_mic_stream_for_device_change(capture_device)
+	_set_driver_output_device(output_device)
 	if (
 		capture_device.is_empty()
 		and not input_device.is_empty()
@@ -269,21 +333,62 @@ func apply_audio_settings() -> void:
 		## Do not substitute another device — retry until the saved name shows up.
 		_schedule_capture_device_retry()
 		_applied_input_device = input_device
+		_apply_sidetone()
 		return
 	_capture_device_retry_count = 0
 	if not capture_device.is_empty():
-		AudioServer.set_input_device(capture_device)
+		_set_driver_input_device(capture_device)
 		_opened_capture_device = capture_device
 	_applied_input_device = input_device
-	if previous_capture == _opened_capture_device:
+	## Last, because enabling sidetone opens a keepalive stream and it must not
+	## land on the outgoing device. The broker holds this off until its reopen.
+	_apply_sidetone()
+
+
+## Reinitialising either device invalidates the WASAPI capture handle held by a
+## live AudioStreamMicrophone, and the stream never recovers on its own. Close it
+## first; the broker reopens on the new device once the driver has settled, so a
+## switch costs a moment of capture rather than the rest of the session.
+func _close_mic_stream_for_device_change(device: String) -> void:
+	var output_changing: bool = (
+		not output_device.is_empty()
+		and AudioServer.get_output_device() != output_device
+	)
+	var input_changing: bool = (
+		not device.is_empty()
+		and AudioServer.get_input_device() != device
+	)
+	if not output_changing and not input_changing:
 		return
 	var broker := _find_mic_broker()
-	if (
-		broker != null
-		and broker.has_method("rebind_mic_stream")
-		and int(broker.call("get_subscriber_count")) > 0
-	):
-		broker.call("rebind_mic_stream")
+	if broker == null:
+		return
+	if input_changing and broker.has_method("set_input_device_from_settings"):
+		broker.call("set_input_device_from_settings", device)
+	## Covers the output switch, and any input switch the broker already
+	## considered current — the driver reinit invalidates the handle either way.
+	if broker.has_method("close_for_device_switch"):
+		broker.call("close_for_device_switch")
+
+
+## The only two calls in the codebase that reinitialise the audio driver. Both
+## no-op on an unchanged device, because set_*_device tears the device down even
+## when passed the name that is already selected.
+func _set_driver_output_device(device: String) -> void:
+	if device.is_empty() or AudioServer.get_output_device() == device:
+		return
+	AudioServer.set_output_device(device)
+
+
+func _set_driver_input_device(device: String) -> void:
+	if device.is_empty() or AudioServer.get_input_device() == device:
+		return
+	AudioServer.set_input_device(device)
+
+
+## Hear Myself from settings; mic test always enables sidetone while active.
+func _apply_sidetone() -> void:
+	_set_broker_output_monitor(_mic_testing or hear_myself)
 
 
 func _schedule_capture_device_retry() -> void:
@@ -349,11 +454,12 @@ func is_mic_testing() -> bool:
 
 
 func start_mic_test() -> void:
-	## Ensure the saved device is selected before opening the shared broker mic.
-	apply_audio_settings()
+	## Force Hear Myself sidetone for the test; preference is restored on stop.
 	_mic_testing = true
+	apply_audio_settings()
 	if not _subscribe_meter():
 		_mic_testing = false
+		_set_broker_output_monitor(hear_myself)
 		push_error("SettingsManager: mic test failed — MicCaptureBroker unavailable")
 		return
 	## If still silent after a beat, dump stage diagnosis to the console.
@@ -369,6 +475,7 @@ func start_mic_test() -> void:
 func stop_mic_test() -> void:
 	_mic_testing = false
 	_maybe_unsubscribe_meter()
+	_set_broker_output_monitor(hear_myself)
 
 
 ## Silent meter for lobby/game speaking indicators (same capture path as mic test).
@@ -388,6 +495,7 @@ func release_microphone_for_voice() -> void:
 	_mic_testing = false
 	_voice_meter_active = false
 	_unsubscribe_meter()
+	_set_broker_output_monitor(hear_myself)
 
 
 ## Clear a stored input device that opened a silent WASAPI endpoint.

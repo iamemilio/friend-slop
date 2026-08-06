@@ -5,6 +5,9 @@ extends RefCounted
 
 const ACCEPT_CHUNK_SAMPLES := 8000
 const VOSK_SAMPLE_RATE := 16000
+## Fraction of the target Nyquist the anti-alias filter keeps, so the rolloff has
+## actually taken hold by 8 kHz instead of starting there.
+const ANTI_ALIAS_CUTOFF_RATIO := 0.9
 const SpellLogScript := preload("res://scripts/spells/spell_log.gd")
 const MODEL_SEARCH_PATHS: Array[String] = [
 	"res://addons/gdvosk/model",
@@ -240,16 +243,65 @@ static func _resample_for_vosk(
 	if source_rate == target_rate:
 		return samples
 
+	## Interpolating straight down to 16 kHz folds everything above 8 kHz back
+	## into the speech band. At 48 kHz (3:1) Vosk tolerates it; at 88.2 kHz
+	## (5.5:1, what WASAPI reports for a 88.2 kHz output device) the aliasing
+	## buries consonants and Vosk returns no final result on clearly loud audio.
+	var source := samples
+	if source_rate > target_rate:
+		source = _low_pass(
+			samples, source_rate, float(target_rate) * 0.5 * ANTI_ALIAS_CUTOFF_RATIO
+		)
+
 	var ratio: float = float(source_rate) / float(target_rate)
-	var out_size: int = maxi(1, int(float(samples.size()) / ratio))
+	var out_size: int = maxi(1, int(float(source.size()) / ratio))
 	var out := PackedFloat32Array()
 	out.resize(out_size)
 	for i in out_size:
 		var src_index: float = float(i) * ratio
 		var left: int = int(floor(src_index))
-		var right: int = mini(left + 1, samples.size() - 1)
+		var right: int = mini(left + 1, source.size() - 1)
 		var frac: float = src_index - float(left)
-		out[i] = lerpf(samples[left], samples[right], frac)
+		out[i] = lerpf(source[left], source[right], frac)
+	return out
+
+
+## Butterworth biquad run twice (24 dB/octave). Enough stopband rejection for
+## 5.5:1 decimation without the cost of a windowed-sinc kernel in GDScript.
+## Runs on the validation worker thread, not the main thread.
+static func _low_pass(
+	samples: PackedFloat32Array,
+	sample_rate: int,
+	cutoff_hz: float
+) -> PackedFloat32Array:
+	if samples.is_empty() or sample_rate <= 0:
+		return samples
+	if cutoff_hz <= 0.0 or cutoff_hz >= float(sample_rate) * 0.5:
+		return samples
+	var omega: float = TAU * cutoff_hz / float(sample_rate)
+	var cos_omega: float = cos(omega)
+	## Q = 1/sqrt(2) gives the maximally flat passband.
+	var alpha: float = sin(omega) / sqrt(2.0)
+	var norm: float = 1.0 + alpha
+	var b0: float = (1.0 - cos_omega) * 0.5 / norm
+	var b1: float = (1.0 - cos_omega) / norm
+	var b2: float = b0
+	var a1: float = -2.0 * cos_omega / norm
+	var a2: float = (1.0 - alpha) / norm
+	var out := samples.duplicate()
+	for _pass in 2:
+		var x1 := 0.0
+		var x2 := 0.0
+		var y1 := 0.0
+		var y2 := 0.0
+		for i in out.size():
+			var x0: float = out[i]
+			var y0: float = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+			out[i] = y0
+			x2 = x1
+			x1 = x0
+			y2 = y1
+			y1 = y0
 	return out
 
 

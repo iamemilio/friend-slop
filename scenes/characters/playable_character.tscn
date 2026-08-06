@@ -76,3 +76,4 @@ acceleration = 8.0
 [node name="PlayerInventory" type="Node" parent="." index="8" unique_id=412998001]
 unique_name_in_owner = true
 script = ExtResource("9_inventory")
+starting_items = Array[String](["", "spellbook"])

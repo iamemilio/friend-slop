@@ -37,4 +37,4 @@ transform = Transform3D(1.05, 0, 0, 0, 1.05, 0, 0, 0, 1.05, 0, 0.62, 0)
 surface_material_override/0 = SubResource("StandardMaterial3D_head")
 
 [node name="PlayerInventory" parent="." index="8"]
-starting_items = Array[String](["broom"])
+starting_items = Array[String](["broom", "spellbook", "book"])

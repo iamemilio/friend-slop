@@ -201,6 +201,24 @@ func _is_fake_wall_placing() -> bool:
 	return _fake_wall_placement != null and _fake_wall_placement.is_active()
 
 
+func _monster_book() -> Node:
+	return get_node_or_null("MonsterBook")
+
+
+func _is_monster_book_busy() -> bool:
+	var book := _monster_book()
+	return book != null and book.has_method("is_busy") and bool(book.call("is_busy"))
+
+
+func _is_spellbook_open() -> bool:
+	## The spellbook is browse-only: LMB must not reach the wand while open.
+	return (
+		_game_hud != null
+		and _game_hud.has_method("is_spellbook_open")
+		and bool(_game_hud.call("is_spellbook_open"))
+	)
+
+
 func _confirm_fake_wall_placement(spell: SpellDefinition, params: Dictionary) -> void:
 	if spell == null or params.is_empty():
 		return
@@ -447,8 +465,7 @@ func stop_casting_for_relic_carry() -> void:
 func _on_wand_button_pressed() -> void:
 	if not is_multiplayer_authority():
 		return
-	if _is_fake_wall_placing():
-		_fake_wall_placement.cancel()
+	if _wand_press_consumed_by_ui():
 		return
 	if is_carrying_relic():
 		stop_casting_for_relic_carry()
@@ -460,6 +477,20 @@ func _on_wand_button_pressed() -> void:
 		_casting_session.cancel()
 		return
 	_try_free_cast()
+
+
+## Open book UI and fake-wall placement each handle left-click themselves.
+func _wand_press_consumed_by_ui() -> bool:
+	if _is_monster_book_busy():
+		## Placement confirms via its own unhandled_input; book UI eats LMB.
+		return true
+	if _is_spellbook_open():
+		## Spellbook has no left-click select; clicks stay on the page UI.
+		return true
+	if not _is_fake_wall_placing():
+		return false
+	_fake_wall_placement.cancel()
+	return true
 
 
 func _on_wand_button_released() -> void:
@@ -571,6 +602,12 @@ func _update_interaction_prompt() -> void:
 
 
 func _resolve_interaction_prompt() -> String:
+	if _is_monster_book_busy():
+		var book := _monster_book()
+		if book != null and book.has_method("get_prompt"):
+			var book_prompt := str(book.call("get_prompt"))
+			if not book_prompt.is_empty():
+				return book_prompt
 	if _is_fake_wall_placing():
 		return _fake_wall_placement.get_prompt()
 	var flight := _get_broom_flight()
