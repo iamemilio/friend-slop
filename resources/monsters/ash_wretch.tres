@@ -10,3 +10,4 @@ display_name = "Ash Wretch"
 description = "Pale and patient. The same hunger in cooler flesh."
 monster_scene = ExtResource("2")
 tint = Color(0.42, 0.4, 0.48, 1)
+eye_glow_color = Color(0.25, 1, 0.35, 1)

@@ -7,19 +7,24 @@ extends Character
 ## AI: senses append interest candidates → _prefer_interest → IDLE/PATROL/CHASE.
 ## Override _prefer_interest / _append_default_interest_candidates on children;
 ## add MonsterSense nodes under Senses to customize perception without forking the FSM.
+## Eyes (Head/Eyes) glow only while chasing — color from summon entry.
 
 const BroomLocomotionScript := preload("res://scripts/headmaster/broom_locomotion.gd")
 const MonsterAIScript := preload("res://scripts/monsters/monster_ai.gd")
 const MonsterInterestScript := preload("res://scripts/monsters/monster_interest.gd")
 const MonsterCorpseScript := preload("res://scripts/monsters/monster_corpse.gd")
+const WorldVisualLayersScript := preload("res://scripts/world_visual_layers.gd")
 
 const DEFAULT_TINT := Color(0.72, 0.28, 0.22, 1.0)
+const DEFAULT_EYE_GLOW := Color(0.2, 0.55, 1.0, 1.0)
 const IDLE_DURATION_SEC := 1.2
 const PATROL_RADIUS := 4.0
 const PATROL_ARRIVE_DIST := 0.45
 const KNOCKBACK_TIMER_SEC := 0.35
 const DEFAULT_PLAYER_SOURCE := &"player"
 const DEATH_IMPULSE_SCALE := 1.35
+const EYE_EMISSION_ENERGY := 5.5
+const EYE_LIGHT_ENERGY := 2.6
 
 @export var max_health: float = 60.0
 @export var move_speed: float = 3.2
@@ -43,6 +48,11 @@ var _rng := RandomNumberGenerator.new()
 var _senses_root: Node = null
 var _last_hit_dir: Vector3 = Vector3.FORWARD
 var _dying: bool = false
+var _eye_glow_color: Color = DEFAULT_EYE_GLOW
+var _eyes_root: Node3D = null
+var _eye_meshes: Array[MeshInstance3D] = []
+var _eye_light: OmniLight3D = null
+var _eyes_chasing: bool = false
 
 
 func _ready() -> void:
@@ -52,14 +62,18 @@ func _ready() -> void:
 	is_alive = true
 	_rng.randomize()
 	_senses_root = get_node_or_null("Senses")
+	_cache_eyes()
 	_apply_character_color(DEFAULT_TINT)
+	_apply_eye_glow_color(_eye_glow_color)
+	_set_chase_eyes_active(false)
 	_enter_idle()
 	set_physics_process(true)
 
 
-func apply_summon_appearance(tint: Color) -> void:
+func apply_summon_appearance(tint: Color, eye_glow_color: Color = DEFAULT_EYE_GLOW) -> void:
 	## Used by the headmaster summon book after instantiate.
 	_apply_character_color(tint)
+	_apply_eye_glow_color(eye_glow_color)
 
 
 func take_damage(amount: float, from: Node3D = null) -> void:
@@ -85,6 +99,7 @@ func die() -> void:
 	current_health = 0.0
 	_ai_state = MonsterAIScript.State.IDLE
 	_interest = null
+	_set_chase_eyes_active(false)
 	velocity = Vector3.ZERO
 	set_physics_process(false)
 	if is_in_group("monster"):
@@ -104,6 +119,51 @@ func apply_fireball_knockback(fireball_dir: Vector3) -> void:
 	_knockback_vel = impulse
 	_knockback_timer = KNOCKBACK_TIMER_SEC
 	velocity += impulse
+
+
+func _cache_eyes() -> void:
+	_eyes_root = get_node_or_null("%Eyes") as Node3D
+	if _eyes_root == null:
+		_eyes_root = get_node_or_null("Head/Eyes") as Node3D
+	_eye_meshes.clear()
+	_eye_light = null
+	if _eyes_root == null:
+		return
+	for child in _eyes_root.get_children():
+		if child is MeshInstance3D:
+			_eye_meshes.append(child as MeshInstance3D)
+		elif child is OmniLight3D:
+			_eye_light = child as OmniLight3D
+
+
+func _apply_eye_glow_color(color: Color) -> void:
+	_eye_glow_color = color
+	if _eyes_root == null:
+		_cache_eyes()
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = color
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = EYE_EMISSION_ENERGY
+	for mesh in _eye_meshes:
+		if mesh == null:
+			continue
+		mesh.material_override = mat
+		mesh.layers = PLAYER_SELF_VISUAL_LAYER
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if _eye_light != null:
+		_eye_light.light_color = color
+		_eye_light.light_energy = EYE_LIGHT_ENERGY
+		_eye_light.light_cull_mask = WorldVisualLayersScript.SCENE_LIGHT_MASK
+
+
+func _set_chase_eyes_active(active: bool) -> void:
+	_eyes_chasing = active
+	if _eyes_root == null:
+		_cache_eyes()
+	if _eyes_root != null:
+		_eyes_root.visible = active
 
 
 func _remember_hit_dir(from: Node3D) -> void:
@@ -232,6 +292,10 @@ func _physics_process(delta: float) -> void:
 			_tick_patrol(delta)
 		MonsterAIScript.State.CHASE:
 			_tick_chase(delta)
+
+	var want_eyes := MonsterAIScript.chase_eyes_visible(_ai_state)
+	if want_eyes != _eyes_chasing:
+		_set_chase_eyes_active(want_eyes)
 
 	_apply_knockback_bleed(delta)
 	move_and_slide()
