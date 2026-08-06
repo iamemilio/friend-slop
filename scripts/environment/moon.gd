@@ -54,10 +54,14 @@ func _sync_light_from_moon_position() -> void:
 	if not is_inside_tree():
 		return
 	var light := _get_moon_light()
-	if light == null:
+	if light == null or not light.is_inside_tree():
 		return
 	var cast_dir := light_cast_direction()
-	light.look_at(light.global_position + cast_dir, Vector3.UP)
+	## Avoid look_at colinear warnings when the moon sits nearly straight up.
+	var up := Vector3.UP
+	if absf(cast_dir.dot(up)) > 0.95:
+		up = Vector3.RIGHT
+	light.look_at(light.global_position + cast_dir, up)
 	_update_light_arrow()
 
 
@@ -119,7 +123,10 @@ func _update_light_arrow() -> void:
 
 	_light_arrow.visible = true
 	_light_arrow.position = local_cast * (LIGHT_ARROW_LENGTH * 0.5)
-	_light_arrow.basis = Basis.looking_at(local_cast, Vector3.UP)
+	var arrow_up := Vector3.UP
+	if absf(local_cast.dot(arrow_up)) > 0.95:
+		arrow_up = Vector3.RIGHT
+	_light_arrow.basis = Basis.looking_at(local_cast, arrow_up)
 	_light_arrow.rotate_object_local(Vector3.RIGHT, -PI * 0.5)
 
 

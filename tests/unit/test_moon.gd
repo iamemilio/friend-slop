@@ -33,8 +33,11 @@ func _make_moon(position: Vector3) -> Dictionary:
 
 func _free_moon(fixture: Dictionary) -> void:
 	var holder: Node = fixture.get("holder")
-	if holder != null:
-		holder.queue_free()
+	if holder == null:
+		return
+	if holder.get_parent() != null:
+		holder.get_parent().remove_child(holder)
+	holder.free()
 
 
 func _test_shadow_distance_scales_with_maze() -> int:

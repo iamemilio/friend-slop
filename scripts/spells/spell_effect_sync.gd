@@ -945,4 +945,7 @@ static func _apply_light_ball(player: CharacterBody3D, params: Dictionary) -> vo
 
 static func _fireball_origin_plausible(params: Dictionary, player: CharacterBody3D) -> bool:
 	var origin := coerce_vector3(params.get(KEY_ORIGIN, Vector3.ZERO))
-	return player.global_position.distance_squared_to(origin) <= 9.0
+	var player_pos := (
+		player.global_position if player.is_inside_tree() else player.position
+	)
+	return player_pos.distance_squared_to(origin) <= 9.0

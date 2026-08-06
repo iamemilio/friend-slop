@@ -49,6 +49,30 @@ func run() -> int:
 	return failures
 
 
+func _scene_root() -> Node:
+	var loop := Engine.get_main_loop()
+	if loop is SceneTree:
+		return (loop as SceneTree).root
+	return null
+
+
+func _make_world_root() -> Node3D:
+	## Attach under the live engine tree so Node3D global transforms work.
+	var root := Node3D.new()
+	var tree_root := _scene_root()
+	if tree_root != null:
+		tree_root.add_child(root)
+	return root
+
+
+func _free_world_root(root: Node) -> void:
+	if root == null:
+		return
+	if root.get_parent() != null:
+		root.get_parent().remove_child(root)
+	root.free()
+
+
 func _make_tracking_player() -> _EffectTrackingPlayer:
 	var player := _EffectTrackingPlayer.new()
 	var head := Node3D.new()
@@ -57,8 +81,8 @@ func _make_tracking_player() -> _EffectTrackingPlayer:
 	pivot.name = "CameraPivot"
 	head.add_child(pivot)
 	player.add_child(head)
-	player.global_transform = Transform3D(Basis.IDENTITY, Vector3(1.0, 2.0, 3.0))
-	pivot.global_transform = Transform3D(Basis.IDENTITY, Vector3(1.0, 2.5, 4.0))
+	player.position = Vector3(1.0, 2.0, 3.0)
+	pivot.position = Vector3(0.0, 0.5, 1.0)
 	return player
 
 
@@ -129,15 +153,11 @@ func _test_all_spells_are_supported() -> int:
 
 
 func _test_build_fireball_params() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
+	var root := _make_world_root()
 	var player := _make_player_stub()
 	root.add_child(player)
 	var params := SyncScript.build_params(FireballSpell, player)
-	player.queue_free()
-	root.queue_free()
-	tree.free()
+	_free_world_root(root)
 	if str(params.get(SyncScript.KEY_EFFECT_ID, "")) != SyncScript.EFFECT_FIREBALL:
 		push_error("Expected fireball effect id in params")
 		return 1
@@ -174,10 +194,7 @@ func _test_build_light_params() -> int:
 
 
 func _test_fireball_params_spawn_projectile() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
-
+	var root := _make_world_root()
 	var player := _make_player_stub()
 	root.add_child(player)
 
@@ -189,10 +206,7 @@ func _test_fireball_params_spawn_projectile() -> int:
 	SyncScript.apply(player, params)
 
 	var projectile_count := _count_fireball_projectiles(root)
-
-	player.queue_free()
-	root.queue_free()
-	tree.free()
+	_free_world_root(root)
 
 	if projectile_count != 1:
 		push_error("Expected synced fireball params to spawn one projectile")
@@ -233,10 +247,7 @@ func _test_fireball_network_round_trip() -> int:
 
 
 func _test_fireball_wire_params_spawn_projectile() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
-
+	var root := _make_world_root()
 	var player := _make_player_stub()
 	root.add_child(player)
 
@@ -248,10 +259,7 @@ func _test_fireball_wire_params_spawn_projectile() -> int:
 	SyncScript.apply(player, SyncScript.resolve_network_params(FireballSpell, player, wire))
 
 	var projectile_count := _count_fireball_projectiles(root)
-
-	player.queue_free()
-	root.queue_free()
-	tree.free()
+	_free_world_root(root)
 
 	if projectile_count != 1:
 		push_error("Expected wire-format fireball params to spawn one projectile")
@@ -535,10 +543,7 @@ func _test_flare_is_supported() -> int:
 
 
 func _test_flare_params_spawn_projectile() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
-
+	var root := _make_world_root()
 	var player := _make_player_stub()
 	root.add_child(player)
 
@@ -551,9 +556,7 @@ func _test_flare_params_spawn_projectile() -> int:
 	SyncScript.apply(player, params)
 
 	var projectile_count := _count_flare_projectiles(root)
-	player.queue_free()
-	root.queue_free()
-	tree.free()
+	_free_world_root(root)
 
 	if projectile_count != 1:
 		push_error("Expected synced flare params to spawn one projectile")
@@ -562,10 +565,7 @@ func _test_flare_params_spawn_projectile() -> int:
 
 
 func _test_flare_wire_params_spawn_projectile() -> int:
-	var tree := SceneTree.new()
-	var root := Node3D.new()
-	tree.root.add_child(root)
-
+	var root := _make_world_root()
 	var player := _make_player_stub()
 	root.add_child(player)
 
@@ -580,9 +580,7 @@ func _test_flare_wire_params_spawn_projectile() -> int:
 	SyncScript.apply(player, resolved)
 
 	var projectile_count := _count_flare_projectiles(root)
-	player.queue_free()
-	root.queue_free()
-	tree.free()
+	_free_world_root(root)
 
 	if projectile_count != 1:
 		push_error("Expected wire-format flare params to spawn one projectile on peers")
