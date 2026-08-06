@@ -286,11 +286,25 @@ func spawn_player_for_peer(
 
 	var player := _instantiate_player_for_peer(peer_id)
 	player.name = str(peer_id)
-	players_root.add_child(player, true)
-	# Set authority after enter-tree so recursive authority sticks on Head/voice children.
+	# Authority must be set before enter-tree: PlayableCharacter._ready() decides
+	# camera ownership from is_multiplayer_authority(), and MultiplayerSynchronizer
+	# registers against the authority it sees when it enters the tree. Assigning it
+	# afterwards let every peer claim the first-person view of every body.
 	player.set_multiplayer_authority(peer_id)
+	players_root.add_child(player, true)
 	player.initialize_player(get_player_index_for_peer(peer_id))
-	if peer_id == multiplayer.get_unique_id():
+	var is_local := peer_id == multiplayer.get_unique_id()
+	TomeDebug.log(
+		"NetworkManager",
+		"spawned peer=%d role=%s authority=%d local=%s"
+		% [
+			peer_id,
+			RoleAssignment.role_label(GameState.get_role_for_peer(peer_id)),
+			player.get_multiplayer_authority(),
+			is_local,
+		]
+	)
+	if is_local:
 		configure_local_player.call(player)
 
 

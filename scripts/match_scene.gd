@@ -272,6 +272,8 @@ func _on_peer_connected(peer_id: int) -> void:
 		players_root,
 		_configure_local_player
 	)
+	if _maze_layout_ready and _players_spawned:
+		call_deferred("_place_late_player", peer_id)
 
 
 func _on_quit_to_menu() -> void:
@@ -297,10 +299,7 @@ func _finish_match_layout() -> void:
 	if not _maze_layout_ready or not _players_spawned:
 		return
 
-	var players: Array[CharacterBody3D] = []
-	for child in players_root.get_children():
-		if child is CharacterBody3D:
-			players.append(child)
+	var players := _collect_player_bodies()
 	if players.is_empty():
 		return
 
@@ -343,7 +342,23 @@ func _finish_match_layout() -> void:
 	)
 
 
+func _collect_player_bodies() -> Array[CharacterBody3D]:
+	var players: Array[CharacterBody3D] = []
+	for child in players_root.get_children():
+		if child is CharacterBody3D:
+			players.append(child)
+	return players
+
+
 func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
+	var positions := _compute_spawn_positions(players)
+	for player in players:
+		_apply_spawn_position(player, positions)
+
+
+## peer_id -> spawn position. Every peer resolves this identically from authored
+## slots plus replicated roles/teams, so no spawn data crosses the network.
+func _compute_spawn_positions(players: Array[CharacterBody3D]) -> Dictionary:
 	var headmaster_slot: PlayerSpawnSlot = null
 	var apprentice_slots: Array[PlayerSpawnSlot] = []
 	for child in players_root.get_children():
@@ -358,30 +373,65 @@ func _place_players_at_spawn_slots(players: Array[CharacterBody3D]) -> void:
 		return a.spawn_slot_index < b.spawn_slot_index
 	)
 
+	var positions: Dictionary = {}
 	var by_team: Dictionary = {}
 	for player in players:
 		var peer_id := _peer_id_for_player_node(player)
 		if GameState.get_role_for_peer(peer_id) == GameState.PlayerRole.HEADMASTER:
-			if headmaster_slot != null:
-				player.global_position = headmaster_slot.get_spawn_world_position()
-			player.velocity = Vector3.ZERO
+			if headmaster_slot == null:
+				push_warning(
+					"Match: no headmaster spawn slot — peer %d keeps its scene pose" % peer_id
+				)
+				continue
+			positions[peer_id] = headmaster_slot.get_spawn_world_position()
 			continue
 		var team_id := GameState.get_team_for_peer(peer_id)
 		if not by_team.has(team_id):
 			by_team[team_id] = []
-		by_team[team_id].append(player)
+		by_team[team_id].append(peer_id)
 
 	for team_id in by_team:
 		var mates: Array = by_team[team_id]
 		var slot := _apprentice_slot_for_team(apprentice_slots, int(team_id))
 		if slot == null:
+			push_warning(
+				"Match: no apprentice slot for team %d — %d peer(s) keep their scene pose"
+				% [int(team_id), mates.size()]
+			)
 			continue
 		var origin := slot.get_spawn_world_position()
 		var offsets := PlayerSpawnLayoutScript.teammate_offsets(mates.size())
 		for i in mates.size():
-			var mate: CharacterBody3D = mates[i]
-			mate.global_position = origin + offsets[i]
-			mate.velocity = Vector3.ZERO
+			positions[int(mates[i])] = origin + offsets[i]
+	return positions
+
+
+func _apply_spawn_position(player: CharacterBody3D, positions: Dictionary) -> void:
+	var peer_id := _peer_id_for_player_node(player)
+	if not positions.has(peer_id):
+		return
+	player.global_position = positions[peer_id]
+	player.velocity = Vector3.ZERO
+	TomeDebug.log(
+		"Match",
+		"spawn peer=%d role=%s team=%d authority=%d pos=%s"
+		% [
+			peer_id,
+			RoleAssignment.role_label(GameState.get_role_for_peer(peer_id)),
+			GameState.get_team_for_peer(peer_id),
+			player.get_multiplayer_authority(),
+			str(player.global_position),
+		]
+	)
+
+
+## A peer that arrives after the initial layout would otherwise stay at the scene
+## origin, stacked on whoever else spawned there.
+func _place_late_player(peer_id: int) -> void:
+	var player := players_root.get_node_or_null(str(peer_id)) as CharacterBody3D
+	if player == null:
+		return
+	_apply_spawn_position(player, _compute_spawn_positions(_collect_player_bodies()))
 
 
 func _apprentice_slot_for_team(

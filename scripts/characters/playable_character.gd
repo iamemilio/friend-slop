@@ -127,11 +127,22 @@ func _exit_tree() -> void:
 
 
 func _setup_view_camera() -> void:
-	if _uses_local_view():
+	var local_view := _uses_local_view()
+	if local_view:
 		_view_camera.current = true
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	else:
 		_view_camera.queue_free()
+	TomeDebug.log(
+		"PlayableCharacter",
+		"'%s' view=%s authority=%d local_peer=%d"
+		% [
+			name,
+			"local" if local_view else "remote",
+			get_multiplayer_authority(),
+			multiplayer.get_unique_id() if multiplayer.has_multiplayer_peer() else 0,
+		]
+	)
 
 
 func _uses_local_view() -> bool:
