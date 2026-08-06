@@ -206,10 +206,12 @@ func _test_broker_exposes_ensure_mic_live() -> int:
 
 func _test_settings_uses_broker_only() -> int:
 	var path := "res://scripts/settings_manager.gd"
-	var src := FileAccess.get_file_as_string(path)
-	if src.is_empty():
+	var raw := FileAccess.get_file_as_string(path)
+	if raw.is_empty():
 		push_error("Could not read %s" % path)
 		return 1
+	## Ignore ## / # comments — docs may name AudioStreamMicrophone without owning one.
+	var src := _code_without_line_comments(raw)
 	var err := ""
 	if src.find("AudioStreamMicrophone") >= 0:
 		err = "SettingsManager must not open its own AudioStreamMicrophone"
@@ -223,15 +225,28 @@ func _test_settings_uses_broker_only() -> int:
 		err = "SettingsManager must persist hear_myself"
 	elif src.find("set_input_device_from_settings") < 0:
 		err = "SettingsManager must hand the settings device to the broker"
-	elif src.find("AudioServer.get_input_device() != device") < 0:
+	elif src.find("func _set_driver_input_device") < 0:
+		err = "SettingsManager must route input changes through _set_driver_input_device"
+	elif src.find("AudioServer.get_input_device() == device") < 0:
 		err = (
 			"SettingsManager must only call set_input_device on a real change — "
-			+ "reinitialising input silences a live mic stream"
+			+ "reinitialising input silences a live mic capture stream"
 		)
 	if not err.is_empty():
 		push_error(err)
 		return 1
 	return 0
+
+
+func _code_without_line_comments(src: String) -> String:
+	var out := PackedStringArray()
+	for line in src.split("\n"):
+		var cut := line.find("#")
+		if cut >= 0:
+			out.append(line.substr(0, cut))
+		else:
+			out.append(line)
+	return "\n".join(out)
 
 
 ## Closing and reopening the capture client in one frame lets the outgoing
