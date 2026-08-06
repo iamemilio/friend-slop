@@ -76,6 +76,11 @@ static func resolve_state(current: State, has_chase_target: bool) -> State:
 	return current
 
 
+## Eyes are a chase-only tell — hidden in IDLE/PATROL.
+static func chase_eyes_visible(state: State) -> bool:
+	return state == State.CHASE
+
+
 static func random_patrol_point(
 	origin: Vector3, radius: float, angle_rad: float, dist_factor: float
 ) -> Vector3:

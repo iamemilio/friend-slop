@@ -168,8 +168,10 @@ func _spawn_monster(entry: Dictionary, world_pos: Vector3) -> void:
 	parent.add_child(monster)
 	if monster is Node3D:
 		(monster as Node3D).global_position = world_pos
-	if monster.has_method("apply_summon_appearance") and entry.has("tint"):
-		monster.call("apply_summon_appearance", entry["tint"])
+	if monster.has_method("apply_summon_appearance"):
+		var tint: Color = entry.get("tint", Color.WHITE)
+		var eye_glow: Color = entry.get("eye_glow_color", Color(0.2, 0.55, 1.0, 1.0))
+		monster.call("apply_summon_appearance", tint, eye_glow)
 
 
 func _monster_parent() -> Node:

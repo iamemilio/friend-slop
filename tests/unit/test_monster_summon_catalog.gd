@@ -8,6 +8,7 @@ func run() -> int:
 	var failures := 0
 	failures += _test_has_pages()
 	failures += _test_entry_fields()
+	failures += _test_eye_glow_colors_by_id()
 	return failures
 
 
@@ -26,4 +27,28 @@ func _test_entry_fields() -> int:
 	if str(entry.get("scene_path", "")).is_empty():
 		push_error("Expected scene_path on catalog entry")
 		return 1
+	if not (entry.get("eye_glow_color") is Color):
+		push_error("Expected eye_glow_color Color on catalog entry")
+		return 1
+	return 0
+
+
+func _test_eye_glow_colors_by_id() -> int:
+	var by_id := {}
+	for entry in CatalogScript.entries():
+		by_id[str(entry.get("id", ""))] = entry.get("eye_glow_color")
+	var expected := {
+		"wretch": Color(0.2, 0.55, 1.0, 1.0),
+		"ash_wretch": Color(0.25, 1.0, 0.35, 1.0),
+		"ember_wretch": Color(1.0, 0.12, 0.08, 1.0),
+	}
+	for id in expected:
+		if not by_id.has(id):
+			push_error("Missing summon entry %s" % id)
+			return 1
+		var got: Color = by_id[id]
+		var want: Color = expected[id]
+		if not got.is_equal_approx(want):
+			push_error("Unexpected eye_glow_color for %s: %s" % [id, got])
+			return 1
 	return 0

@@ -9,6 +9,7 @@ func run() -> int:
 	failures += _test_health_clamp_and_death()
 	failures += _test_pick_nearest_target()
 	failures += _test_resolve_state()
+	failures += _test_chase_eyes_visible()
 	failures += _test_patrol_and_velocity_helpers()
 	failures += _test_proximity_and_prefer_interest()
 	return failures
@@ -68,6 +69,19 @@ func _test_resolve_state() -> int:
 		return 1
 	if MonsterAIScript.resolve_state(chase, false) != idle:
 		push_error("Expected chase to drop to idle when target lost")
+		return 1
+	return 0
+
+
+func _test_chase_eyes_visible() -> int:
+	if MonsterAIScript.chase_eyes_visible(MonsterAIScript.State.IDLE):
+		push_error("Expected eyes hidden while idle")
+		return 1
+	if MonsterAIScript.chase_eyes_visible(MonsterAIScript.State.PATROL):
+		push_error("Expected eyes hidden while patrolling")
+		return 1
+	if not MonsterAIScript.chase_eyes_visible(MonsterAIScript.State.CHASE):
+		push_error("Expected eyes visible while chasing")
 		return 1
 	return 0
 
