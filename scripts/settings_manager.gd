@@ -346,9 +346,9 @@ func apply_audio_settings() -> void:
 
 
 ## Reinitialising either device invalidates the WASAPI capture handle held by a
-## live AudioStreamMicrophone, and the stream never recovers on its own. Close it
-## first; the broker reopens on the new device once the driver has settled, so a
-## switch costs a moment of capture rather than the rest of the session.
+## live mic stream, and the stream never recovers on its own. Close it first;
+## the broker reopens on the new device once the driver has settled, so a switch
+## costs a moment of capture rather than the rest of the session.
 func _close_mic_stream_for_device_change(device: String) -> void:
 	var output_changing: bool = (
 		not output_device.is_empty()

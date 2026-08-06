@@ -223,10 +223,10 @@ func _test_settings_uses_broker_only() -> int:
 		err = "SettingsManager must persist hear_myself"
 	elif src.find("set_input_device_from_settings") < 0:
 		err = "SettingsManager must hand the settings device to the broker"
-	elif src.find("AudioServer.get_input_device() != capture_device") < 0:
+	elif src.find("AudioServer.get_input_device() != device") < 0:
 		err = (
 			"SettingsManager must only call set_input_device on a real change — "
-			+ "reinitialising input silences a live AudioStreamMicrophone"
+			+ "reinitialising input silences a live mic stream"
 		)
 	if not err.is_empty():
 		push_error(err)
