@@ -31,7 +31,6 @@
 [ext_resource type="Resource" uid="uid://c300xtr2mgchs" path="res://resources/spells/flare.tres" id="33_flare"]
 [ext_resource type="Resource" uid="uid://uuo4bgv3b66" path="res://resources/spells/stop.tres" id="34_stop"]
 [ext_resource type="Resource" uid="uid://djudlmjak0msk" path="res://resources/spells/ward.tres" id="35_ward"]
-[ext_resource type="Script" uid="uid://pquoonr1bsqc" path="res://scripts/voice/match_proximity_voice.gd" id="36_prox_voice"]
 
 [sub_resource type="Environment" id="Environment_main"]
 background_mode = 1
@@ -95,9 +94,6 @@ script = ExtResource("10_validator")
 
 [node name="SpellValidationRunner" type="Node" parent="VoiceSpellValidator" unique_id=1629603056]
 script = ExtResource("11_runner")
-
-[node name="ProximityVoice" type="Node" parent="." unique_id=747476850]
-script = ExtResource("36_prox_voice")
 
 [node name="DeliveryObjective" type="Node3D" parent="." unique_id=747476849]
 script = ExtResource("10_objective")

@@ -48,6 +48,7 @@ const ALWAYS_LOG_EVENTS: Array[String] = [
 	"first_recv",
 	"remote_added",
 	"proximity",
+	"anchor",
 ]
 
 @export var debug_logging: bool = false
@@ -178,22 +179,24 @@ func set_peer_anchor(steam_id: int, anchor: Node3D) -> void:
 	if _anchor_by_steam_id.get(steam_id) == anchor:
 		return
 	_anchor_by_steam_id[steam_id] = anchor
+	var spatial := _wants_spatial(steam_id)
 	## Rebuild only when the peer is currently mixed the wrong way.
-	if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node) != _wants_spatial(steam_id):
+	if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node) != spatial:
 		_drop_peer_player(steam_id)
+	_emit_log(
+		"anchor",
+		"steam_id=%d node='%s' spatial=%s"
+		% [steam_id, anchor.name if anchor != null else "<none>", spatial]
+	)
 
 
-func clear_peer_anchor(steam_id: int) -> void:
-	if not _anchor_by_steam_id.has(steam_id):
-		return
-	_anchor_by_steam_id.erase(steam_id)
-	if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node):
-		_drop_peer_player(steam_id)
-
-
+## Match teardown: every peer drops back to flat playback.
 func clear_peer_anchors() -> void:
-	for steam_id in _anchor_by_steam_id.keys():
-		clear_peer_anchor(int(steam_id))
+	for key in _anchor_by_steam_id.keys():
+		var steam_id := int(key)
+		if _is_spatial_player(_player_by_steam_id.get(steam_id) as Node):
+			_drop_peer_player(steam_id)
+	_anchor_by_steam_id.clear()
 
 
 func is_local_speaking(timeout_ms: int = SPEAKING_TIMEOUT_MSEC) -> bool:
@@ -423,14 +426,13 @@ func _configure_spatial_player(player: AudioStreamPlayer3D, steam_id: int) -> vo
 	player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
 	player.doppler_tracking = AudioStreamPlayer3D.DOPPLER_TRACKING_DISABLED
 	player.max_distance = 0.0
+	## Start silent so a distant peer cannot pop in at full volume. Playback is
+	## created from _receive_and_play(), and _update_spatial_peers() runs later in
+	## that same _process, so the real level lands before anything is heard.
+	player.volume_db = MUTED_DB
 	var anchor := _anchor_by_steam_id.get(steam_id) as Node3D
-	if anchor == null or not is_instance_valid(anchor) or not anchor.is_inside_tree():
-		return
-	## Place and level it before the first frame so a distant peer never pops in loud.
-	player.global_position = anchor.global_position
-	player.volume_db = _spatial_volume_db(
-		steam_id, anchor.global_position.distance_to(_listener_position())
-	)
+	if anchor != null and is_instance_valid(anchor) and anchor.is_inside_tree():
+		player.global_position = anchor.global_position
 
 
 ## Anchored peers pan and attenuate; everyone else stays flat so lobby chat (no
@@ -449,7 +451,10 @@ func _is_spatial_player(player: Node) -> bool:
 func _update_spatial_peers() -> void:
 	if not is_proximity_active():
 		return
-	var listener := _listener_position()
+	var camera := _listener_camera()
+	if camera == null:
+		return
+	var listener := camera.global_position
 	for key in _player_by_steam_id.keys():
 		var steam_id := int(key)
 		var player := _player_by_steam_id.get(steam_id) as AudioStreamPlayer3D
@@ -464,13 +469,11 @@ func _update_spatial_peers() -> void:
 
 
 ## The Camera3D is Godot's audio listener, so measuring from it keeps our volume
-## curve and Godot's panning agreed on where the local player is.
-func _listener_position() -> Vector3:
+## curve and Godot's panning agreed on where the local player is. Null means 3D
+## audio cannot be mixed at all (no listener), so callers skip the update.
+func _listener_camera() -> Camera3D:
 	var viewport := get_viewport()
-	if viewport == null:
-		return Vector3.ZERO
-	var camera := viewport.get_camera_3d()
-	return camera.global_position if camera != null else Vector3.ZERO
+	return viewport.get_camera_3d() if viewport != null else null
 
 
 func _flat_volume_db(steam_id: int) -> float:
@@ -482,8 +485,7 @@ func _flat_volume_db(steam_id: int) -> float:
 func _spatial_volume_db(steam_id: int, distance_m: float) -> float:
 	if is_peer_muted(steam_id):
 		return MUTED_DB
-	if not bool(_proximity.call("is_audible_at", distance_m)):
-		return MUTED_DB
+	## The curve already floors to silence past max_range_m, so that is the cull.
 	var falloff_db := float(_proximity.call("volume_db_for_distance", distance_m))
 	return falloff_db + linear_to_db(maxf(get_peer_volume(steam_id), 0.0001))
 
@@ -513,6 +515,7 @@ func _prune_stale_peers() -> void:
 			stale.append(int(steam_id))
 	for steam_id in stale:
 		_drop_peer_player(steam_id)
+		_anchor_by_steam_id.erase(steam_id)
 		_last_remote_speak_msec.erase(steam_id)
 
 

@@ -31,9 +31,6 @@ func _test_full_volume_inside_radius() -> int:
 				% [prox.max_volume_db, float(distance), db]
 			)
 			return 1
-		if not prox.is_audible_at(float(distance)):
-			push_error("Peer at %.1fm must be audible" % float(distance))
-			return 1
 	return 0
 
 
@@ -56,15 +53,14 @@ func _test_falloff_between_radii() -> int:
 	return 0
 
 
+## Culling is the curve's job: max_range_m and beyond must floor to silence.
 func _test_silent_past_max_range() -> int:
 	var prox := _settings()
-	if prox.is_audible_at(prox.max_range_m):
-		push_error("Peer at max_range_m must be culled")
-		return 1
-	var db := prox.volume_db_for_distance(prox.max_range_m + 5.0)
-	if not is_equal_approx(db, ProximityChatSettingsScript.SILENT_DB):
-		push_error("Expected silence past max range, got %.1f dB" % db)
-		return 1
+	for distance in [prox.max_range_m, prox.max_range_m + 5.0]:
+		var db := prox.volume_db_for_distance(distance)
+		if not is_equal_approx(db, ProximityChatSettingsScript.SILENT_DB):
+			push_error("Expected silence at %.1fm, got %.1f dB" % [distance, db])
+			return 1
 	return 0
 
 
@@ -91,9 +87,9 @@ func _test_spatial_requires_proximity_and_anchor() -> int:
 				push_error("A peer with no anchor must stay flat")
 				failures = 1
 			else:
-				chat.call("clear_peer_anchor", REMOTE_STEAM_ID)
+				chat.call("clear_peer_anchors")
 				if bool(chat.call("_wants_spatial", REMOTE_STEAM_ID)):
-					push_error("Clearing the anchor must return the peer to flat playback")
+					push_error("Clearing anchors must return peers to flat playback")
 					failures = 1
 
 	anchor.free()

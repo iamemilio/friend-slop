@@ -52,11 +52,6 @@ func volume_db_for_distance(distance_m: float) -> float:
 	return lerpf(max_volume_db, min_volume_db, clampf(t, 0.0, 1.0))
 
 
-## False past [member max_range_m], where the peer should stop being mixed.
-func is_audible_at(distance_m: float) -> bool:
-	return distance_m < max_range_m
-
-
 func _validate_property(property: Dictionary) -> void:
 	## Hide tunables while proximity is off so the Inspector only shows the toggle.
 	if not enabled and property.name in [

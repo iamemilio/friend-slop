@@ -150,6 +150,18 @@ func set_peer_volume(peer_id: int, linear: float) -> void:
 		app.call("set_peer_volume", peer_id, linear)
 
 
+## World node this peer's voice emits from — their character body during a match.
+## Only anchored peers get proximity falloff; the local peer is the listener, not
+## an emitter, so it is skipped.
+func set_peer_anchor(peer_id: int, anchor: Node3D) -> void:
+	var steam_id := resolve_steam_id_for_peer(peer_id)
+	if steam_id == 0 or steam_id == SteamService.get_steam_id():
+		return
+	var session := _active_voice_session()
+	if session != null:
+		session.call("set_peer_anchor", steam_id, anchor)
+
+
 func set_debug_logging(enabled: bool) -> void:
 	var app := _app()
 	if app != null:

@@ -129,11 +129,6 @@ func set_peer_anchor(steam_id: int, anchor: Node3D) -> void:
 		_engine.call("set_peer_anchor", steam_id, anchor)
 
 
-func clear_peer_anchor(steam_id: int) -> void:
-	if _engine != null:
-		_engine.call("clear_peer_anchor", steam_id)
-
-
 func get_authored_listeners() -> Array[MicCaptureListener]:
 	var out: Array[MicCaptureListener] = []
 	var root := get_node_or_null("Listeners")
