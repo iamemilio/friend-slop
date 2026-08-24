@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -20,7 +18,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from check_gdscript_warnings import run_warning_probe  # noqa: E402
 from restore_extensions import find_godot_binary, sync_extensions  # noqa: E402
-VERSIONS_ENV = ROOT / "tools" / "versions.env"
 LINT_PATHS = ("scripts", "tests")
 ## Calls that write a theme override, and so re-emit NOTIFICATION_THEME_CHANGED.
 UI_OVERRIDE_WRITE_MARKERS = ("add_theme_", "remove_theme_", "UiPalette.paint_")
@@ -132,57 +129,6 @@ def _normalize_test_exit(returncode: int, stdout: str, stderr: str) -> int:
     if "test(s) failed." in combined or "  FAIL:" in combined:
         return 1
     return returncode
-
-
-def _read_versions_env(key: str) -> str:
-    if not VERSIONS_ENV.exists():
-        return ""
-    for line in VERSIONS_ENV.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#") or "=" not in stripped:
-            continue
-        line_key, value = stripped.split("=", 1)
-        if line_key.strip() == key:
-            return value.strip()
-    return ""
-
-
-def _resolve_godot_executable(candidate: Path) -> Path | None:
-    if candidate.is_file():
-        return candidate
-    if candidate.suffix.lower() == ".exe":
-        console = candidate.with_name(f"{candidate.stem}_console{candidate.suffix}")
-        if console.is_file():
-            return console
-    return None
-
-
-def _find_godot() -> Path | None:
-    env_path = os.environ.get("GODOT_PATH", "").strip()
-    if env_path:
-        resolved = _resolve_godot_executable(Path(env_path))
-        if resolved is not None:
-            return resolved
-
-    pinned_win = _read_versions_env("GODOT_EDITOR_WIN")
-    if pinned_win:
-        resolved = _resolve_godot_executable(Path(pinned_win))
-        if resolved is not None:
-            return resolved
-
-    settings_path = ROOT / ".vscode" / "settings.json"
-    if settings_path.exists():
-        data = json.loads(settings_path.read_text(encoding="utf-8"))
-        editor_path = data.get("godotTools.editorPath", "")
-        if editor_path:
-            resolved = _resolve_godot_executable(Path(str(editor_path)))
-            if resolved is not None:
-                return resolved
-
-    which_godot = shutil.which("godot")
-    if which_godot:
-        return Path(which_godot)
-    return None
 
 
 def _venv_scripts_dir() -> Path | None:
@@ -346,7 +292,7 @@ def _kill_process_tree(pid: int) -> None:
 
 
 def _godot_editor_running() -> bool:
-    godot = _find_godot()
+    godot = find_godot_binary()
     names: set[str] = {"godot", "godot.exe"}
     if godot is not None:
         names.add(godot.name.lower())
@@ -390,11 +336,12 @@ def run_tests() -> tuple[int, str]:
         output_lines.append(manifest_issue)
         return 1, "\n".join(output_lines)
 
-    godot = _find_godot()
+    godot = find_godot_binary()
     if godot is None:
         message = (
             "Godot executable not found. Set GODOT_PATH, GODOT_EDITOR_WIN in "
-            "tools/versions.env, or godotTools.editorPath in .vscode/settings.json"
+            "tools/versions.env, godotTools.editorPath in .vscode/settings.json, "
+            "or run: make setup-godot"
         )
         output_lines.append(message)
         return 1, "\n".join(output_lines)
